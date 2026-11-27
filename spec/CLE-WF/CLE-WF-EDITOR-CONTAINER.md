@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR-CONTAINER"
 title: "워크플로우 에디터 — 컨테이너 편집"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-EDITOR"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-EDITOR"]
 area: "CLE-WF"
-content_hash: "cda53009d71ec3bea9ec0bcff8f8a0d55773fa6135862d822cee881db5b4412c"
+content_hash: "f11a32d786d51aa1fe8272341a212af7cab1de6404eba8e5d85c4e5e01ff2077"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "2d93ec5c9ab2356fd35a0ba07c04305c11a9d74dcebffea7edb3a2a0053a16b4"
-etag: "sha256-2fb08e288ad887b4662e5098ffa1a663054a712baa602737ff31339dfc1b3e82"
+mirror_sha256: "91048e7b1f32d36075a6f432dd0007f487df83f11ec766f715bcf1e9111a66d5"
+etag: "sha256-9bd0996b46410dead11f569d5856ecffe4d50ec8237f5bc90a2ca64fdc02da73"
 ---
 ## 개요
 
@@ -114,7 +114,9 @@ AI 에이전트 노드 옆에 노드를 놓아 도구로 등록하던 도구 영
 
 ## Rationale
 
-### R-4. 컨테이너 중첩에는 깊이 제한과 레벨별 배경 틴트를 두지 않는다 (2026-07-08)
+### R-4. 컨테이너 중첩에는 깊이 제한과 레벨별 배경 틴트를 두지 않는다
+
+결정일: 2026-07-08
 
 컨테이너 중첩에 대해 (a) 최대 깊이 3단계 제한과 초과 토스트, (b) 중첩 레벨별 배경 틴트(L1 5%, L2 10%, L3 15%)를 "미구현(계획)" 으로 두었던 것을 **버리고 앞으로도 구현하지 않기로 확정했다**(사용자 결정, 2026-07-08). 중첩 기능 자체는 유지한다. 버린 것은 미구현으로 남아 있던 캔버스 UX 다듬기뿐이다.
 

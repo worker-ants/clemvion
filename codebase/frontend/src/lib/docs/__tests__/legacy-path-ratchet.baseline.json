@@ -338,7 +338,7 @@
     "codebase/backend/src/nodes/ai/text-classifier/text-classifier.schema.ts": 5,
     "codebase/backend/src/nodes/ai/text-classifier/text-classifier.thread.spec.ts": 1,
     "codebase/backend/src/nodes/core/error-codes.spec.ts": 1,
-    "codebase/backend/src/nodes/core/error-codes.ts": 8,
+    "codebase/backend/src/nodes/core/error-codes.ts": 6,
     "codebase/backend/src/nodes/core/graph-warning-rule.ts": 2,
     "codebase/backend/src/nodes/core/node-component.interface.ts": 7,
     "codebase/backend/src/nodes/core/node-handler.interface.ts": 18,

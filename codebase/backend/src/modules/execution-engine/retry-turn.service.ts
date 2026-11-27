@@ -949,6 +949,9 @@ export class RetryTurnService {
    * 같은 4단계(로그 · status · error · finishedAt + save)를 문자 그대로 반복하고
    * 있었다. 한쪽만 고치면 다른 쪽이 조용히 갈린다.
    *
+   * 이름이 비슷한 `ExecutionEngineService.markSpawnedRowFailedOnPublishError` 와는 다른
+   * 함수다. 그쪽은 다른 클래스에 있고 WS publish 실패 뒤 gateway 가 부르는 보상 경로다.
+   *
    * @param spawnedRow 마감 대상 — 이 함수가 `status`/`error`/`finishedAt` 을 in-place 로
    *   변이한 뒤 저장한다.
    * @param logContext 로그에 실을 사유. `— marking spawned row FAILED to avoid zombie`

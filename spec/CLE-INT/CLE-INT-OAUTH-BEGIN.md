@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-BEGIN"
 title: "OAuth 연결과 토큰 갱신 — 연결 시작(begin)"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "919d9318425031068dabb5f1346b103b5fd174817a0d79da061100a09643a1cb"
+content_hash: "6bb7f66445c853747a8bdf902b5d9c65603a4b3f0ea20811126792e25566e6bc"
 read_as: "approved_fallback"
-task: "CLE-T-81270P"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "de82b3a1beea509656dff9e7dbdfbcaa5f523991c75021aa4defd63837cb527d"
-etag: "sha256-bb07d9b8ed800a1862e50586e1aad5f1be15a42ee2a54ae5c89b71522329dad5"
+mirror_sha256: "7a71003e60f641bb0e97e38184cbeb481b5b50747f67b306b188a95af9cd7f9b"
+etag: "sha256-5eb3c906b4f1c6b0276ba542a0ab269cc2f3dc6bab045cfcca8da0d78d07a1d6"
 ---
 ## 개요
 
@@ -40,7 +40,7 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 
 ### `oauth/begin` 요청과 응답
 
-본문은 `{ service, scopes[], mode, integrationId?, integrationName?, scope? }` 이고 서비스에 따라 필드를 더한다. `integrationName`·`scope` 는 `new` 모드에서 만들 통합의 표시 이름과 공개 범위(`personal`·`organization`, 생략하면 `personal`)다(`OAuthBeginDto`). 이 `scope` 는 공개 범위이고 OAuth 권한 범위 `scopes[]` 와 관계없다. 요청 본문 필드 표기는 [미결 사항](#미결-사항) 참조.
+본문은 `{ service, scopes[], mode, integrationId?, integrationName?, scope? }` 이고 서비스에 따라 필드를 더한다. `integrationName`·`scope` 는 `new` 모드에서 만들 통합의 표시 이름과 공개 범위(`personal`·`organization`, 생략하면 `personal`)다(`OAuthBeginDto`). 이 `scope` 는 공개 범위이고 OAuth 권한 범위 `scopes[]` 와 관계없다. `integrationId` 는 `new` 가 아닌 모드의 대상 통합이다. `new` 모드에서는 보내도 무시하고 state 에 싣지 않는다. 요청 본문 필드 표기는 [미결 사항](#미결-사항) 참조.
 
 | 서비스 | 더하는 필드 | 응답 |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
   - Private: 연결됨 행이 있으면 같은 코드로 거절한다. `app_type='private'` 인 설치 대기 행이 있으면 새 행을 만들지 않고 그 행을 재사용한다(멱등 begin). 설치 토큰과 발급 시각(`install_token_issued_at`)은 보존한다. 다만 `client_id`·`client_secret` 가운데 하나라도 바뀌었거나 설치 토큰이 없는 옛 행이면 설치 토큰을 새로 발급하고 발급 시각도 그때로 바꾼다. 설치 기한은 그때부터 다시 센다. 재사용은 요청자가 그 행을 바꿀 수 있을 때만 한다. [설치 대기 행 재사용의 권한](CLE-INT-OAUTH-PENDING.md#설치-대기-행-재사용의-권한) 을 따른다. `new` 가 아닌 모드는 이 검사에 닿지 않는다. 자격 증명을 갖춘 요청은 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 먼저 거절되고, `:id/reauthorize`·`:id/request-scopes` 는 begin 전에 서비스가 거절한다([통합 재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청)).
   - 만료됨·오류 행은 begin 의 사전 검사가 막지 않는다. 상점 식별자 UNIQUE(V072)가 마지막 방어로 같은 409 를 낸다. Public 은 최종 생성 단계에서, Private 은 begin 이 설치 대기 행을 만들 때 이 제약에 걸린다. 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 통합은 최대 1행이므로 사용자는 기존 통합을 쓰거나 지우고 다시 등록한다.
     - 설치 기한이 지나 만료된 행(`install_timeout`)은 예외다. 만료할 때 상점 식별자를 비우므로([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)) 이 제약에 걸리지 않는다. 그 행을 지우지 않아도 누구든 그 상점을 다시 등록할 수 있다.
-    - 이름은 놓지 않아 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다([설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
+    - 이름은 놓지 않아 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다([설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다)).
 - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 세 경로에서 같은 코드로 나온다. 첫째는 begin 의 사전 SELECT 다. 연결됨 행만 차단하고 `new` 가 아닌 모드의 대상 통합은 뺀다. 둘째는 Cafe24 Private begin 이 `23505` 뒤 판정을 한 번 더 했는데도 상점 식별자 UNIQUE 에 걸린 경우다([설치 대기 행 재사용의 권한](CLE-INT-OAUTH-PENDING.md#설치-대기-행-재사용의-권한)). 셋째는 `POST /api/integrations` 최종 생성에서 `idx_integration_workspace_service_mall` 위반(`23505`)을 `throwIfUniqueViolation` 이 서비스 유형이 cafe24 인 분기로 바꾼 것이다. 앱 유형과 상관없이 쓴다. 이름의 `PRIVATE` 는 옛 이름이 남은 것이고 뜻은 «같은 상점의 Cafe24 통합이 이미 있다» 다. 클라이언트는 이름이 아니라 이 뜻으로 분기한다(아래 Rationale).
 - `new` 가 아닌 모드(`reauthorize`·`request_scopes`)의 요청은 `integrationId` 의 대상 통합과 맞아야 한다. 본문의 `service` 가 대상 통합의 서비스 유형과 같아야 하고, Cafe24 는 본문의 상점 식별자와 앱 유형도 대상 통합의 `credentials.mall_id`·`credentials.app_type` 과 같아야 한다. 하나라도 다르면 state 를 만들지 않고 400 `OAUTH_TARGET_MISMATCH` 로 거절한다. 그대로 통과시키면 콜백이 다른 서비스나 다른 상점의 토큰을 대상 통합에 쓴다.
   - 판정은 다른 거절을 모두 지난 뒤 state 를 만들기 직전에 한다. 입력 형식(`CAFE24_INVALID_MALL_ID`·`CAFE24_INVALID_APP_TYPE`), 자격 증명과 모드의 거절(`CAFE24_PRIVATE_APP_USE_TEST_RUN`·`MAKESHOP_USE_SHOPSTORE_INSTALL`), `OAUTH_CONFIG_MISSING`, 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED`가 먼저 걸리고 그 코드는 바뀌지 않는다. Cafe24 Private·MakeShop 의 `new` 가 아닌 모드는 이 판정에 닿지 않는다. 본문에 `client_id`·`client_secret` 이 없으면 `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`·`MAKESHOP_CREDENTIALS_REQUIRED` 로, 있으면 그 모드 거절로 먼저 거절된다. 그래서 이 판정에 닿는 것은 Google·GitHub·Cafe24 Public 요청이다.
@@ -93,11 +93,13 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 
 ## Rationale
 
-### `:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다 (2026-10-15)
+### `:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다
+
+결정일: 2026-10-15
 
 Task CLE-T-WB7JPC 에서 정했다. `:id/reauthorize` 가 Cafe24 통합의 상점 식별자와 앱 유형을 begin 에 넘기지 않아 Cafe24 Public 통합 재인증이 400 `CAFE24_INVALID_MALL_ID` 로 거절됐다. 같은 누락이 다시 생기지 않게 두 엔드포인트가 begin 에 넘길 상점 식별자와 앱 유형(`credentials.mall_id`·`credentials.app_type`)을 한 함수에서 만든다. 세 mode 모두 상점 식별자를 `provider_meta` 로 콜백까지 가져간다는 [제공자별 설정](#제공자별-설정) 의 내용을 지킨 것이고 새 결정은 아니다.
 
-begin 이 `integrationId` 의 행에서 두 값을 직접 채우는 안은 기각했다. begin 은 새 연결의 `oauth/begin` 엔드포인트이기도 해서 본문이 두 값의 원천이다. `oauth/begin` 엔드포인트도 `integrationId` 의 행으로 권한을 판정하지만 두 값을 그 행에서 채우지 않는다. 2026-11-06 부터는 본문과 견주는 데만 그 행의 두 값을 읽는다. 행에서 채우게 하면 같은 값의 원천이 본문과 행 둘이 되어 어느 쪽을 믿을지 정해야 한다. `:id/*` 는 `IntegrationsService` 가 행을 이미 읽고 가시성과 관리자 권한을 판정했으므로 거기서 넘기는 편이 단순하다. 직접 `oauth/begin` 이 대상 통합과 다른 상점 식별자를 싣는 경우는 그때 미결 사항에 두었고 2026-11-06 에 거절로 정했다([`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다](#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06)).
+begin 이 `integrationId` 의 행에서 두 값을 직접 채우는 안은 기각했다. begin 은 새 연결의 `oauth/begin` 엔드포인트이기도 해서 본문이 두 값의 원천이다. `oauth/begin` 엔드포인트도 `integrationId` 의 행으로 권한을 판정하지만 두 값을 그 행에서 채우지 않는다. 2026-11-06 부터는 본문과 견주는 데만 그 행의 두 값을 읽는다. 행에서 채우게 하면 같은 값의 원천이 본문과 행 둘이 되어 어느 쪽을 믿을지 정해야 한다. `:id/*` 는 `IntegrationsService` 가 행을 이미 읽고 가시성과 관리자 권한을 판정했으므로 거기서 넘기는 편이 단순하다. 직접 `oauth/begin` 이 대상 통합과 다른 상점 식별자를 싣는 경우는 그때 미결 사항에 두었고 2026-11-06 에 거절로 정했다([`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다](#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다)).
 
 ### Cafe24 Public 흐름에도 begin 사전 검사를 둔다
 
@@ -105,7 +107,7 @@ Public 흐름은 begin 에서 통합 행을 만들지 않아, 상점 식별자 �
 
 - **begin 사전 검사**: Public 분기에도 Private 과 같은 `(workspaceId, mall_id)` 연결됨 행 SELECT 를 더했다. Public 흐름은 `IntegrationOAuthService.findConnectedCafe24MallIntegration` 헬퍼로 찾는다. Private 흐름은 설치 대기 행을 쓰는 `PendingInstallWriter` 가 그 아래층의 같은 상점 행 조회 `findAllCafe24RowsForMall`(`cafe24-store-rows.ts`)을 직접 부른다. 두 흐름은 이 조회 함수를 함께 쓴다.
 - **마지막 방어 확장**: `throwIfUniqueViolation` 이 `idx_integration_workspace_service_mall`(V072) 위반을 서비스 유형별 코드로 바꾼다. 사전 검사를 통과한 뒤의 동시 INSERT 와 최종 생성 시점 충돌도 같은 409 가 된다.
-- **다른 상태를 begin 에서 막지 않는 이유**: 설치 대기는 Private 의 멱등 begin(같은 행을 재사용해 설치 토큰 보존)과 맞아야 한다. Public 은 begin 에서 행을 만들지 않으므로 설치 대기가 있어도 begin 은 영향이 없고 최종 생성에서 UNIQUE 가 막는다. 만료됨·오류는 사용자의 재연결 의도를 반영해 begin 진입은 허용하되, 한 워크스페이스에 같은 상점 통합이 최대 1행이라는 불변식은 최종 생성에서 UNIQUE 가 지킨다(사용자는 기존 행을 먼저 지워야 한다). 결과적으로 연결됨이 아닌 모든 상태의 충돌은 같은 409 로 바뀌어 클라이언트 분기가 하나다. 설치 기한이 지나 만료된 행은 2026-10-29 결정으로 이 설명에서 빠졌다. 만료할 때 상점 식별자를 비우므로 UNIQUE 에 걸리지 않고 지우지 않아도 된다([만료된 설치 대기 행은 상점 자리를 놓는다](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
+- **다른 상태를 begin 에서 막지 않는 이유**: 설치 대기는 Private 의 멱등 begin(같은 행을 재사용해 설치 토큰 보존)과 맞아야 한다. Public 은 begin 에서 행을 만들지 않으므로 설치 대기가 있어도 begin 은 영향이 없고 최종 생성에서 UNIQUE 가 막는다. 만료됨·오류는 사용자의 재연결 의도를 반영해 begin 진입은 허용하되, 한 워크스페이스에 같은 상점 통합이 최대 1행이라는 불변식은 최종 생성에서 UNIQUE 가 지킨다(사용자는 기존 행을 먼저 지워야 한다). 결과적으로 연결됨이 아닌 모든 상태의 충돌은 같은 409 로 바뀌어 클라이언트 분기가 하나다. 설치 기한이 지나 만료된 행은 2026-10-29 결정으로 이 설명에서 빠졌다. 만료할 때 상점 식별자를 비우므로 UNIQUE 에 걸리지 않고 지우지 않아도 된다([만료된 설치 대기 행은 상점 자리를 놓는다](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다)).
 
 **2026-10-15 보완(Task CLE-T-WB7JPC)**: 이 사전 검사는 새 연결을 전제로 만들어 모드를 가리지 않았다. `:id/reauthorize` 가 상점 식별자를 begin 에 넘기게 되자 연결됨 Cafe24 Public 통합의 통합 재인증이 그 통합 자신과 충돌해 409 가 났다. 추가 권한 요청은 2026-05-15 부터 상점 식별자를 넘겨 왔으므로 연결됨 Public 통합에서 이미 같은 409 를 내고 있었다. 그래서 `new` 가 아닌 모드에서는 `integrationId` 의 대상 통합을 중복 검사에서 뺀다. 대상이 아닌 연결됨 행이 있으면 여전히 409 다. 한 워크스페이스에서 같은 상점의 Cafe24 행은 UNIQUE(V072)로 하나뿐이다. 그래서 대상이 아닌 행과 충돌하는 경우는 `mall_id` 컬럼이 비어 `credentials.mall_id` 로 비교하는 전환기의 옛 행 정도다. 대상 제외는 본문의 상점 식별자가 대상 통합의 상점과 같을 때만 효과가 있다. 다른 상점을 실은 요청은 그 상점의 연결됨 행과 비교되어 전과 같다. 사전 검사를 `new` 에만 두는 안은 기각했다. 그 안에서는 대상이 아닌 연결됨 행이 있어도 통합 재인증이 콜백까지 진행된다. 콜백은 대상 행의 자격 증명만 바꾸므로 같은 상점을 가리키는 연결됨 행이 둘 남는다.
 
@@ -123,17 +125,28 @@ Public 흐름에도 이 코드를 쓰면서 `CAFE24_MALL_ALREADY_CONNECTED` 로 
 
 나중에 이 코드를 다른 `mall_id` 충돌(예: 워크스페이스 횡단 정책 변경)과 나눠야 하면 별도 코드를 검토한다.
 
-### `new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다 (2026-11-06)
+### `new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다
+
+결정일: 2026-11-06
 
 `oauth/begin` 은 `new` 가 아닌 모드에서 `integrationId` 의 행으로 권한만 판정하고 본문의 서비스, 상점 식별자, 앱 유형은 그 행과 견주지 않았다. 직접 부르는 클라이언트가 상점 A 의 통합을 가리키고 본문에 상점 B 를 실으면 상점 B 의 연결됨 행이 없는 한 begin 이 통과했고, 콜백이 상점 B 의 토큰을 상점 A 행에 쓸 수 있었다. 서비스 유형도 견주지 않아 GitHub 통합을 가리키고 `service` 에 Google 을 실은 요청도 같은 식으로 통과했다. Cafe24 Private 통합을 가리키고 Public 본문을 실으면 콜백이 그 행의 자격 증명을 Public 앱 토큰으로 바꿨다.
 
-- **본문 값을 무시하고 행 값으로 채우는 안은 기각했다.** 2026-10-15 에 begin 이 행에서 상점 식별자와 앱 유형을 채우는 안을 기각한 근거가 그대로 적용된다([`:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다](#idreauthorizeidrequest-scopes-는-cafe24-상점-식별자와-앱-유형을-같은-함수로-만든다-2026-10-15)). 본문이 두 값의 원천으로 남고 행은 판정에만 쓴다. 다른 값을 말없이 바꿔 쓰면 호출한 쪽은 자기 요청이 틀렸다는 것을 모른다.
+- **본문 값을 무시하고 행 값으로 채우는 안은 기각했다.** 2026-10-15 에 begin 이 행에서 상점 식별자와 앱 유형을 채우는 안을 기각한 근거가 그대로 적용된다([`:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다](#idreauthorizeidrequest-scopes-는-cafe24-상점-식별자와-앱-유형을-같은-함수로-만든다)). 본문이 두 값의 원천으로 남고 행은 판정에만 쓴다. 다른 값을 말없이 바꿔 쓰면 호출한 쪽은 자기 요청이 틀렸다는 것을 모른다.
 - **서비스 유형도 견준다.** 상점 식별자만 견주면 Google·GitHub 처럼 상점이 없는 서비스의 같은 틈이 남는다.
-- **400 과 새 코드 `OAUTH_TARGET_MISMATCH` 로 거절한다.** 요청이 가리킨 대상과 맞지 않는 입력이라 같은 요청을 다시 보내도 결과가 같다. 그래서 400 이다. 대상 행의 상태와 부딪힌 것이 아니므로 409 는 쓰지 않는다. `VALIDATION_ERROR` 도 쓰지 않는다. 그 코드는 본문 형식 검증의 실패라 대상 행과 견준 결과까지 담으면 뜻이 갈린다. 코드 이름과 등재의 근거는 [에러 코드 규약과 카탈로그 「`new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다」](../CLE-API/CLE-API-ERRCODES.md#new-가-아닌-모드의-begin-이-대상-통합과-맞지-않는-요청에-oauth_target_mismatch-를-새로-만들었다-2026-11-06) 에 있다.
+- **400 과 새 코드 `OAUTH_TARGET_MISMATCH` 로 거절한다.** 요청이 가리킨 대상과 맞지 않는 입력이라 같은 요청을 다시 보내도 결과가 같다. 그래서 400 이다. 대상 행의 상태와 부딪힌 것이 아니므로 409 는 쓰지 않는다. `VALIDATION_ERROR` 도 쓰지 않는다. 그 코드는 본문 형식 검증의 실패라 대상 행과 견준 결과까지 담으면 뜻이 갈린다. 코드 이름과 등재의 근거는 [에러 코드 규약과 카탈로그 「`new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다」](../CLE-API/CLE-API-ERRCODES.md#new-가-아닌-모드의-begin-이-대상-통합과-맞지-않는-요청에-oauth_target_mismatch-를-새로-만들었다) 에 있다.
 - **판정은 state 를 만들기 직전에 한다.** 앞선 거절이 내던 코드를 바꾸지 않으려는 것이다. 직접 부르는 클라이언트는 지금 받던 코드를 그대로 받는다. 대상과 다른 상점의 연결됨 행이 있으면 지금처럼 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 다.
 - **견줄 상점 식별자는 `credentials.mall_id` 다.** `:id/reauthorize`·`:id/request-scopes` 가 begin 에 넘기는 값과 원천이 같아 두 진입점의 결과가 갈리지 않는다. 평문 `mall_id` 컬럼은 전환기의 옛 행과 상점 자리를 놓은 만료 행에서 비어 있다.
 - **콜백에서 다시 견주지 않는다.** state 는 이 판정을 지난 요청에만 만들어지고 state 에 담긴 서비스와 `provider_meta` 는 그 뒤 바뀌지 않는다. 대상 행의 서비스 유형, `credentials.mall_id`, `credentials.app_type` 을 바꾸는 API 도 없다. 별칭 수정은 이름만 받고 OAuth 통합의 자격 증명 교체는 `INTEGRATION_ROTATE_UNSUPPORTED` 로 거절된다. 콜백에도 판정을 두면 같은 판정이 두 곳에 생긴다.
 - **비용**: 본문에 대상과 다른 값을 싣던 직접 호출 클라이언트는 이제 400 을 받는다. 자사 프런트엔드는 `oauth/begin` 을 `new` 모드로만 부른다(2026-11-06 저장소 검색으로 확인). 통합 재인증과 추가 권한 요청은 `:id/reauthorize`·`:id/request-scopes` 를 쓴다.
+
+### `new` 모드의 begin 은 `integrationId` 를 무시한다
+
+결정일: 2026-11-27
+
+`new` 모드는 아직 만들 통합이 없어 대상 통합이 없다. 그런데 begin 은 본문의 `integrationId` 를 state 에 그대로 실었고 콜백은 모드를 보지 않고 그 값으로 실패를 기록했다. 같은 워크스페이스의 편집자가 다른 통합의 id 를 싣고 콜백을 실패시키면 그 행의 `last_error` 와 상태가 바뀌고 알림이 갔다.
+
+- **400 으로 거절하지 않고 무시한다.** 요청 계약(DTO 필드와 400 응답)을 바꾸지 않으려는 것이다. `new` 모드에서 이 필드는 쓰이지 않아서 무시해도 호출한 쪽이 받는 결과는 같다. 위 2026-11-06 항목의 「다른 값을 말없이 바꿔 쓰지 않는다」는 대상 통합이 있는 `new` 가 아닌 모드의 이야기다.
+- **콜백도 `new` 모드면 행에 기록하지 않는다.** 이미 발급된 state 에 값이 남아 있어도 행에 쓰지 않도록 begin 과 콜백 두 곳에서 막는다([OAuth 콜백](CLE-INT-OAUTH-CALLBACK.md)).
 
 ### Google 인가 요청은 계정 조회용 권한 범위와 offline 접근을 늘 싣는다
 

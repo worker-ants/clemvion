@@ -300,9 +300,21 @@ export function callbackContextOf(err: unknown): CallbackContext | undefined {
 }
 
 /**
+ * state 가 기존 통합 행을 가리키는지 본다. `new` 는 새 통합을 만드는 흐름이라 대상 행이 없고, 그 외 모드는
+ * integrationId 가 있어야 한다. begin 의 저장, 콜백 오류 context, cafe24 invalid_scope 기록이 같은 규칙을 쓴다
+ * (CLE-T-HBDGPZ).
+ */
+function stateTargetsIntegration(state: {
+  mode: string;
+  integrationId?: string | null;
+}): state is { mode: string; integrationId: string } {
+  return state.mode !== 'new' && !!state.integrationId;
+}
+
+/**
  * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
  * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
- * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
+ * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다)
  */
 function hiddenCallbackTargetRejection(
   context: CallbackContext,
@@ -592,7 +604,7 @@ export class IntegrationOAuthService {
    *   도착해도 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
    *   요청자 판정 뒤에 둔다. 볼 수 없는 요청자는 404, 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
    *   하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
-   *   근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+   *   근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다)
    */
   private async lockAndRejudgeCallbackTarget(
     manager: EntityManager,
@@ -864,7 +876,11 @@ export class IntegrationOAuthService {
       provider: service.oauthProvider,
       serviceType: params.service,
       mode: params.mode,
-      integrationId: params.integrationId ?? null,
+      // `new` 는 대상 통합이 없는 흐름이다. 요청의 integrationId 를 실으면 콜백 실패가 그 행에 기록되고 알림이 나가므로
+      // 무시한다(CLE-T-HBDGPZ, [OAuth 연결 시작](CLE-INT-OAUTH-BEGIN)).
+      integrationId: stateTargetsIntegration(params)
+        ? params.integrationId
+        : null,
       requestedScopes: params.scopes,
       integrationName: params.integrationName ?? null,
       scope: params.scope ?? null,
@@ -902,7 +918,7 @@ export class IntegrationOAuthService {
    * Cafe24 는 `credentials.mall_id` · `credentials.app_type` 과 견준다. 옛 행은 `mallId` 칼럼이 비어 있을 수 있어서
    * 콜백이 읽는 자격 증명 쪽을 기준으로 둔다. `providerMeta` 는 Cafe24 Public 경로에서만 채워진다.
    *
-   * 근거: [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](CLE-INT-OAUTH#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06)
+   * 근거: [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](CLE-INT-OAUTH#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다)
    */
   private async assertBeginMatchesTarget(
     workspaceId: string,
@@ -985,7 +1001,8 @@ export class IntegrationOAuthService {
     // attaches this so the controller can surface the failure on the row
     // (see `markIntegrationCallbackError`). Pre-consumption throws (state
     // mismatch above) have no integrationId yet and intentionally omit it.
-    const context: CallbackContext | undefined = record.integrationId
+    // `new` state 는 begin 이 integrationId 를 비우지만, 그 전에 만든 state 라도 행을 가리키지 않는다(CLE-T-HBDGPZ).
+    const context: CallbackContext | undefined = stateTargetsIntegration(record)
       ? {
           integrationId: record.integrationId,
           workspaceId: record.workspaceId,
@@ -1146,10 +1163,14 @@ export class IntegrationOAuthService {
         code: 'OAUTH_INVALID_SCOPE',
         message: 'Authorization rejected: invalid scope',
       });
-    // state 가 이미 소비됐거나, row context 가 없거나(integrationId NULL), state 가
+    // state 가 이미 소비됐거나, row context 가 없거나(integrationId NULL 이거나 `new` 모드), state 가
     // 다른 provider 것이면 진단 기록 대상이 없으므로 context 없이 throw 한다
-    // (UI 는 팝업 에러만 표시). provider 검증은 다른 흐름 state 오소비 방어.
-    if (!record || record.provider !== 'cafe24' || !record.integrationId) {
+    // (UI 는 팝업 에러만 표시). provider 검증은 다른 흐름 state 오소비 방어. `new` 는 CLE-T-HBDGPZ.
+    if (
+      !record ||
+      record.provider !== 'cafe24' ||
+      !stateTargetsIntegration(record)
+    ) {
       throw invalidScope();
     }
     throw attachCallbackContext(invalidScope(), {

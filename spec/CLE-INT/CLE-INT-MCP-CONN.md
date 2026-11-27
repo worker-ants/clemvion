@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-CONN"
 title: "MCP 클라이언트 — 연결과 URL 검증"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "9f04239387925d4e5c5187a618de4c4ef5a063c32d0471889b7a2a249664a292"
+content_hash: "a7fddd4507a0dd6ba9fd5c6a0e0873ec25ca5d0cad13d7783a33d682c040184a"
 read_as: "approved_fallback"
-task: "CLE-T-DDN3MS"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "2d526ba77f68bc6f1f6a423997bb3715c4dad12d1b13e9c1b29c1d257b53eb0a"
-etag: "sha256-137cb932691601ebc656221999d48a29e07a86111376249a90d5fc6b82a29603"
+mirror_sha256: "abd5bac3de3cedda37f4110ee5208ade1828f5ed1ee262cdc02a460c7cf8b3a9"
+etag: "sha256-65eb2dc7a8c2f956a6651b55cc6fbd4491a19d8b5c1d4bded0d7c468730fed48"
 ---
 ## 개요
 
@@ -50,18 +50,18 @@ URL 검증과 SSRF 차단은 외부 HTTP transport 에만 적용한다. 내부 M
    - 에러 message 에는 호스트 이름만 싣고 해석된 주소는 싣지 않는다. 주소는 서버 경고 로그에만 남긴다.
    - DNS 해석에는 connect 와 같은 타임아웃(`MCP_CONNECT_TIMEOUT_MS`, 기본 10s)을 따로 둔다. 그 안에 끝나지 않으면 검사를 건너뛰지 않고 `TimeoutError` 로 끝낸다. 연결 테스트와 노드 실행 모두 `MCP_TIMEOUT` 이다.
    - 시간 초과가 아닌 DNS 해석 실패(해석기가 던지는 그 밖의 예외 모두)는 막지 않고 넘긴다. 해석되지 않는 호스트에는 SDK 의 fetch 도 닿지 못하므로 connect 실패로 끝난다.
-   - 실제 연결도 같은 판정을 거친다. transport 에 판정 fetch 를 넘겨, 연결할 때 푼 주소를 모두 2항과 같은 판정으로 다시 검사한다. 하나라도 막히면 연결하지 않고 같은 코드(`MCP_HOST_BLOCKED`)로 막는다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. SDK 가 따라가는 같은 출처 리다이렉트도 이 fetch 로 나간다. TLS 의 SNI 와 인증서 검증은 URL 의 호스트 이름으로 한다. message 와 로그 규칙은 위와 같다([Rationale](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)).
+   - 실제 연결도 같은 판정을 거친다. transport 에 판정 fetch 를 넘겨, 연결할 때 푼 주소를 모두 2항과 같은 판정으로 다시 검사한다. 하나라도 막히면 연결하지 않고 같은 코드(`MCP_HOST_BLOCKED`)로 막는다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. SDK 가 따라가는 같은 출처 리다이렉트도 이 fetch 로 나간다. TLS 의 SNI 와 인증서 검증은 URL 의 호스트 이름으로 한다. message 와 로그 규칙은 위와 같다([Rationale](#연결할-때-푼-주소를-다시-판정한다)).
    - `MCP_ALLOW_INSECURE_URL=true` 이면 이 검사와 연결 시점 판정을 모두 건너뛴다. `ALLOW_PRIVATE_HOST_TARGETS` 는 읽지 않는다.
 4. 이 규칙은 등록 전 연결 테스트와 노드 실행의 connect 에 똑같이 적용한다. 다른 아웃바운드 경로의 SSRF 가드는 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직)와 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#ssrf-가드)에 있다.
 
-**로컬 개발용 우회 플래그**: 환경 변수 `MCP_ALLOW_INSECURE_URL=true` 가 켜지면 다음이 바뀐다.
+**로컬 개발용 우회 플래그**: 환경 변수 `MCP_ALLOW_INSECURE_URL` 이 `true` 나 `1` 이면 다음이 바뀐다.
 
 - `http://` URL 을 받는다. `file://`·`ws://` 같은 다른 scheme 은 여전히 거부한다.
 - 위 SSRF 호스트 차단 목록 전체를 건너뛴다(loopback·RFC 1918·클라우드 메타데이터 모두 등록 가능). connect 직전 해석 주소 검사(3항)도 건너뛴다.
 
 이 플래그는 운영 환경에서 절대 켜면 안 된다. 등록된 URL 을 그대로 믿게 되어 SSRF 방어면이 다시 열린다. 기본값은 `false` 이고 `codebase/backend/.env.example` 에 경고와 함께 적는다.
 
-**운영 환경 가드**: `NODE_ENV=production` 에서 `MCP_ALLOW_INSECURE_URL=true` 이면 부팅을 거부한다(`main.ts` 의 `assertProductionConfig`, `OAUTH_STUB_MODE`·`LLM_STUB_MODE` 와 같은 형태). 부팅 가드 전체 목록은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 있다. 셀프 호스팅(VPC 내부 호스트 등)에 정당한 용도가 있는 `ALLOW_PRIVATE_HOST_TARGETS`(HTTP Request·Database Query·Send Email 통합 노드 SSRF 가드의 공통 플래그, [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직))는 정책이 달라 throw 가 아니라 warn 으로 둔다. 운영에서 켜져 있으면 부팅은 하되 경고 로그를 남긴다([Rationale](#ssrf-우회-플래그를-throw-와-warn-으로-나눈다)).
+**운영 환경 가드**: `NODE_ENV=production` 에서 `MCP_ALLOW_INSECURE_URL` 이 켜져 있으면 부팅을 거부한다(`main.ts` 의 `assertProductionConfig`, `OAUTH_STUB_MODE`·`LLM_STUB_MODE` 와 같은 형태). 켜짐으로 보는 값과 가드 전체 목록은 [세션과 토큰 — 운영 환경 가드 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION-GUARD.md#운영-환경-가드) 에 있다. 셀프 호스팅(VPC 내부 호스트 등)에 정당한 용도가 있는 `ALLOW_PRIVATE_HOST_TARGETS`(HTTP Request·Database Query·Send Email 통합 노드 SSRF 가드의 공통 플래그, [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직))는 정책이 달라 throw 가 아니라 warn 으로 둔다. 운영에서 켜져 있으면 부팅은 하되 경고 로그를 남긴다([Rationale](#ssrf-우회-플래그를-throw-와-warn-으로-나눈다)).
 
 ## 환경 변수
 
@@ -70,8 +70,11 @@ URL 검증과 SSRF 차단은 외부 HTTP transport 에만 적용한다. 내부 M
 | `MCP_MAX_CONCURRENT_CONNECTIONS` | 20 | 워크스페이스 단위 동시 connect 상한. 외부 HTTP transport 만 센다 |
 | `MCP_CONNECT_TIMEOUT_MS` | 미설정 시 [타임아웃](#타임아웃) 기본값 | connect 타임아웃을 바꾼다 |
 | `MCP_ALLOW_INSECURE_URL` | `false` | 로컬 개발용 우회 플래그. 운영에서 켜면 부팅 거부 |
+| `MCP_CALL_TIMEOUT_MS` | 30000 | `tools/call` 타임아웃(ms) |
+| `MCP_LIST_TIMEOUT_MS` | 10000 | `tools/list` 타임아웃(ms) |
+| `MCP_MAX_RESPONSE_BYTES` | 102400 | 도구 결과 크기 상한(byte). 넘으면 `MCP_RESPONSE_TOO_LARGE` 로 바꾼다([격리 원칙](CLE-INT-MCP-ERROR.md#격리-원칙)) |
 
-`McpClientService` 는 이 세 변수를 `process.env` 로 직접 읽지 않고 ConfigService 의 `mcp.*` namespace(`registerAs('mcp')`, `common/config/mcp.config.ts`)로 읽는다. 서비스 계층의 환경 변수 접근을 한곳에 모으기 위해서다. `MCP_ALLOW_INSECURE_URL` 의 단일 출처는 `McpClientService.allowInsecureUrl` getter 이고, `McpToolProvider` 는 주입받은 인스턴스로 같은 값을 쓴다. 부팅 시점 값이라 바꾸면 재기동해야 반영된다.
+`McpClientService` 는 `MCP_MAX_CONCURRENT_CONNECTIONS`·`MCP_CONNECT_TIMEOUT_MS`·`MCP_ALLOW_INSECURE_URL` 을 `process.env` 로 직접 읽지 않고 ConfigService 의 `mcp.*` namespace(`registerAs('mcp')`, `common/config/mcp.config.ts`)로 읽는다. 서비스 계층의 환경 변수 접근을 한곳에 모으기 위해서다. 도구 공급자(`mcp-tool-provider.ts`)는 `MCP_MAX_RESPONSE_BYTES`·`MCP_CALL_TIMEOUT_MS`·`MCP_LIST_TIMEOUT_MS`·`MCP_CONNECT_TIMEOUT_MS` 를 `process.env` 로 직접 읽고, 연결 테스트(`mcp-test-connection.service.ts`)도 `MCP_LIST_TIMEOUT_MS` 를 그렇게 읽는다. `MCP_ALLOW_INSECURE_URL` 의 단일 출처는 `McpClientService.allowInsecureUrl` getter 이고, `McpToolProvider` 는 주입받은 인스턴스로 같은 값을 쓴다. 부팅 시점 값이라 바꾸면 재기동해야 반영된다.
 
 ## capabilities 캐시를 두지 않는다
 
@@ -149,18 +152,22 @@ AI 에이전트 노드 실행 1회가 MCP 세션 1회다. 노드 실행이 시�
 
 운영 환경 부팅 차단에서 «절대 금지» 플래그(`MCP_ALLOW_INSECURE_URL`)는 부팅 throw 로, «정당한 용도가 있는» 플래그(`ALLOW_PRIVATE_HOST_TARGETS`, VPC 내부 호스트 같은 셀프 호스팅 용도)는 warn 으로 나눈다. 기준은 그 플래그에 정당한 운영 용도가 있느냐다. 잘못 나누면 정당한 셀프 호스팅 배포를 막거나(지나친 throw) SSRF 표면을 열어 둔다(지나친 warn).
 
-### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)
+### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다
+
+결정일: 2026-11-01
 
 외부 MCP 서버 URL 의 호스트가 IPv4 를 품은 IPv6 리터럴이면 품은 IPv4 를 IPv4 차단 대역으로 다시 판정한다. 작업은 NERV Task `CLE-T-DCQWEB` 다.
 
 - 그때까지 MCP 가드는 점 표기(`::ffff:127.0.0.1`)만 보는 정규식으로 IPv4-mapped 를 판정했다. 그러나 Node 의 `URL` 은 hostname 을 `[::ffff:7f00:1]` 같은 16진 표기로 바꿔 돌려준다. 그래서 그 정규식은 한 번도 맞지 않았고 loopback · 메타데이터 주소가 통과했다.
-- 판정 범위는 IPv4-mapped · IPv4-compatible · SIIT · NAT64 `/96` 넷이다. 6to4 와 NAT64 local-use prefix 는 이때 판정하지 않았고, 2026-11-20 에 대역표를 합치면서 판정하게 됐다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다-2026-11-20)). 근거는 [알림 웹훅 Rationale 「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)」](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다. IPv4-mapped 만 판정하는 안은 기각했다. NAT64 망에서는 다른 표기로도 사설 IPv4 에 닿을 수 있기 때문이다.
-- 그때 두 가드는 IPv6 리터럴 정규화(`normalizeIpv6Literal`)와 품은 IPv4 추출(`embeddedIpv4FromIpv6`)만 같이 쓰고 대역표는 따로 두었다. 2026-11-20 에 대역표까지 한 모듈로 모았다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다-2026-11-20)).
+- 판정 범위는 IPv4-mapped · IPv4-compatible · SIIT · NAT64 `/96` 넷이다. 6to4 와 NAT64 local-use prefix 는 이때 판정하지 않았고, 2026-11-20 에 대역표를 합치면서 판정하게 됐다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다)). 근거는 [알림 웹훅 Rationale 「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)」](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다. IPv4-mapped 만 판정하는 안은 기각했다. NAT64 망에서는 다른 표기로도 사설 IPv4 에 닿을 수 있기 때문이다.
+- 그때 두 가드는 IPv6 리터럴 정규화(`normalizeIpv6Literal`)와 품은 IPv4 추출(`embeddedIpv4FromIpv6`)만 같이 쓰고 대역표는 따로 두었다. 2026-11-20 에 대역표까지 한 모듈로 모았다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다)).
 - 그때 HTTP Request 노드 가드는 IPv4-mapped 만 판정했다. 이 범위도 2026-11-20 에 같은 대역표로 맞췄다.
 - 본문 「자격 증명과 URL 검증」 2항에 더한 `localhost` · CGNAT · `0.0.0.0/8` · `::` 는 구현이 이미 막던 대역이다. 본문을 구현에 맞췄다.
 - 이 헬퍼는 환경 변수를 읽지 않는다. MCP 의 우회 수단은 `MCP_ALLOW_INSECURE_URL` 뿐이다.
 
-### 호스트 이름은 연결 직전에 해석해 주소를 검사한다 (2026-11-05)
+### 호스트 이름은 연결 직전에 해석해 주소를 검사한다
+
+결정일: 2026-11-05
 
 외부 MCP 서버 URL 의 호스트 이름을 connect 직전에 DNS 로 해석하고, 돌아온 주소를 리터럴과 같은 판정으로 검사한다. 작업은 NERV Task `CLE-T-RAPNHB` 다.
 
@@ -169,21 +176,25 @@ AI 에이전트 노드 실행 1회가 MCP 세션 1회다. 노드 실행이 시�
 - 차단 message 는 리터럴 차단과 같게 호스트 이름만 싣는다. 연결 테스트는 차단 오류의 message 를 그대로 화면에 돌려주므로, 해석된 주소를 실으면 등록 화면이 내부 DNS 를 알아보는 통로가 된다. 호스트 이름은 등록하는 사람이 직접 넣은 값이라 돌려줘도 새로 드러나는 정보가 없다. HTTP Request 노드가 차단 message 를 한 문장으로 일반화한 결정(CLE-NODE-HTTP Rationale 「사설망 차단 메시지 일반화 (2026-07-05)」)과 다른 이유다. 그 결정이 가리려던 것은 해석된 IP 와 차단 사유다.
 - DNS 해석 실패는 막지 않고 넘긴다(fail-open). 해석되지 않는 호스트에는 연결도 되지 않으므로 SSRF 가 성립하지 않고, 실패는 connect 실패로 드러난다. HTTP Request 노드 가드의 구현(`assertSafeOutboundHostResolved`)도 해석 실패를 넘긴다.
 - 해석 시간 초과는 넘기지 않는다. 해석은 connect 의 AbortController 타임아웃보다 앞에서 돌아서, 상한이 없으면 connect 를 따로 감싸지 않는 연결 테스트 요청은 해석이 끝날 때까지 응답 없이 기다린다. 시간 초과를 넘기는 쪽으로 정하면 DNS 응답을 늦추는 것만으로 검사를 건너뛸 수 있다. 그래서 해석에 connect 와 같은 상한을 두고, 넘기면 connect 시간 초과와 같은 `MCP_TIMEOUT` 으로 끝낸다.
-- 그때는 검사와 연결 사이의 DNS rebinding 을 막지 못했다. 해석한 주소로 연결을 고정하려면 SDK 의 fetch 를 바꿔 끼워야 해서 미뤘다. 2026-11-14 에 연결 시점 판정으로 닫았다([연결할 때 푼 주소를 다시 판정한다](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)).
+- 그때는 검사와 연결 사이의 DNS rebinding 을 막지 못했다. 해석한 주소로 연결을 고정하려면 SDK 의 fetch 를 바꿔 끼워야 해서 미뤘다. 2026-11-14 에 연결 시점 판정으로 닫았다([연결할 때 푼 주소를 다시 판정한다](#연결할-때-푼-주소를-다시-판정한다)).
 - 리다이렉트로 다른 호스트에 닿는 경로는 없다. `@modelcontextprotocol/sdk` 1.32 의 Streamable HTTP transport 는 `redirectPolicy` 를 주지 않으면 호스트가 같은 리다이렉트만 따라가고(같은 scheme · 포트, 또는 기본 포트의 `http` → `https`), 이 클라이언트는 그 옵션을 주지 않는다. HTTP Request 노드의 리다이렉트 홉 처리(`followRedirectsSafely`, CLE-T-FC2BWA)는 MCP transport 에 쓰지 않는다.
 
-### 연결할 때 푼 주소를 다시 판정한다 (2026-11-14)
+### 연결할 때 푼 주소를 다시 판정한다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-BS1WD1` 에서 transport 의 `fetch` 옵션으로 판정 fetch 를 넘겼다. 이 fetch 는 연결에 쓰는 주소 조회(undici `Agent` 의 `connect.lookup`)에 2항의 판정을 넣은 dispatcher 로 요청을 보낸다.
 
 - **검사 결과로 고정하지 않고 연결할 때 다시 판정한다.** 판정한 주소와 연결하는 주소가 같은 조회 결과라서 판정을 거치지 않은 주소로는 연결하지 않는다. 요청마다 dispatcher 를 만들지 않아도 되고 keep-alive 연결을 다시 쓴다. HTTP Request 노드도 같은 방식이다([HTTP Request 노드 — 실행 로직](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」).
 - **판정 함수는 2항의 MCP 가드다.** 공용 헬퍼(`createGuardedLookupDispatcher`)는 판정 함수를 받기만 하고 환경 변수를 읽지 않는다. 그래서 2026-11-05 에 HTTP Request 노드 가드를 쓰지 않기로 한 이유(우회 수단이 둘이 된다)가 그대로 지켜진다. 우회 수단은 `MCP_ALLOW_INSECURE_URL` 하나다.
 - **connect 직전 검사(3항)는 남겼다.** 해석에 상한을 두고 넘기면 `MCP_TIMEOUT` 으로 끝내는 규칙이 거기에 있다. 연결 시점 판정만 두면 DNS 응답을 늦추는 공격이 connect 타임아웃까지 연결 테스트를 붙잡는다.
-- 연결 시점 차단은 SDK 와 fetch 가 감싼 오류의 `cause` 에서 판정 오류를 꺼내 사전 검사와 같은 오류로 던진다. message 에는 호스트 이름만 싣고 해석된 주소는 서버 경고 로그에만 남긴다. 이때는 그 코드가 `MCP_HTTPS_REQUIRED` 였고 2026-11-20 에 `MCP_HOST_BLOCKED` 로 갈랐다([주소 차단을 `MCP_HOST_BLOCKED` 로 가른다](#주소-차단을-mcp_host_blocked-로-가른다-2026-11-20)).
+- 연결 시점 차단은 SDK 와 fetch 가 감싼 오류의 `cause` 에서 판정 오류를 꺼내 사전 검사와 같은 오류로 던진다. message 에는 호스트 이름만 싣고 해석된 주소는 서버 경고 로그에만 남긴다. 이때는 그 코드가 `MCP_HTTPS_REQUIRED` 였고 2026-11-20 에 `MCP_HOST_BLOCKED` 로 갈랐다([주소 차단을 `MCP_HOST_BLOCKED` 로 가른다](#주소-차단을-mcp_host_blocked-로-가른다)).
 - 해석 실패는 전처럼 통과시킨다(사람 결정, 2026-11-14). 연결할 때도 풀리지 않으면 connect 실패로 끝난다. 검사 때 실패하고 연결 때 내부 주소로 풀리는 변형은 연결 시점 판정이 막는다.
 - `@modelcontextprotocol/sdk` 1.32.2 는 리다이렉트를 `redirect: 'manual'` 로 받아 같은 출처일 때만 넘겨준 fetch 로 다시 보낸다. 그래서 리다이렉트 홉의 연결도 같은 판정을 거친다.
 
-### 대역표를 SSRF 가드 넷이 함께 쓴다 (2026-11-20)
+### 대역표를 SSRF 가드 넷이 함께 쓴다
+
+결정일: 2026-11-20
 
 2항의 IP 리터럴 판정을 공용 모듈 `ip-classifier.ts` 로 옮겼다. 작업은 NERV Task `CLE-T-753725` 이고 판정 범위는 NERV Task `CLE-T-63RSH6` 에서 정했다.
 
@@ -191,7 +202,9 @@ NERV Task `CLE-T-BS1WD1` 에서 transport 의 `fetch` 옵션으로 판정 fetch 
 - 정규화하지 못한 IPv6 모양 리터럴은 전처럼 막는다(fail-closed). 네 가드가 모두 이 처리를 따른다.
 - 공용 모듈은 환경 변수와 호스트 이름을 보지 않는다. `localhost` · 메타데이터 호스트 이름 목록과 우회 플래그 `MCP_ALLOW_INSECURE_URL` 은 MCP 가드에 남는다. 그래서 `ALLOW_PRIVATE_HOST_TARGETS` 는 지금도 MCP 에 닿지 않는다.
 
-### 주소 차단을 `MCP_HOST_BLOCKED` 로 가른다 (2026-11-20)
+### 주소 차단을 `MCP_HOST_BLOCKED` 로 가른다
+
+결정일: 2026-11-20
 
 NERV Task `CLE-T-DDN3MS` 의 변경이다. 그때까지 주소 차단(리터럴 판정 · connect 직전 해석 주소 검사 · 연결 시점 판정)은 https 위반과 같은 `MCP_HTTPS_REQUIRED` 로 나갔다. 코드 이름이 주소 차단의 뜻과 맞지 않았다. 2026-11-05 사람 답은 «이름은 두고 가를지는 후속» 이었다([에러 코드 카탈로그 — 통합 노드 · MCP](../CLE-API/CLE-API-ERRCODES-INTNODE.md) Rationale). 그 후속으로 2026-11-20 에 사람이 가르기로 정했다.
 

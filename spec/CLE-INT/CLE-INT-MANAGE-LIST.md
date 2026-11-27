@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-LIST"
 title: "통합 관리 — 목록과 추가 화면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "523cc410b41a0cc77925d4f8cd2ed8a1c0314364fce3acf65c7fac02c13fcc6c"
+content_hash: "9d04fe4419c6da0119ed8917c3ee4b75e111299e04d2656a351a5cb7a037a43e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "94739fccff75464286008f00ec48f75c797edc32ee3e06405a87cfa85a700a2a"
-etag: "sha256-e502737b06e5e5c87a0ab266efa1b70ea949428b5ced53a054a2232a3c0778eb"
+mirror_sha256: "e2ccaeceb531f08282f8ae76fb2d51fc15cd80f392e344d090c8d52f32c4638b"
+etag: "sha256-4e44376c45ed996cb60d2c9cfeab52557f5a63aaceff744417cf82f37157fdcd"
 ---
 ## 개요
 
@@ -107,7 +107,7 @@ stateDiagram-v2
 | `name` | ✓ | 별칭. 워크스페이스 안에서 유일 |
 | `scope` | ✓ | 공개 범위. 팀 워크스페이스에서 `Personal` / `Organization`. 관리자가 아니면 `Organization` 을 비활성화한다 |
 
-- OAuth 서비스는 인증 단계에서 연결 흐름을 시작한다. Google·GitHub·Cafe24 Public 은 팝업, Cafe24 Private·MakeShop 은 설치 우선 흐름의 설정 안내 화면이다. 흐름, 팝업 복귀, 설정 안내 화면은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다.
+- OAuth 서비스는 인증 단계에서 연결 흐름을 시작한다. Google·GitHub·Cafe24 Public 은 팝업, Cafe24 Private·MakeShop 은 설치 우선 흐름의 설정 안내 화면이다. 흐름, 팝업 복귀, 설정 안내 화면은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 설정 안내 화면은 통합이 설치 대기를 벗어나면 조회를 멈춘다. 설치 기한이 지나 만료됐으면 같은 상점을 새로 등록하라고 안내한다([Cafe24 Private 설치 7번](CLE-INT-OAUTH-INSTALL.md#cafe24-private-앱)).
 - 추가 흐름의 요청이 역할이나 설치 대기 행 충돌로 거절되면 토스트로 알린다. 409 `CAFE24_PRIVATE_APP_INSTALL_PENDING`·`MAKESHOP_INSTALL_PENDING` 은 다른 멤버가 시작한 설치가 기다리고 있다는 문장 뒤에 `details.pendingInstallExpiresAt` 의 기한을 붙여 그 뒤에 다시 시도하라고 안내한다. `403 EDITOR_REQUIRED`·`ADMIN_REQUIRED` 는 필요한 역할을 알린다.
 - 설치 대기 행을 다시 쓴 `oauth/begin` 응답의 `scope` 가 고른 공개 범위와 다르면 기존 행의 공개 범위를 그대로 쓴다고 안내한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)).
 - 이름 충돌 409 `INTEGRATION_NAME_TAKEN` 은 이름 칸에 에러로 보인다.
@@ -145,8 +145,8 @@ stateDiagram-v2
 사용자가 상점 식별자를 다 입력하기 전(입력 중)에 충돌을 감지해 인라인 경고로 보이는 읽기 전용 엔드포인트다([API](CLE-INT-MANAGE-API.md#인증교체권한) 의 «중복 사전 감지»). begin 의 사전 검사와 같은 SELECT 를 노출하되 다음을 반영했다.
 
 - **응답 최소화**: `{ conflict, existingIntegrationId?, existingName?, status? }` 만 돌려준다. 자격 증명, 토큰, 시각, 워크스페이스 메타는 싣지 않는다.
-- **노출 범위 격리**: 현재 워크스페이스 소속 행만 돌려준다. 충돌 행이 남의 개인 통합이면 ID 와 이름을 뺀다([개인 통합 소유자를 강제한다](CLE-INT-MANAGE-PERM.md#개인-통합-소유자를-강제한다-404-로-숨기고-역할-우위를-두지-않으며-노드-실행은-후속으로-둔다-2026-09-25)).
-- **상태 하나만**: 전체 행 목록이 아니라 가장 제한적인 상태 하나를 돌려준다. 프런트엔드 i18n 메시지 네 가지가 같은 우선순위로 나뉜다.
+- **노출 범위 격리**: 현재 워크스페이스 소속 행만 돌려준다. 충돌 행이 남의 개인 통합이면 ID 와 이름을 뺀다([개인 통합 소유자를 강제한다](CLE-INT-MANAGE-PERM.md#개인-통합-소유자를-강제한다-404-로-숨기고-역할-우위를-두지-않으며-노드-실행은-후속으로-둔다)).
+- **상태 하나만**: 전체 행 목록이 아니라 가장 제한적인 상태 하나를 돌려준다. 설치 기한이 지나 만료된 행(`install_timeout`)은 상점 자리를 놓았으므로 세지 않는다. 프런트엔드 i18n 메시지 네 가지가 같은 우선순위로 나뉜다.
 - **enum 밖 상태**: 미래의 과도 상태가 오면 `status` 를 빼 프런트엔드가 모르는 enum 을 조용히 흘려보내지 않게 한다.
 - **throttle**: 분당 60회. 상점 식별자 정규식이 프런트엔드에서 먼저 걸러 백엔드 호출이 줄어든다. 무차별 열거의 비용은 회당 SQL 한 번과 JWT 검증으로 낮지만 throttle 이 마지막 방어다.
 

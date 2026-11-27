@@ -41,7 +41,8 @@ data:
 
   # Engine 튜닝
   WORKER_CONCURRENCY: "4"
-  PARALLEL_ENGINE: "off"
+  # Parallel 노드 실행 경로. 코드 기본값과 같은 v1 을 쓰고, 되돌릴 때만 "off" 로 바꾼다(재시작해야 반영된다).
+  PARALLEL_ENGINE: "v1"
   MAX_NODE_ITERATIONS: "100"
 
   # 안전 종료 유예 시간(ms). SIGTERM 뒤 진행 중 실행을 이만큼 기다리고 남은 것을 SERVER_INTERRUPTED 로 마감한다.

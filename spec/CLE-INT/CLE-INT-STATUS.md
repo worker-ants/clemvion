@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "08c7a55c6c2c3a72a935361b5f608863e46f61fe984b2e9b8417a2bcba7c184e"
+content_hash: "5e476a204ddffe06f727db67b1c291a702efa8441e0b2f40e3130a57b145e362"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-24PRNR"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "63e304fb71f88770ae260fc098976f9cd48389d911a1bad19b3c7b6b446380cd"
-etag: "sha256-39f364cad500e32a513ab6872c6f0909e45b4446a80f0d6e7bf46096d21e0aea"
+mirror_sha256: "f7d88a81776ae8639bf820b0b9bfbdbfd34603078baa4248a8dfcd2188d5e61a"
+etag: "sha256-156f8022078b0e6c22b68bc8d70ccaf2f5fe243b3f52475c99e5195c4647a690"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -124,7 +124,7 @@ etag: "sha256-39f364cad500e32a513ab6872c6f0909e45b4446a80f0d6e7bf46096d21e0aea"
 
 ## 미결 사항
 
-- **새로 등록한 뒤에도 주의 필요에 남는 설치 기한 만료 행**: 2026-10-30(NERV Task `CLE-T-395HK2`)부터 화면은 설치 기한이 지나 만료된 행(`install_timeout`)을 지우지 않고 같은 상점을 새로 등록하라고 안내한다. 그래서 새 통합이 연결된 뒤에도 만료 행이 지울 때까지 주의 필요에 남는다. 지금은 사용자가 지우면 빠진다. 배경은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29) 의 2026-10-30 번복이다. 자동 삭제는 REQ-INTSTAT-014 의 예외와 [설치 대기는 24시간 뒤 만료된다](CLE-INT-STATUS-MODEL.md#설치-대기는-24시간-뒤-만료된다) 의 만료 행 보존 결정을 바꾸는 일이다. 같은 상점의 새 통합이 연결되면 만료 행을 주의 필요에서 뺄지 자동으로 지울지 결정이 필요하다.
+- **새로 등록한 뒤에도 주의 필요에 남는 설치 기한 만료 행**: 2026-10-30(NERV Task `CLE-T-395HK2`)부터 화면은 설치 기한이 지나 만료된 행(`install_timeout`)을 지우지 않고 같은 상점을 새로 등록하라고 안내한다. 그래서 새 통합이 연결된 뒤에도 만료 행이 지울 때까지 주의 필요에 남는다. 지금은 사용자가 지우면 빠진다. 배경은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다) 의 2026-10-30 번복이다. 자동 삭제는 REQ-INTSTAT-014 의 예외와 [설치 대기는 24시간 뒤 만료된다](CLE-INT-STATUS-MODEL.md#설치-대기는-24시간-뒤-만료된다) 의 만료 행 보존 결정을 바꾸는 일이다. 같은 상점의 새 통합이 연결되면 만료 행을 주의 필요에서 뺄지 자동으로 지울지 결정이 필요하다.
 - **노드 실행 중 401·403 이 통합 상태를 바꾸는 범위**: 통합 화면 정의는 노드 실행 중 401 을 받으면 Cafe24 는 토큰 갱신과 1회 재시도 뒤에도 401 일 때, 그 밖의 서비스는 즉시 `error(auth_failed)` 로 바꾸고, 403 은 즉시 바꾼다고 적는다. 같은 정의의 노드 실행 연동 절은 핸들러 실패 때 `Integration.status`·`last_error` 가 함께 갱신된다고 적는다. 데이터 흐름 정의는 `logUsage` 가 `last_error` 만 갱신하고 상태는 외부 MCP 서버 `AUTH_FAILED` 일 때만 바꾸며, Cafe24·MakeShop 은 각 클라이언트의 `markAuthFailed` 가 바꾼다고 적는다. [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)·[Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)·[Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) 는 상태 전이를 언급하지 않는다. 현재 구현(`integrations.service.ts`)은 데이터 흐름 정의와 같다. 화면 정의대로 구현하면 HTTP·Database·SMTP 노드의 401 한 번으로 통합이 오류가 되어 이후 모든 실행이 `INTEGRATION_NOT_CONNECTED` 로 막힌다. 일반 서비스의 401·403 격하를 제품 요구로 둘지 결정이 필요하다.
 - **`expired` 가 된 Cafe24 통합의 자동 복구**: [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 는 AI 에이전트 도구 구성(`buildTools`)이 `expired` 이고 refresh token 이 있는 행에 큐 갱신을 걸면 워커가 갱신 뒤 `connected` 로 되돌린다고 적는다. 데이터 흐름 정의의 상태도도 «내부 MCP 브리지의 refresh token 자가 회복» 으로 `expired → connected` 를 그린다. 그런데 같은 정의의 주석은 갱신 워커가 source 와 상관없이 `status !== 'connected'` 행을 건너뛴다고 적는다. 현재 구현(`cafe24-token-refresh.processor.ts` 의 상태 가드)은 주석과 같다(MakeShop 도 `MakeshopMcpToolProvider` 가 `makeshop-token-refresh` 큐로 같은 자가 회복을 건다). 자동 복구를 없앨지, 워커 가드에 예외를 둘지 결정이 필요하다.
 - **조치 필요 알림 중복 방지 규칙**: 통합 화면 정의는 `(integration_id, status_reason)` 으로 유니크를 판정해 같은 사유는 통합마다 최대 한 번 보내고, 사용자가 다시 연결해 `connected` 가 되면 키를 되돌린다고 적는다. 같은 절의 주석, 데이터 흐름 정의(같은 통합·사유 24시간), [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 정의(`(workspace, type, resourceId, title)` 24시간)는 `hasRecentByResource` 의 24시간 창으로 적는다. 현재 구현(`integration-action-required-notifier.service.ts`, `withinMs` 24시간)은 24시간 창이다. 두 규칙은 «24시간 뒤 같은 사유 재발» 과 «24시간 안에 회복 후 재발» 에서 발사 여부가 반대다. 장애가 24시간 넘게 이어질 때 다시 알릴지 결정이 필요하다.
@@ -152,15 +152,21 @@ etag: "sha256-39f364cad500e32a513ab6872c6f0909e45b4446a80f0d6e7bf46096d21e0aea"
 
 → [통합 상태와 만료 알림 — 화면 표시와 주의 필요](CLE-INT-STATUS-DISPLAY.md#자동-갱신-통합을-주의-필요에서-뺀다)
 
-### HMAC 검증 실패는 상태 사유로 남기지 않는다 (2026-11-13)
+### HMAC 검증 실패는 상태 사유로 남기지 않는다
 
-→ [통합 상태와 만료 알림 — 상태 모델](CLE-INT-STATUS-MODEL.md#hmac-검증-실패는-상태-사유로-남기지-않는다-2026-11-13)
+결정일: 2026-11-13
 
-### 개인 통합 소유자의 나가기·제거는 자동 삭제의 예외다 (2026-10-29)
+→ [통합 상태와 만료 알림 — 상태 모델](CLE-INT-STATUS-MODEL.md#hmac-검증-실패는-상태-사유로-남기지-않는다)
 
-2026-10-29 에 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 개인 통합을 지우기로 했다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)). 상태 다이어그램에는 그 경로를 넣었지만 REQ-INTSTAT-014 와 상태 전이 표의 «모든 상태 → 삭제» 행은 «자동 삭제는 없다» 로 남아 서로 어긋나서 두 곳에 예외를 적었다. 이 삭제는 시간이나 상태가 아니라 멤버십이 끝난 결과라서 «시간이나 상태로 지우는 자동 삭제는 없다» 는 그대로다. 삭제는 2026-10-30 에 구현됐다.
+### 개인 통합 소유자의 나가기·제거는 자동 삭제의 예외다
 
-### 통합 노드 차단은 에러 포트로 보낸다 (2026-11-13)
+결정일: 2026-10-29
+
+2026-10-29 에 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 개인 통합을 지우기로 했다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다)). 상태 다이어그램에는 그 경로를 넣었지만 REQ-INTSTAT-014 와 상태 전이 표의 «모든 상태 → 삭제» 행은 «자동 삭제는 없다» 로 남아 서로 어긋나서 두 곳에 예외를 적었다. 이 삭제는 시간이나 상태가 아니라 멤버십이 끝난 결과라서 «시간이나 상태로 지우는 자동 삭제는 없다» 는 그대로다. 삭제는 2026-10-30 에 구현됐다.
+
+### 통합 노드 차단은 에러 포트로 보낸다
+
+결정일: 2026-11-13
 
 통합 노드 차단 요구사항(REQ-INTSTAT-015)은 연결되지 않은 통합을 쓰는 통합 노드 «실행을 `INTEGRATION_NOT_CONNECTED` 로 실패시킨다» 고 적었다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 은 `execute()` 안의 실패를 에러 포트로 보낸다고 정했고 구현도 다섯 직결 노드(HTTP Request·Database Query·Send Email·Cafe24·MakeShop) 모두 `assertUsable` 이 던진 `INTEGRATION_NOT_CONNECTED` 를 잡아 에러 포트로 내보낸다. 2026-11-13 에 요구사항과 상태 모델의 서술을 구현과 공통 규칙에 맞췄다. 동작은 바꾸지 않았다. 요구사항 줄 끝의 «(원본: …)» 표지는 출처 표기라 그대로 둔다.
 

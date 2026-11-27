@@ -2,19 +2,19 @@
 id: "CLE-API-WS-CONN"
 title: "WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "264be3d3466f4ab109e0dda5e5db65fa90f33174eb7481b223ae40ec2591c3fb"
+content_hash: "64e85952dfa4f82951162869deeb9baff7e2cff4e9e86d2f60f8a26ac496ac56"
 read_as: "approved_fallback"
-task: "CLE-T-YFVEPK"
+task: "CLE-T-FHG7MT"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "3e9b4c5192481828eb821ceb141fc8621f6baf21069e499d307bce97ff71ca89"
-etag: "sha256-486cfa78b3c1af8522a75b29b9f9b94b1adb3271370bdd871751321bc09056fc"
+mirror_sha256: "4ece18bfdea97f9edb4583db44e56075506fe74fd7648b46e4d6e2dace27a23f"
+etag: "sha256-717dddffa0ed3cc8b63082854c1d66667effcc4a7680dcaafe952be8782faec8"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§2 · §5 · §6 · §9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -171,8 +171,10 @@ flowchart LR
 ## 구현 위치
 
 - `codebase/backend/src/modules/websocket/websocket.gateway.ts` (핸드셰이크 인증, `armExpiryTimers`, `ping`, 스냅샷 발행)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정, 비교 대상)
-- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (SSE 재전송 버퍼 Redis Stream 과 인스턴스 사이 전달, 비교 대상)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 구독자 관리, 비교 대상)
+- `codebase/backend/src/modules/external-interaction/sse-replay-plan.ts` (SSE 재전송 판정, 비교 대상)
+- `codebase/backend/src/modules/external-interaction/sse-replay-buffer.ts` (SSE 재전송 버퍼 Redis Stream, 비교 대상)
+- `codebase/backend/src/modules/external-interaction/sse-signal-bus.ts` (SSE 인스턴스 사이 전달, 비교 대상)
 - `codebase/frontend/src/lib/websocket/ws-client.ts` (재연결 설정, 토큰 갱신, 토큰 만료 대응)
 - `codebase/frontend/src/lib/websocket/use-execution-events.ts` (구독 실패 · 무수신 판정, 에디터 REST 폴링 대체 경로 신호 `needsRestPolling`)
 

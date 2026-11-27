@@ -2,19 +2,19 @@
 id: "CLE-WF-EDGE-UI"
 title: "연결선 — 편집 조작과 시각 표현"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-EDGE"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-EDGE"]
 area: "CLE-WF"
-content_hash: "a72c0f0fd58b40d20be5fa72ab218de67ccd186bf6aae0e69aeae03e4e1ff234"
+content_hash: "dd2997a9ee5fdc094e2e27eee6e5c18cdd20820d0e7e04d5c2f36013dae04469"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "9c4fc2121c7493a5ddd9dd822552b37998bff4887a2a2d995f89e0112d67c963"
-etag: "sha256-9561b27a4ffe5723464196e504ac0ec93c3c1e5050943a07b3f49048315fe9e6"
+mirror_sha256: "97c64613a8456688303236c7fd0a0d8423f6bc95a4f278b077e466e0974b8ac6"
+etag: "sha256-1301fc95b8ce3ad5ae1b0d20b6b6bea81f20ad7af58f0407e77e222cb3b4c328"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/2-edge.md`, `spec/3-workflow-editor/_product-overview.md` (§3.3 ED-EG-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -160,7 +160,9 @@ etag: "sha256-9561b27a4ffe5723464196e504ac0ec93c3c1e5050943a07b3f49048315fe9e6"
 
 ## Rationale
 
-### 연결선 분할은 일반 데이터 연결선과 입출력이 모두 있는 노드로 한정한다 (2026-07-13)
+### 연결선 분할은 일반 데이터 연결선과 입출력이 모두 있는 노드로 한정한다
+
+결정일: 2026-07-13
 
 컨테이너 경계(`body`·`done`·`emit`) 연결선 위에서 나누면 emit 단일성·경계 규칙과 에디터의 `containerId` 동기화 불변식이 **어떻게 맞물리는지 정의되지 않았다**. 세 가지 대안을 검토했다.
 

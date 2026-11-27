@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-LOOP"
 title: "워크플로우 AI 어시스턴트 — 대화 루프와 턴 가드"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "0f7002197a56195ef5eca83ca5088f29f82dd4dacc086d5badd0ef16a920d85b"
+content_hash: "9f30a32ca6ebb6f05fc9c06a4f2f5381e2bb9d753db23e7abc411bb322061b40"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "a0d52e14050e7a4abb39e14a994574429c095c192fe6a1eaba898dafd2c18131"
-etag: "sha256-23d626a2ce1900810088afcf0968f3f78b1b086b81e31911ea3139a28d4e301a"
+mirror_sha256: "cebd836478d81e635f2988f701963a3f0af5b6af88142301a2017cf41647fed7"
+etag: "sha256-d7ff84b6ec37cc003b584f3e461ce2bc7d86d2351e1bfd575dc1579f5a32498d"
 ---
 ## 개요
 
@@ -251,7 +251,7 @@ flowchart TD
 **harmony 제어 토큰 누출 (gpt-oss).** gpt-oss-120b 가 `<|channel|>final<|message|>...` 같은 내부 제어 토큰을 응답에 드러냈다. OpenAI SDK 의 SSE 파서가 이를 파싱하다 "Failed to parse input at pos 0: ..." 로 예외를 던져 사용자에게 원시 `LLM_CONNECTION_ERROR` 가 보였다. `openai.client.ts` 에서 두 층으로 막았다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)).
 
 1. 스트리밍 중에 `delta.content` 와 tool_call 인자에서 제어 토큰을 지운다(`HARMONY_CHANNEL_PREAMBLE_REGEX` · `HARMONY_STANDALONE_TOKEN_REGEX`. 정규식은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정본이다).
-2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류한다. `openai.client.ts` 가 쓰는 안내문은 서버 로그에만 남고 SSE `error` 의 `message` 는 고정 영문이다. 화면에는 사전 키 `assistant.errorOutputMalformed` 의 ko/en 문구가 보인다. 처음에는 한국어 안내를 화면에 그대로 보냈다. 이 방식을 버린 이유는 [에러 버블 문구는 `assistant.*` 사전 키로 고른다](CLE-WF-ASSIST-ERROR.md#에러-버블-문구는-assistant-사전-키로-고른다-2026-10-24) 의 허용 목록 항목에 있다.
+2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류한다. `openai.client.ts` 가 쓰는 안내문은 서버 로그에만 남고 SSE `error` 의 `message` 는 고정 영문이다. 화면에는 사전 키 `assistant.errorOutputMalformed` 의 ko/en 문구가 보인다. 처음에는 한국어 안내를 화면에 그대로 보냈다. 이 방식을 버린 이유는 [에러 버블 문구는 `assistant.*` 사전 키로 고른다](CLE-WF-ASSIST-ERROR.md#에러-버블-문구는-assistant-사전-키로-고른다) 의 허용 목록 항목에 있다.
 
 **계획 전용 턴의 핑퐁 루프 (gemini-3-flash-preview).** 복합 설문조사 요청에서 gemini-3-flash-preview 가 `propose_plan` 직후 `finish` 를 부르지 않고 같은 턴에 편집 수십 개를 연달아 쐈다. 프로바이더가 `finishReason: 'tool_calls'` 로 끝내 서버가 라운드를 이었고 LLM 은 `PLAN_AWAITING_APPROVAL` 피드백을 보고도 편집을 다시 시도했다. `MAX_TOOL_LOOP_ROUNDS`(50)에 이르자 화면에 "진행이 중단됐어요" 와 빨간 배지 수십 개가 남았다. 그래서 계획을 제안했는데 아직 승인되지 않았으면 서버가 라운드를 잇지 않고 `finishReason` 을 `'stop'` 으로 덮어쓰게 했다. 프롬프트의 계획 전용 턴 규칙을 서버가 실제로 강제하므로 LLM 이 규칙을 어겨도 핑퐁 루프가 생기지 않는다.
 
@@ -259,7 +259,9 @@ flowchart TD
 
 **자동 이어서 진행 (gpt-oss-120b 임의 중단).** gpt-oss-120b 가 대기 단계가 남은 계획 편집 턴에서 도구를 부르지 않고 텍스트만 낸 뒤 `finishReason: 'stop'` 으로 끝냈다. "편집이 성공한 라운드만 이어 가기" 규칙으로는 덮지 못해 턴이 조용히 끝났다. 프론트엔드가 멈춤 안내를 띄워도 사용자가 후속 메시지를 직접 입력해야 했다. 그래서 서버가 "이어서 진행해줘." 를 넣어 자동으로 잇게 했다. 승인 대기 중인 계획 전용 턴, 이미 `finish` 가 성공한 턴, 대기 단계가 없는 턴, 도구 결과가 있는 라운드는 [자동 이어서 진행](#자동-이어서-진행)의 발동 조건에서 빠진다. 회귀 테스트는 `stream.service.spec.ts` "auto-continue on stall with pending plan" 묶음의 세 테스트("auto-nudges LLM when a round ends text-only + stop + plan has pending steps", "gives up after MAX_STALL_ROUNDS (2) consecutive text-only stalls to prevent runaway loops", "does NOT auto-continue when plan has no pending actionable steps")다.
 
-### 어시스턴트 턴에 120초 타임아웃을 두지 않는다 (2026-10-10)
+### 어시스턴트 턴에 120초 타임아웃을 두지 않는다
+
+결정일: 2026-10-10
 
 원문은 단일 턴 타임아웃을 "LLM 클라이언트 §6 에 따라 120초" 로 적고 `LLM_TIMEOUT` 에러와 안내 문구를 두었다. 원본 ED-AI-32 도 NF-AI-01 을 들어 120초로 적었다. 그런데 NF-AI-01 은 스트리밍을 뺐고 어시스턴트는 스트리밍만 쓴다. LLM 클라이언트에도 120초 규정이 없고 어시스턴트 모듈에도 그런 타임아웃이 구현된 적이 없다.
 

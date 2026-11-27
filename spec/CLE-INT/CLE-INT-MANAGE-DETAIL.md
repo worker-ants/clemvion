@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-DETAIL"
 title: "통합 관리 — 상세 화면"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "ec38bece8038308938c814d85f931e8ea94c068cbceef937305fe531bf75b376"
+content_hash: "76bdb3750f5e2d0675f9a1b0930349896df519267d65876b0271f2510cdc9f4a"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "b3fe4a7869f03659aa907683d66aef09c5dd352a4646a8f4b22d70780c293b1a"
-etag: "sha256-eecd50a76144f5237057d02cccf4263ea8b2205cb6a105e6146639d6574ff353"
+mirror_sha256: "28472301ac220f11d192eb84f69854d89cd606b56e37fd4243031919a73036c1"
+etag: "sha256-044360bd79aabd1b0b6aaea2a8e58da3592ad93c97f7fb44fe4d3f9a3454a265"
 ---
 ## 개요
 
@@ -31,7 +31,7 @@ etag: "sha256-eecd50a76144f5237057d02cccf4263ea8b2205cb6a105e6146639d6574ff353"
 | 재설치 대기 안내 | 머리 아래, 탭 위 | 제목, 설명, 요청 시각 | `reinstallRequestedAt` 이 `null` 이 아닐 때만 보인다. [재설치 대기 안내](#재설치-대기-안내) |
 | 탭 | 본문 위 | `Overview`·`Security`·`Scope & Permissions`·`Usage`·`Activity`·`Danger zone` | 앵커(`#security`, `#usage` 등)로 전환. `Danger zone` 은 공개 범위 전환이나 삭제 가운데 하나라도 할 수 있을 때만 보인다 |
 
-변경 버튼(별칭 수정, 통합 재인증, 자격 증명 교체, 추가 권한 요청, 공개 범위 전환, 삭제)은 [권한](CLE-INT-MANAGE-PERM.md#권한) 표에서 그 동작을 할 수 있는 사람에게만 보인다. 연결 테스트처럼 조회성 동작은 누구에게나 보인다. 위험 영역 탭을 볼 수 없는 사람이 그 탭의 앵커로 들어오거나 공개 범위를 바꿔 탭이 사라지면 개요 탭을 보인다. 숨기는 경우와 비활성으로 두는 경우를 가르는 기준은 [Rationale 「통합 화면은 할 수 없는 변경 동작을 숨긴다」](#통합-화면은-할-수-없는-변경-동작을-숨긴다-2026-10-29) 에 있다.
+변경 버튼(별칭 수정, 통합 재인증, 자격 증명 교체, 추가 권한 요청, 공개 범위 전환, 삭제)은 [권한](CLE-INT-MANAGE-PERM.md#권한) 표에서 그 동작을 할 수 있는 사람에게만 보인다. 연결 테스트처럼 조회성 동작은 누구에게나 보인다. 위험 영역 탭을 볼 수 없는 사람이 그 탭의 앵커로 들어오거나 공개 범위를 바꿔 탭이 사라지면 개요 탭을 보인다. 숨기는 경우와 비활성으로 두는 경우를 가르는 기준은 [Rationale 「통합 화면은 할 수 없는 변경 동작을 숨긴다」](#통합-화면은-할-수-없는-변경-동작을-숨긴다) 에 있다.
 
 ### 재설치 대기 안내
 
@@ -68,7 +68,7 @@ etag: "sha256-eecd50a76144f5237057d02cccf4263ea8b2205cb6a105e6146639d6574ff353"
 | 이유 값 | 조건 | 막는 이유 | 안내 문구 |
 | --- | --- | --- | --- |
 | `pending_install` | 설치 대기(서비스 무관) | 설치가 끝나지 않았다. 외부 «테스트 실행»·앱 설치가 정식 경로다 | "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요." |
-| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 상점 식별자를 비우므로 이 행을 지우지 않아도 같은 상점을 새로 등록한다. 이름은 그대로 남아 같은 이름으로 등록하면 409 `INTEGRATION_NAME_TAKEN` 이라 다른 이름으로 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요." |
+| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 상점 식별자를 비우므로 이 행을 지우지 않아도 같은 상점을 새로 등록한다. 이름은 그대로 남아 같은 이름으로 등록하면 409 `INTEGRATION_NAME_TAKEN` 이라 다른 이름으로 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)) | "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요." |
 | `makeshop` | MakeShop 통합 | 서버가 통합 재인증을 시작할 수 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 삭제 후 재등록한다 | "MakeShop 통합은 재인증할 수 없어요. 문제가 생기면 통합을 삭제한 뒤 다시 등록해 주세요. 상점에서 앱을 다시 설치해도 기존 통합은 복구되지 않아요." |
 | `no_app_url` | App URL(`appUrl`)이 없는 Cafe24 Private 통합 | 설치 토큰이 없어 «테스트 실행» 이 이 행으로 돌아올 수 없다. 삭제 후 재등록한다 | "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요." |
 
@@ -123,7 +123,7 @@ OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는
 
 > ⚠ Change scope from Personal to Organization?
 >
-> 기존 OAuth 토큰이 워크스페이스 전체 멤버에게 그대로 승계됩니다. 공유해도 문제가 없는 권한인지 확인해 주세요.
+> 자격 증명이 워크스페이스 멤버 전체와 공유됩니다. 계속할까요?
 >
 > [취소] [Change to Organization]
 
@@ -141,7 +141,9 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 
 ## Rationale
 
-### 통합 화면은 할 수 없는 변경 동작을 숨긴다 (2026-10-29)
+### 통합 화면은 할 수 없는 변경 동작을 숨긴다
+
+결정일: 2026-10-29
 
 통합 목록과 상세 화면은 지금 사용자가 역할이나 통합 소유 때문에 할 수 없는 변경 동작을 보이지 않는다. 할 수 있는지는 [권한](CLE-INT-MANAGE-PERM.md#권한) 표로 정한다.
 
@@ -153,7 +155,9 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 
 받아들인 잔여: 추가 버튼, 변경 버튼, 위험 영역 탭을 숨기므로 뷰어와 편집자는 그 동작을 할 수 없는 이유를 화면에서 안내받지 않는다. 안내는 뷰어가 추가 화면 주소(`/integrations/new`)로 들어올 때만 보인다. 자기 역할은 [워크스페이스 관리 화면](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스-관리-화면) 의 개요 탭에서 본다.
 
-### Cafe24 Private 통합 재인증을 열고 MakeShop 은 막는다 (2026-10-10)
+### Cafe24 Private 통합 재인증을 열고 MakeShop 은 막는다
+
+결정일: 2026-10-10
 
 이전에는 Cafe24 Private 통합의 통합 재인증 버튼을 모든 경우에 막았다. 우리 서버가 OAuth 를 시작할 수 없어서다. MakeShop 은 버튼을 둘지와 오류 뒤 복구 경로가 미결이었다. 2026-10-10 에 사용자가 두 서비스를 다르게 정했다.
 

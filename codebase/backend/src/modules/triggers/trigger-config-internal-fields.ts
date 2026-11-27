@@ -124,7 +124,7 @@ export const RAW_CONFIG_REJECTION_FIELD_NOTE =
   `${SECRET_REF_PREFIX} 값은 그 값의 경로이며 배열 원소는 "config.custom.refs[1]" 형식이다.`;
 
 /**
- * PATCH 의 원시 `config` 병합 규칙을 적은 문장. 수정 DTO 의 `config` 설명과 컨트롤러의 PATCH 설명이 같은 문장을 쓴다.
+ * PATCH 의 원시 `config` 병합 규칙을 적은 문장. 수정 DTO 의 `config` 설명이 쓴다.
  * 동작의 정본은 `TriggersService.mergeRawConfig` 이다.
  *
  * `config` 자체가 `null` 인 입력은 DTO 가 통과시킨다(`@IsOptional`). 종전에도 «보내지 않음» 으로 처리했으므로

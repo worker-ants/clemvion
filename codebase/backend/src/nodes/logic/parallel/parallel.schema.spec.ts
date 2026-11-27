@@ -56,12 +56,14 @@ describe('Parallel node', () => {
       expect(handler.validate({ branchCount: 17 }).valid).toBe(false);
     });
 
-    // CLE-NODE-PARALLEL v3 「에러」 — 범위 문구는 경고 규칙 한 곳에서만 나오고
-    // 정수 검사는 validateConfig 가 맡는다. 어느 쪽이든 handler.validate 는 거부한다.
+    // [CLE-NODE-PARALLEL-CONFIG](CLE-NODE-PARALLEL-CONFIG) 「에러」 — 범위 · 정수 문구는
+    // 경고 규칙에서만 나오고 숫자가 아닌 값은 validateConfig 가 맡는다. 어느 쪽이든
+    // handler.validate 는 거부한다.
     it.each([
       [1, ['branchCount must be a value between 2 and 16.']],
       [17, ['branchCount must be a value between 2 and 16.']],
       [2.5, ['branchCount must be an integer.']],
+      ['abc', ['branchCount must be a number.']],
     ])(
       'branchCount=%p 는 handler.validate 가 정확히 그 문구 하나로 거부한다',
       (branchCount, expected) => {
@@ -143,6 +145,26 @@ describe('Parallel node', () => {
 
     // 범위 검사는 이 규칙 한 곳에만 있으므로 advisory 로 낮추면 handler.validate
     // 가 범위 밖 값을 통과시킨다. 기본(blocking) 심각도를 지킨다.
+    // REQ-PARALLEL-019: 정수가 아닌 branchCount 도 캔버스 배지로 보인다.
+    it('parallel:branch-count-not-integer — fires for branchCount=2.5', () => {
+      expect(firedIds({ branchCount: 2.5 })).toEqual([
+        'parallel:branch-count-not-integer',
+      ]);
+    });
+
+    it('parallel:branch-count-not-integer — does NOT fire for an integer or a missing value', () => {
+      expect(firedIds({ branchCount: 4 })).toEqual([]);
+      expect(firedIds({})).toEqual([]);
+    });
+
+    it('parallel:branch-count-not-integer — 문구는 스펙 문구이고 심각도는 blocking 이다', () => {
+      const rule = parallelNodeMetadata.warningRules?.find(
+        (r) => r.id === 'parallel:branch-count-not-integer',
+      );
+      expect(rule?.message).toBe('branchCount must be an integer.');
+      expect(rule?.severity ?? 'blocking').toBe('blocking');
+    });
+
     it('parallel:branch-count-out-of-range — 문구는 스펙 문구이고 심각도는 blocking 이다', () => {
       const rule = parallelNodeMetadata.warningRules?.find(
         (r) => r.id === 'parallel:branch-count-out-of-range',
@@ -165,10 +187,17 @@ describe('Parallel node', () => {
       ).toEqual([]);
     });
 
-    it('rejects branchCount=2.5 (non-integer)', () => {
-      expect(validateParallelConfig({ branchCount: 2.5 })).toContain(
-        'branchCount must be an integer.',
-      );
+    it('rejects a branchCount that is not a finite number', () => {
+      expect(validateParallelConfig({ branchCount: 'abc' })).toEqual([
+        'branchCount must be a number.',
+      ]);
+      expect(validateParallelConfig({ branchCount: Number.NaN })).toEqual([
+        'branchCount must be a number.',
+      ]);
+    });
+
+    it('branchCount 정수 검사는 경고 규칙 몫이라 정수가 아닌 숫자는 여기서 거부하지 않는다', () => {
+      expect(validateParallelConfig({ branchCount: 2.5 })).toEqual([]);
     });
 
     it('branchCount 범위는 경고 규칙 몫이라 정수인 범위 밖 값은 여기서 거부하지 않는다', () => {

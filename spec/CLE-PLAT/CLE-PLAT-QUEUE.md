@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "4fca099fcb0aa3789ddecae50999c85c1607685342f1e858b0fc58c1656663f6"
+content_hash: "50fab9b9925e7c1ae213d9de52ff92c9d6fbafe2ab29d39da17c453ba5455efb"
 read_as: "approved_fallback"
-task: "CLE-T-BAXAN4"
+task: "CLE-T-15DBHE"
 source_paths: []
-mirror_sha256: "2a68d2f09d2723dd8637f8c58dc9ae94f96f1049663eed0392dc8a59e5b434f5"
-etag: "sha256-c8b2b38edd486d9417f729a2958428838c9e5d35b66b35a59ac20b7e1852ed35"
+mirror_sha256: "6af2f0b981651d2145751e4ea82ad6660e5ed08b33311819f0c6d181af07dbfc"
+etag: "sha256-abbc872af1af9857fdc8c1490e80369986e35b4c6ef4abd1d153d217b4ca38ba"
 ---
 > 구현 상태: 구현됨 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -164,11 +164,13 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 
 NERV Task `CLE-T-BAXAN4`. `alerts-evaluator` 와 `integration-expiry-scanner` 는 UTC 로 돈다. 주기만 맞으면 되는 내부 점검이라 사용자가 실행 시각을 보지 않는다. `notification-digest` 는 사용자가 받는 메일의 도착 시각이 곧 기능이다. 그래서 제품 기본 시간대 `PRODUCT_DEFAULT_TIMEZONE`(Asia/Seoul)의 오전 9시에 돈다. 같은 이유로 정리 작업 세 개(`login-history-pruner` · `audit-log-pruner` · `workspace-invitations-pruner`)도 Asia/Seoul 기준이다. 사용자별 시간대로 보내지 않는 이유는 [알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 의 Rationale 에 있다.
 
-### 지운 키 두 개 (2026-08-13)
+### 지운 키 두 개
+
+결정일: 2026-08-13
 
 실행 엔진 키 표는 "실제로 쓰는 키만" 적는다고 선언했는데, 코드에 없는 두 항목이 있어 지웠다.
 
-- `core:{wsId}:rate:{userId}`(API 요청 빈도 제한): 그때 API 요청 빈도 제한은 `@nestjs/throttler` 를 storage 설정 없이 썼다. 기본값인 메모리 카운터라 Redis 키가 없었다. 2026-11-21 에 여러 서버 인스턴스가 함께 쓰는 분산 저장소를 들였다(NERV Task `CLE-T-JK1JFZ`). 지금 키는 [다른 모듈의 키](#다른-모듈의-키) 의 `throttle:hit:<key>` · `throttle:block:<key>` 이고 워크스페이스 세그먼트가 없다. 옛 이름 `core:{wsId}:rate:{userId}` 는 쓰지 않는다. 도입 이유는 [요청 빈도 제한 카운터를 Redis 에 두는 이유 (2026-11-21)](#요청-빈도-제한-카운터를-redis-에-두는-이유-2026-11-21) 에 있다.
+- `core:{wsId}:rate:{userId}`(API 요청 빈도 제한): 그때 API 요청 빈도 제한은 `@nestjs/throttler` 를 storage 설정 없이 썼다. 기본값인 메모리 카운터라 Redis 키가 없었다. 2026-11-21 에 여러 서버 인스턴스가 함께 쓰는 분산 저장소를 들였다(NERV Task `CLE-T-JK1JFZ`). 지금 키는 [다른 모듈의 키](#다른-모듈의-키) 의 `throttle:hit:<key>` · `throttle:block:<key>` 이고 워크스페이스 세그먼트가 없다. 옛 이름 `core:{wsId}:rate:{userId}` 는 쓰지 않는다. 도입 이유는 [요청 빈도 제한 카운터를 Redis 에 두는 이유](#요청-빈도-제한-카운터를-redis-에-두는-이유) 에 있다.
 - `ws:{wsId}:session:{connId}`(WebSocket 세션): 소켓은 한 프로세스에 고정돼 프로세스 로컬 상태가 기준이다(`ws-rate-limiter.service.ts` 가 "Redis 없이" 를 명시). 이 항목을 근거로 "WebSocket 세션이 인스턴스 사이에 공유된다" 고 읽으면 정반대 전제가 된다.
 
 ### 실행 상태를 Redis 에 두지 않은 이유
@@ -179,11 +181,15 @@ NERV Task `CLE-T-BAXAN4`. `alerts-evaluator` 와 `integration-expiry-scanner` �
 
 `exec:cont:seq` 는 `INCR` 이 실패하면 발행을 멈추고(fail-fast), `exec:seq` 는 메모리 카운터로 강등한다. 의도한 비대칭이다. 재개 순번은 작업 ID 중복 제거 계약이 가용성보다 먼저다. 게다가 BullMQ 자체가 Redis 위에 있어, `INCR` 이 실패할 만한 장애에서는 바로 뒤의 `queue.add` 도 실패하므로 대체값의 실익이 거의 없다. 근거는 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 Rationale «발행 실패를 `queued:false` 하나로 알린다» 에 있다. 이벤트 순번의 강등 근거는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 에 있다.
 
-### WebSocket adapter 채널을 목록에 올린 이유 (2026-11-14)
+### WebSocket adapter 채널을 목록에 올린 이유
 
-NERV Task `CLE-T-GDR39Z`. 새 pub/sub 채널은 이 목록에 한 줄을 더한다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 7 을 따라 `ws:sio` 채널을 올렸다. 이 채널은 2026-08-13 에 지운 `ws:{wsId}:session:{connId}` 와 다르다([지운 키 두 개](#지운-키-두-개-2026-08-13)). 연결 상태는 지금도 Redis 에 두지 않는다는 그 결정을 유지하고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 전달 방식을 고른 근거는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다.
+결정일: 2026-11-14
 
-### 요청 빈도 제한 카운터를 Redis 에 두는 이유 (2026-11-21)
+NERV Task `CLE-T-GDR39Z`. 새 pub/sub 채널은 이 목록에 한 줄을 더한다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 7 을 따라 `ws:sio` 채널을 올렸다. 이 채널은 2026-08-13 에 지운 `ws:{wsId}:session:{connId}` 와 다르다([지운 키 두 개](#지운-키-두-개)). 연결 상태는 지금도 Redis 에 두지 않는다는 그 결정을 유지하고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 전달 방식을 고른 근거는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다.
+
+### 요청 빈도 제한 카운터를 Redis 에 두는 이유
+
+결정일: 2026-11-21
 
 NERV Task `CLE-T-JK1JFZ`. 그전에는 `@nestjs/throttler` 기본 메모리 저장소라 서버 인스턴스마다 따로 셌다. 인스턴스가 여럿이면 한 클라이언트가 받는 한도가 인스턴스 수만큼 늘 수 있었다. 이제 `RedisThrottlerStorage` 가 공유 Redis 에 Lua 스크립트 하나로 고정 창과 차단 상태를 센다. Redis 가 없거나 명령이 실패하거나 250ms 안에 답하지 않으면 서버 인스턴스마다 메모리로 센다.
 

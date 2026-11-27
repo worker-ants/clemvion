@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH"
 title: "OAuth 연결과 토큰 갱신"
 type: "feature"
-version: 18
+version: 19
 status: "approved"
 requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057", "REQ-INTOAUTH-058", "REQ-INTOAUTH-059", "REQ-INTOAUTH-060", "REQ-INTOAUTH-061", "REQ-INTOAUTH-062", "REQ-INTOAUTH-063", "REQ-INTOAUTH-064", "REQ-INTOAUTH-065", "REQ-INTOAUTH-066", "REQ-INTOAUTH-067", "REQ-INTOAUTH-068", "REQ-INTOAUTH-069", "REQ-INTOAUTH-070", "REQ-INTOAUTH-071", "REQ-INTOAUTH-072"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "4dd688e2c89e8fbca5240ea1a8fc20bac45d5c040f15ecd209fb4ca8d2cff5a8"
+content_hash: "791d1bde4b41598590b2d1c3e0fa6ac817963392d827199a41529067712458d9"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-24PRNR"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "6e54ce183647852bd20c2dc6729537a53c43a0cfc40a38920fa3e7160855e8b1"
-etag: "sha256-9028a41d0aa044bacbd362ebac38078068bf37703bbdd6fc1c0b2e68e2a5ca03"
+mirror_sha256: "53017991fc3757dbeccaa5ae64000e54bf676deba83d8be10ed828bd55d3231e"
+etag: "sha256-49c50ef86dc7f8d39865cd8c8bda804fd44766e641f8e9926a2812687838145f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -181,17 +181,23 @@ etag: "sha256-9028a41d0aa044bacbd362ebac38078068bf37703bbdd6fc1c0b2e68e2a5ca03"
 
 → [연결 시작(begin)](CLE-INT-OAUTH-BEGIN.md#cafe24_private_app_already_connected-이름을-유지한다)
 
-### `new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다 (2026-11-06)
+### `new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다
 
-→ [연결 시작(begin)](CLE-INT-OAUTH-BEGIN.md#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06)
+결정일: 2026-11-06
 
-### 남의 개인 설치 대기 행은 409 로 거절한다 (2026-10-24)
+→ [연결 시작(begin)](CLE-INT-OAUTH-BEGIN.md#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다)
 
-→ [설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#남의-개인-설치-대기-행은-409-로-거절한다-2026-10-24)
+### 남의 개인 설치 대기 행은 409 로 거절한다
 
-### 만료된 설치 대기 행은 상점 자리를 놓는다 (2026-10-29)
+결정일: 2026-10-24
 
-→ [설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+→ [설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#남의-개인-설치-대기-행은-409-로-거절한다)
+
+### 만료된 설치 대기 행은 상점 자리를 놓는다
+
+결정일: 2026-10-29
+
+→ [설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다)
 
 ### 설치 토큰을 App URL 경로의 식별 키로 올렸다
 
@@ -233,9 +239,11 @@ etag: "sha256-9028a41d0aa044bacbd362ebac38078068bf37703bbdd6fc1c0b2e68e2a5ca03"
 
 → [토큰 자동 갱신](CLE-INT-OAUTH-REFRESH.md#reactive_401-은-고유-jobid-로-중복-제거를-완전히-건너뛴다)
 
-### 요구사항 변경 이력 (2026-10-10, Task CLE-T-NNENG8)
+### 요구사항 변경 이력
 
-다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
+번호는 그대로 두고 뜻을 바꾼 요구사항과 그 이유다.
+
+2026-10-10, Task CLE-T-NNENG8.
 
 - REQ-INTOAUTH-013: `reauthorize` 만 적던 것을 `new` 가 아닌 모드 전체로 넓히고 `client_id`·`client_secret` 을 갖춘 `oauth/begin` 요청이라는 조건과 400 을 적었다. `:id/reauthorize` 는 더 이상 이 거절에 기대지 않는다.
 - REQ-INTOAUTH-015: 상세 화면 302 조건에 «유효한 재설치 대기 표시가 없음» 을 더했다.
@@ -247,33 +255,24 @@ etag: "sha256-9028a41d0aa044bacbd362ebac38078068bf37703bbdd6fc1c0b2e68e2a5ca03"
 
 새 요구사항은 REQ-INTOAUTH-044 부터다.
 
-### 요구사항 변경 이력 (2026-10-15, Task CLE-T-WB7JPC)
-
-다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
+2026-10-15, Task CLE-T-WB7JPC.
 
 - REQ-INTOAUTH-011: `new` 가 아닌 모드의 대상 통합(`integrationId`)을 중복 검사에서 뺐다. 대상이 아닌 연결됨 행은 그대로 409 다.
 
 새로 더한 요구사항은 REQ-INTOAUTH-055~057 이다. REQ-INTOAUTH-049·050 은 그대로 두고 Cafe24 Private 통합의 코드를 REQ-INTOAUTH-055·056 에 정했다. MakeShop 통합의 코드는 그때 미결 사항에 남겼고 2026-11-13 에 REQ-INTOAUTH-072 로 정했다.
 
-
-### 요구사항 변경 이력 (2026-10-24, Task CLE-T-MG0EQZ)
-
-다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
+2026-10-24, Task CLE-T-MG0EQZ.
 
 - REQ-INTOAUTH-012: 재사용 조건에 «요청자가 그 행을 바꿀 수 있으면» 을 더했다. 그 밖의 경우는 REQ-INTOAUTH-058·062 를 따른다. «설치 토큰째 재사용한다» 던 것도 코드에 맞춰 고쳤다. `client_id`·`client_secret` 가운데 하나라도 바뀌면 설치 토큰을 새로 발급한다(2026-10-24 코드 확인). 보존하는 이유는 사용자가 외부 콘솔에 처음 등록한 App URL 이 begin 을 다시 불러도 유효해야 해서다(2026-05-15 운영 보고). 발급 시각(`install_token_issued_at`)도 토큰을 새로 발급할 때만 바꾼다. 보존과 재발급의 조건은 2026-05-15 커밋 `f3db9209b` 가 정했다. 그 전에는 재사용할 때마다 새로 발급했다. 그 커밋은 옛 동작의 의도가 보안을 위한 회전이었지만 운영에서 낸 효과는 사용자가 막 등록한 URL 을 무효로 만든 것뿐이었다고 적는다. 그래서 자격 증명(`mall_id`·`client_id`·`client_secret`)이 같으면 보존하고, 자격 증명이 다르거나(사용자가 `client_id` 등을 바꿔 다시 시도한 경우) 설치 토큰이 없을 때만 새로 발급하게 했다. 자격 증명이 다를 때 새로 발급하는 이유는 그 커밋에 따로 적혀 있지 않다. 요구사항 문장에는 «설치 토큰이 있으면» 을 조건으로 넣었다. 설치 토큰이 없는 옛 행은 자격 증명이 같아도 새로 발급하기 때문이다(finding 01a16e25-ca25-70ff-bba4-e76f55bd9e0d).
 - REQ-INTOAUTH-026: 콜백의 커밋 직전 재판정에 개인 통합의 편집자 하한을 더했다. begin 은 라우트 가드가 뷰어를 막는데 시작과 콜백 사이에 뷰어로 강등된 요청자는 콜백에서 막히지 않았다(finding 01a16e25-6561-717a-999a-88cc990d8450).
 
 새 요구사항은 REQ-INTOAUTH-058 부터다. REQ-INTOAUTH-059 는 본문에만 있던 MakeShop 설치 대기 행 재사용을 같은 조건으로 요구사항에 올린 것이다. REQ-INTOAUTH-066·067 은 2026-10-25 에 더했다.
 
-### 요구사항 변경 이력 (2026-10-30, Task CLE-T-395HK2)
-
-다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
+2026-10-30, Task CLE-T-395HK2.
 
 - REQ-INTOAUTH-052: 권한 요청 버튼을 막는 조건에 설치 기한이 지나 만료된 통합(`status='expired'`, `status_reason='install_timeout'`)을 더했다. 같은 Task 의 코드 수정으로 화면이 이 이유를 먼저 판정하고 이 통합을 지우지 않고 같은 상점을 새로 등록하라고 안내한다. 이 통합은 MakeShop 이거나 App URL 이 없는 Cafe24 Private 이라 버튼은 그 전에도 막혔다. 바뀐 것은 이유와 안내다.
 
-### 요구사항 변경 이력 (2026-11-14, Task CLE-T-N121VD)
-
-다음 요구사항의 뜻을 구현에 맞췄다. 번호는 그대로 두고 동작은 바뀌지 않는다.
+2026-11-14, Task CLE-T-N121VD. 뜻을 구현에 맞췄고 동작은 바뀌지 않는다.
 
 - REQ-INTOAUTH-029: 추가 권한 요청 콜백을 더했다. 콜백의 코드 교환 실패 처리(`markIntegrationCallbackError`)는 모드를 가리지 않고 두 콜백을 같게 다루고, [통합 상태 모델](CLE-INT-STATUS-MODEL.md) 의 상태 전이 표도 그렇다. 조치 필요 알림(계기 `oauth_callback`)도 적었다. 조건과 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) 이 정한다. 사람이 고른 안이다. 추가 권한 요청을 빼고 구현을 바꾸는 안은 고르지 않았다.
 

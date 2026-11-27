@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-CALLBACK"
 title: "OAuth 연결과 토큰 갱신 — 팝업 연결과 콜백"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "35413ad28f7ac7c48a41c70895a2b325fa01e9fab6330a0babc7b6e2984eaaae"
+content_hash: "41401a20a1524bb3c563456f3621691dff1e3e4019b060edc9bb8890828c9f17"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "cd1bd29a2980eb582485a22942c3c58fa33a21a77cbd4b67c9505ca2b30a63e2"
-etag: "sha256-99750e36ad0bedb73f0243134feaa463ce83b95d354bd321681b5e19024fecd4"
+mirror_sha256: "258f32f878d563a30f6c64ef071738bbe8b55aa55e92bcf698ee75beb185edff"
+etag: "sha256-af54ce090a6d3d9b84670073e508a0e3cd8517afb7b875aa0c25a12220bfb520"
 ---
 ## 개요
 
@@ -126,7 +126,7 @@ GET /api/3rd-party/:provider/callback
    window.close();
    ```
 
-7. **실패 처리**: 콜백 처리 중 예외가 나면 컨트롤러는 같은 콜백 HTML 을 `status: 'error'` 와 에러 메시지로 돌려준다. 메시지를 읽을 수 있도록 팝업은 3~5초 뒤 닫는다(성공은 바로). state 를 소비한 뒤의 예외는 `OAuthState.integrationId` 로 행을 알 수 있으므로 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 그 행에 기록한다. 다만 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않고 요청자의 콜백 응답에만 싣는다.
+7. **실패 처리**: 콜백 처리 중 예외가 나면 컨트롤러는 같은 콜백 HTML 을 `status: 'error'` 와 에러 메시지로 돌려준다. 메시지를 읽을 수 있도록 팝업은 3~5초 뒤 닫는다(성공은 바로). `new` 모드의 콜백 실패는 대상 행이 없으므로 어느 행에도 기록하지 않는다. 그 밖의 모드에서 state 를 소비한 뒤의 예외는 `OAuthState.integrationId` 로 행을 알 수 있으므로 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 그 행에 기록한다. 다만 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않고 요청자의 콜백 응답에만 싣는다.
 
 ### 에러 매핑
 
@@ -136,17 +136,17 @@ GET /api/3rd-party/:provider/callback
 | 사용자 거부 | `Authorization was denied.` | 변경 없음 |
 | 코드 교환 실패 (`OAUTH_TOKEN_EXCHANGE_FAILED`, 계정 식별자 조회 실패 포함) | `Failed to connect to {provider}.` (3~5초 뒤 닫기) | 설치 대기는 상태 보존과 사유 `oauth_token_exchange_failed`. 연결됨은 유효한 재설치 대기 표시가 없을 때만 `error(auth_failed)`([콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)) |
 | Cafe24 `invalid_scope` (인가·토큰 교환 두 단계 모두) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | 상태 보존. `last_error.code='OAUTH_INVALID_SCOPE'` 와 `last_error.details.requiresCafe24Approval` 기록. 사유는 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록) 표대로 설치 대기·연결됨 행만 `oauth_invalid_scope` 로 남긴다 |
-| state 불일치·만료 (state 소비 뒤) | `Security validation failed.` / `OAuth state has expired.` | 상태 보존. 통합을 알 수 있으면 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 기록(설치 대기는 사유 `oauth_state_mismatch`·`oauth_state_expired`) |
+| state 불일치·만료 (state 소비 뒤) | `Security validation failed.` / `OAuth state has expired.` | 상태 보존. `new` 가 아닌 모드라 통합을 알 수 있으면 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 기록(설치 대기는 사유 `oauth_state_mismatch`·`oauth_state_expired`) |
 | 토큰 발급 뒤 행 조회 실패 | `Integration not found.` | 변경 불가. 행이 사라져 갱신할 대상이 없다 |
 | 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`) | 서버 메시지 그대로(아래 목록) | 자격 증명 불변(롤백), 상태 보존. `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 는 `last_error` 에 기록하고 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다 |
 | 설치 기한이 지나 만료된 설치 대기 행에 늦게 도착한 콜백 (요청자 재판정을 통과한 뒤) | `The install window for this integration has expired` | 변경 없음. 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절하고 행에 아무것도 쓰지 않는다 |
-| 네트워크 오류 | `Connection error.` | 통합을 알 수 있으면 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 기록. 토큰 교환과 계정 식별자 조회 중의 네트워크 오류와 시간 초과는 코드 교환 실패(`OAUTH_TOKEN_EXCHANGE_FAILED`)로 기록된다 |
+| 네트워크 오류 | `Connection error.` | `new` 가 아닌 모드라 통합을 알 수 있으면 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 기록. 토큰 교환과 계정 식별자 조회 중의 네트워크 오류와 시간 초과는 코드 교환 실패(`OAUTH_TOKEN_EXCHANGE_FAILED`)로 기록된다 |
 
 - **코드 교환 실패**: 설치 대기 행은 외부 설정을 고친 뒤 다시 시도할 수 있다. 유효한 재설치 대기 표시가 있는 연결됨 행은 기존 토큰으로 실행이 계속되고 사용자는 «테스트 실행» 으로 다시 시도한다. Google·GitHub 의 계정 식별자 조회 실패도 같은 코드라 이 행을 따른다.
 - **Cafe24 `invalid_scope`**: `requiresCafe24Approval` 은 요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합(`string[]`)이다. 상세 화면이 이 단서를 읽어 «이 권한은 카페24 별도 승인이 필요해요» 를 보인다. `oauth_token_exchange_failed` 와 진입 경로가 다르다. 이쪽은 Cafe24 가 권한 범위를 명시적으로 거부한 경우이고 저쪽은 그 밖의 토큰 교환 실패 전부(네트워크, 서버 오류, 알 수 없는 `invalid_grant` 등)다.
 - **커밋 직전 인가 재판정 실패**: 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 된 경우다. 재판정을 건너뛰는 행(설치 대기, 유효한 재설치 대기 표시가 있는 Cafe24 Private)에는 이 실패가 없다.
-  - 팝업 메시지는 `Integration not found`(`RESOURCE_NOT_FOUND`), `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`)다. 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED` 다.
-  - `RESOURCE_NOT_FOUND` 는 그 행이 요청자에게 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다([커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다 (2026-10-29)](#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)).
+  - 팝업 메시지는 `Integration not found`(`RESOURCE_NOT_FOUND`), `Admin role or higher is required to reauthorize an Organization integration.`·`… to add scopes to an Organization integration.`(`ADMIN_REQUIRED`)다. 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED` 다.
+  - `RESOURCE_NOT_FOUND` 는 그 행이 요청자에게 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다([커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다](#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다)).
 - **설치 기한이 지나 만료된 행**: 상태 · 상태 사유 · 상점 식별자(`mall_id`) · `last_error` 를 그대로 둔다. state 는 유효하므로 state 유효 시간이 지난 경우의 `OAUTH_STATE_EXPIRED` 와 코드가 다르다. 이 행에는 이 표의 다른 콜백 실패(재판정 실패의 `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 포함)도 `last_error`·`status_reason` 을 쓰지 않는다.
 
 상태 사유 저장값(snake_case)과 API 에러 코드(UPPER_SNAKE_CASE)의 관계는 [상태 모델 「상태 값과 상태 사유」](CLE-INT-STATUS-MODEL.md#상태-값과-상태-사유) 에 있다.
@@ -178,7 +178,9 @@ Public 흐름은 서버의 `CAFE24_CLIENT_ID`·`CAFE24_CLIENT_SECRET`(앱스토�
 
 Cafe24 Admin API 가운데 mileage·notification·privacy 의 모든 권한 범위와 store 안 일부 operation 은 카페24 본사가 따로 승인한 클라이언트만 쓸 수 있다. 사용자가 위저드에서 일반 카테고리처럼 체크했다가 `invalid_scope` 나 `INSUFFICIENT_SCOPE`(403)로 막히고 원인을 알 수 없었다. 그래서 백엔드 메타데이터의 `restrictedApproval` 과 카탈로그 `restricted` 컬럼을 기준으로 네 화면(추가 위저드, 권한 탭, Cafe24 노드 Operation 드롭다운, AI 에이전트 노출 도구 목록)이 ⚠ 배지·tooltip·경고를 자동으로 그린다. 에러 안내는 OAuth 단계(`oauth_invalid_scope`)와 호출 단계(`details.requiresCafe24Approval`)로 나눈다. 이미 승인받은 사용자를 막지 않도록 차단하지 않고 경고만 하며 새 에러 코드 없이 보강 필드로 표현해 클라이언트 호환을 지킨다. 명단, 차단하지 않는 근거, 미확인 항목(mileage 의 `credits_*`, `paymentmethods_*` 세 operation)은 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) 가 기준이다.
 
-### 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다 (2026-10-29)
+### 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다
+
+결정일: 2026-10-29
 
 2026-10-29 에 사용자가 정했다. 통합 재인증·추가 권한 요청 콜백의 커밋 직전 인가 재판정이 `RESOURCE_NOT_FOUND` 로 실패하면 통합 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다. 이 코드는 시작과 콜백 사이에 그 행이 남의 개인 통합이 됐거나 지워져 요청자에게 보이지 않게 됐다는 뜻이다. 남의 개인 통합이 된 행에 쓰면 통합 소유자가 자기가 일으키지 않은 에러를 보고, 누군가 그 통합으로 시도했다는 사실도 드러난다. 지워진 행에는 쓸 곳이 없다. 요청자에게 보이는 행의 `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 는 지금처럼 `last_error` 에 쓴다.
 

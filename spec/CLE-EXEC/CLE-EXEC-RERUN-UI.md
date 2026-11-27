@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-UI"
 title: "재실행 — 화면"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "c09af55b0aaafa6a0dcb8eb882d7aab9a5bb592203ff189f83cd05dfb70fda16"
+content_hash: "5ed6a748f34b3abe9da56f48ac9c38fdae2bbecd125e91520674cfbbbb8c5aee"
 read_as: "approved_fallback"
-task: "CLE-T-A6QF3F"
+task: "CLE-T-C56GBA"
 source_paths: []
-mirror_sha256: "a19f9c32e975af87511d1f4d20f5f1f949fa379694fb3a9c932864c46d837fa5"
-etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
+mirror_sha256: "7c15eb6f1e93b5744f92b3ab084758849a58ab7bba59632e727fec1167e35697"
+etag: "sha256-1e2b983ce21673d0e0551dd27bde0963aa33bc23a13a74f59be0541040e69a37"
 ---
 ## 개요
 
@@ -24,7 +24,7 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 
 | 화면 | 위치 | 권한이 없을 때 |
 | --- | --- | --- |
-| 실행 상세 화면([실행 내역](CLE-EXEC-HISTORY.md)) | 요약 카드 오른쪽 머리 | 버튼을 비활성화하고 툴팁 "Re-run 권한이 없어요 (정책 RR-PL-06)" |
+| 실행 상세 화면([실행 내역](CLE-EXEC-HISTORY.md)) | 요약 카드 오른쪽 머리 | 버튼을 비활성화하고 툴팁 "재실행 권한이 없어요 (정책 RR-PL-06)" |
 | 실행 결과 드로어([에디터 실행과 디버깅](CLE-EXEC-RUN.md)) | 드로어 머리 오른쪽 | 버튼을 숨긴다(드로어는 워크플로우를 만드는 도중의 화면이라 소음을 줄인다) |
 
 두 진입점 모두 같은 모달을 띄운다. 권한 판정(`canReRun`)은 [RR-PL-06](CLE-EXEC-RERUN-POLICY.md#rr-pl-06-권한-f) 을 따른다.
@@ -35,7 +35,7 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 
 | 영역 | 위치 | 들어가는 요소 |
 | --- | --- | --- |
-| 머리 | 위 | 제목 "Re-run Execution", 원본 실행(`#1234 · 2026-05-12 14:02:30 · ✅ Completed`) |
+| 머리 | 위 | 제목 "재실행"(en "Re-run Execution"), 원본 실행(`#1234 · 2026-05-12 14:02:30 · ✅ Completed`) |
 | 안내 | 머리 아래 | 안내 문장 "이 워크플로우에는 부수효과 노드가 3개 있어요" 와 그 아래 작은 글씨의 노드별 개수 "Send Email × 1, HTTP Request × 2". MCP 서버를 연결한 AI 에이전트 노드가 있으면 그 아래에 "MCP 서버를 연결한 AI 에이전트 노드 1개" 줄이 붙는다 |
 | 입력 데이터 | 가운데 | "원본 입력 그대로 사용 (RR-PL-02)" 토글, 파라미터별 필드(예: `name`, `count`, `extra.flag`) |
 | dry-run | 입력 아래 | "dry-run 모드 (부수효과 호출은 모의 처리)" 토글(RR-PL-01). 부수효과 호출만 모의 출력 · 모의 응답으로 대신하고 읽기 호출은 실제로 실행한다([부수효과 판정](CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)) |
@@ -69,7 +69,7 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 
 | 요소 | 표시 조건 | 내용 |
 | --- | --- | --- |
-| 체인 배지 | `re_run_of != null` | "#N-th re-run"(체인의 N번째 재실행)과 원본 실행 ID 링크. dry-run 이면 "· dry-run" 을 붙인다 |
+| 체인 배지 | `re_run_of != null` | "N번째 재실행"(en "#N-th re-run")과 원본 실행 ID 링크. dry-run 이면 "· dry-run" 을 붙인다 |
 | 체인 보기 드롭다운(`history.rerun.viewChain`) | 체인의 실행이 2개 이상 | 누르면 같은 체인의 모든 실행을 펼친다. 항목마다 ID, 시작 시각, 최종 상태, dry-run 여부 |
 
 ## i18n 키
@@ -77,7 +77,7 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 | 키 | 한국어 | 영어 |
 | --- | --- | --- |
 | `history.actions.rerun` | 재실행 | Re-run |
-| `history.rerun.modal.title` | 실행 다시 시작 | Re-run Execution |
+| `history.rerun.modal.title` | 재실행 | Re-run Execution |
 | `history.rerun.modal.originalLabel` | 원본 실행 | Original Execution |
 | `history.rerun.modal.sideEffectWarning` | 이 워크플로우에는 부수효과 노드가 {{count}}개 있어요 | This workflow includes {{count}} side-effect node(s) |
 | `history.rerun.modal.agentToolWarning` | MCP 서버를 연결한 AI 에이전트 노드 {{count}}개 | {{count}} AI agent node(s) with connected MCP servers |
@@ -87,15 +87,15 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 | `history.rerun.dryRunDisabledTooltip` | 이 워크플로우에는 dry-run 미지원 노드가 있어요 | This workflow contains nodes that don't support dry-run |
 | `history.rerun.confirmButton` | 재실행 | Re-run |
 | `history.rerun.cancelButton` | 취소 | Cancel |
-| `history.rerun.chainBadge` | #{{n}}-th re-run | #{{n}}-th re-run |
+| `history.rerun.chainBadge` | {{n}}번째 재실행 | #{{n}}-th re-run |
 | `history.rerun.chainBadgeDryRun` | dry-run | dry-run |
 | `history.rerun.chainOrigin` | 원본 | original |
-| `history.rerun.viewChain` | chain 보기 ({{count}}) | View chain ({{count}}) |
-| `history.rerun.permissionDenied` | Re-run 권한이 없어요 (정책 RR-PL-06) | You don't have permission to re-run (RR-PL-06) |
+| `history.rerun.viewChain` | 체인 보기 ({{count}}) | View chain ({{count}}) |
+| `history.rerun.permissionDenied` | 재실행 권한이 없어요 (정책 RR-PL-06) | You don't have permission to re-run (RR-PL-06) |
 | `history.rerun.chainDepthExceeded` | 같은 체인의 재실행이 한도(32)에 도달했어요 | This chain has reached the re-run depth limit (32) |
 | `history.rerun.workflowDeleted` | 원본 실행의 워크플로우가 삭제되어 재실행할 수 없어요 | The workflow of the original execution has been deleted |
 | `history.rerun.dryRunNotApplicable` | 이 워크플로우는 dry-run 모드로 재실행할 수 없어요 | This workflow cannot be re-run in dry-run mode |
-| `history.rerun.assistantBlocked` | Re-run 은 사용자가 실행 상세 페이지에서 직접 트리거해야 해요 (RR-PL-07) | Re-run must be triggered manually on the execution detail page (RR-PL-07) |
+| `history.rerun.assistantBlocked` | 재실행은 사용자가 실행 상세 페이지에서 직접 트리거해야 해요 (RR-PL-07) | Re-run must be triggered manually on the execution detail page (RR-PL-07) |
 | `history.rerun.genericError` | 재실행하지 못했어요 | Re-run failed |
 
 화면 문구 자체의 기준은 i18n 사전이다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)).
@@ -107,7 +107,9 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 
 ## Rationale
 
-### 입력 데이터 마스킹을 예외로 두지 않고 마커를 막는다 (2026-08-20)
+### 입력 데이터 마스킹을 예외로 두지 않고 마커를 막는다
+
+결정일: 2026-08-20
 
 2026-08-20 이전에는 `Execution.inputData` 만 응답 마스킹에서 뺐다. 마스킹하면 모달이 미리 채운 `'***'` 가 새 실행의 실제 입력값이 되기 때문이다. 이제는 이 컬럼도 마스킹하고 대신 모달이 마커를 미리 채우지 않으며 서버가 마커 재전송을 거부한다([마스킹된 입력 처리](#마스킹된-입력-처리)). 마스킹 정책의 근거는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 에 있다.
 
@@ -131,4 +133,4 @@ etag: "sha256-fbaebb9fc95fc2adf788125f6631cd80db6cb8a0ec66acf938535626a850d8fc"
 - 부수효과 노드 수에 합친다: 위에 적은 대로 숫자의 뜻이 달라져 기각했다.
 - 연결된 서버 수나 도구 수를 센다: 실행 전에 확정되지 않아 기각했다.
 
-**화면 문구를 용어 사전에 맞춘다**: 화면 문구 «외부 호출 노드» 를 [용어 사전 — 실행](../CLE-GLOSSARY-EXEC.md) 의 표준 용어 «부수효과 노드» 로 바꿨다. 화면 표기만 예외로 두지 않았다(NERV Task `CLE-T-JAQSXQ`). 같은 작업에서 ko 화면 문구의 «워크플로» 도 «워크플로우» 로 맞췄다. 재실행 창 ko 문구의 문체는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 7 의 해요체를 따른다. 이 창만 합쇼체로 두는 예외는 두지 않았다(2026-11-26 사람 결정, NERV Task `CLE-T-A6QF3F`).
+**화면 문구를 용어 사전에 맞춘다**: 화면 문구 «외부 호출 노드» 를 [용어 사전 — 실행](../CLE-GLOSSARY-EXEC.md) 의 표준 용어 «부수효과 노드» 로 바꿨다. 화면 표기만 예외로 두지 않았다(NERV Task `CLE-T-JAQSXQ`). 같은 작업에서 ko 화면 문구의 «워크플로» 도 «워크플로우» 로 맞췄다. 재실행 창 ko 문구의 문체는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 7 의 해요체를 따른다. 이 창만 합쇼체로 두는 예외는 두지 않았다(2026-11-26 사람 결정, NERV Task `CLE-T-A6QF3F`). ko 문구의 «Re-run» · «chain» 도 같은 창의 버튼 «재실행» 과 «체인» 으로 맞췄고 모달 제목도 «재실행» 으로 정했다. 영어 표기를 용어집 예외로 두지 않았다(2026-11-27 사람 결정, NERV Task `CLE-T-C56GBA`).

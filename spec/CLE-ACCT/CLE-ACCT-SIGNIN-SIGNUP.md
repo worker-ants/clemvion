@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-SIGNUP"
 title: "가입과 로그인 — 가입 · 재설정 · 이메일 변경"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "f20c9b682f134d7e7f07ae0e8192cb690bbc58dffb27c9f74f0ff740ce3061d5"
+content_hash: "1ab53675a37331ecf6627259786bb8565852a87fa3eb368f99608836b7814acc"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "700dec92c8c9346e82f49d50adf7c3a86f0964c03964149d098962b7edefaa81"
-etag: "sha256-f1a154be88b3f65ecec8b63ba410f4def1dfbc1ff392895ffa3a037316ac9578"
+mirror_sha256: "99ba36e634b6bcec11aeeb8c8ca1f8fa69294e1c53bcbfe3e035bb5de2b264a6"
+etag: "sha256-efbf763ea4b5b0ee8b190937d87499f9504d669390a7adf7c596897e90f25308"
 ---
 ## 개요
 
@@ -265,7 +265,7 @@ sequenceDiagram
 
 가입 인증 24시간(가입 직후 여유)과 비밀번호 재설정 30분(탈취 시나리오라 짧게) 사이로 정했다. 로그인한 상태에서 스스로 하는 동작이라 짧게 두되 새 메일함을 확인할 여유를 준다.
 
-### 이메일 변경 재인증에서 이메일 OTP 를 뺀다
+### 이메일 변경의 계정 재인증에서 이메일 OTP 를 뺀다
 
 이메일 변경에서는 바꾸려는 메일함의 소유 자체가 증명 대상이다. 이메일 OTP 로 본인을 증명하면 공격자가 지정한 새 메일함의 OTP 로 통과하는 모순이 생긴다. 그래서 계정 재인증을 비밀번호나 TOTP 로 좁히고, 세션 강제 종료와 같은 `SessionsService.verifyReauth` 를 재사용한다. Passkey 로 하는 계정 재인증은 challenge·response 형태의 추가 인증 흐름이 필요해 `verifyReauth` 가 아직 지원하지 않는다. 그 일반화는 별도 계획이 필요하다.
 

@@ -2,19 +2,19 @@
 id: "CLE-ENG-SPECEVIDENCE-MIGRATION"
 title: "스펙과 구현 근거 규약 — NERV 이전 영향과 걷은 결정"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG-SPECEVIDENCE"
 ancestors: ["CLE-VISION", "CLE-ENG", "CLE-ENG-SPECEVIDENCE"]
 area: "CLE-ENG"
-content_hash: "6693422f5bc73db936c4d4e6cfe0c1d1cf58952b64641f4949c5380d91c43345"
+content_hash: "1cd1470e9baf073b8d6be06c266527bb6fdb1de4f2e20d87353b9d785003b541"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-15DBHE"
 source_paths: []
-mirror_sha256: "f49e0545d058dc490cf4e48424d8096830ecd3fac568d41c324528bf0acd89e2"
-etag: "sha256-c859e42e3cadb0c5643e3e21b8749c77603e176108c7d8f587cdb9b40947c7d0"
+mirror_sha256: "146c5bb1c81a63d5977327815d160a9a8d85d2b3f610dbf9efa0b069fddf13ba"
+etag: "sha256-68760623625d48a97ab49122e51eb812ea985c4ccaed88a5d7be875f26c325f5"
 ---
 ## 개요
 
@@ -92,7 +92,9 @@ Rationale 번호는 분리 전 번호를 그대로 쓴다. 이 문서에 없는 
 
 (걷음. 원문은 이 문서의 버전 6 에 있다. R-17) 트래커 파일 하나를 여러 문서의 `pending_plans` 가 가리킬 때 파일 이동 대신 그 문서 몫의 항목으로 승격을 판정하던 규칙(규칙 12)의 근거다. 전환 단계 3 에서 `pending_plans` 와 함께 걷었다(R-13).
 
-### R-13. 전환 단계 3 에서 plan 가드와 `pending_plans` 를 걷었다 (2026-10-01)
+### R-13. 전환 단계 3 에서 plan 가드와 `pending_plans` 를 걷었다
+
+결정일: 2026-10-01
 
 NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 저장소 `plan/` 을 지웠다. 작업 추적의 정본은 NERV Task 다. `plan/` 을 읽던 가드 넷과 그 공용 모듈(`plan-scan.ts`)을 같은 PR 에서 걷었다.
 
@@ -117,7 +119,9 @@ NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 저장소 `plan/` �
 
 링크 무결성 가드 범위 1 이 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛰는 것도 같은 이유다(규칙 17). 동결된 옛 트리를 고치지 않고 단계 5 에서 지울 때까지 두었다. 이 면제는 범위 1 과 함께 걷었다(R-16). 해석한 경로로 판정해 루트가 아닌 같은 이름 폴더는 그대로 검사한다. 거버넌스 문서에는 이 면제를 두지 않았다. 살아 있는 문서라 링크를 고칠 수 있다.
 
-### R-17. 걷은 규칙과 결정을 요약으로 줄인다 (2026-10-03, 버전 7)
+### R-17. 걷은 규칙과 결정을 요약으로 줄인다 (버전 7)
+
+결정일: 2026-10-03
 
 전환 단계 3 · 5 를 거치며 규칙 22항 중 17항과 Rationale 10개가 「걷음」 표기만 단 채 원문을 그대로 남겼다. 살아 있는 규칙(18 ~ 22)을 찾기 어렵고 걷은 규칙을 현행으로 읽기 쉽다. 이웃 문서가 걷은 필드를 현행처럼 인용한 일이 실제로 있었다(R-16 「후속 개정」). 그래서 버전 7 에서 걷은 규칙은 한 문단으로, 걷은 결정은 한두 문장 요약으로 줄였다. 원문은 NERV 의 이 문서 버전 6 에 있고 옛 트리 원문은 git 이력에 있다.
 
@@ -126,7 +130,9 @@ NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 저장소 `plan/` �
 - R-12 · R-13 도 걷은 장치를 다루지만 줄이지 않았다. 지금 장치가 이어받은 곳과 약해지는 곳을 함께 적고 있어 현행 근거이기도 하다. R-8(Gate C)은 이어받은 곳이 NERV done 게이트 하나라 요약으로 줄였다.
 - 걷은 규칙과 결정을 통째로 지우는 안은 채택하지 않았다(이 버전을 쓰며 따졌다. 따로 제안된 이력은 없다). 위 인용이 가리킬 곳이 사라진다.
 
-### `code:` 목록에 주석을 허용한 경위 (2026-09-06)
+### `code:` 목록에 주석을 허용한 경위
+
+결정일: 2026-09-06
 
 (걷음. 원문은 이 문서의 버전 6 에 있다. R-17) 옛 리뷰 게이트 파서(`review_guard._parse_frontmatter_code`)가 `code:` 목록의 YAML 주석 뒤 항목을 조용히 버리던 결함(스펙 387개 중 7개 파일, 41개 항목)을 문서 규율 대신 파서 수정으로 막은 경위다. 블록 리스트가 빈 줄과 `#` 주석을 건너뛰게 고쳤다. 파서는 전환 단계 2 에서 걷었고 `code:` 는 전환 단계 5 에서 걷었다.
 

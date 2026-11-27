@@ -406,6 +406,25 @@ describe("ReRunModal", () => {
     expect(routerPushMock).not.toHaveBeenCalled();
   });
 
+  it("한국어 창은 제목 · 권한 거부 문구를 «재실행» 으로 쓴다 (CLE-T-C56GBA)", async () => {
+    useLocaleStore.setState({ locale: "ko" });
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    apiPostMock.mockRejectedValue({
+      response: { data: { code: "RERUN_PERMISSION_DENIED" } },
+    });
+    seedDefinitions([]);
+    renderModal();
+    expect(
+      screen.getByRole("heading", { name: "재실행" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "재실행" }));
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "재실행 권한이 없어요 (정책 RR-PL-06)",
+      );
+    });
+  });
+
   it("RERUN_CHAIN_DEPTH_EXCEEDED 에러를 limit toast 로 노출한다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     apiPostMock.mockRejectedValue({

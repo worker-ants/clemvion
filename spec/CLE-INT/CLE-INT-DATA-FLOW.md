@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-FLOW"
 title: "통합 데이터와 흐름 — 연결과 설치 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "798575e0566525d76f226fd482c93a67fcd4e16e86a9c31e467676da55dccd16"
+content_hash: "d37de17954704dbb50ac7f15c568b97fcf724e577777a9073583cb493aeab96f"
 read_as: "approved_fallback"
-task: "CLE-T-ZCEZ46"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "583cc14dfa891de17ce5f6b7dccd46c4617dd5a1600b3f2719b5d36ba7727101"
-etag: "sha256-d3b8697d0243d4aa47d2076ca98569f66593d683a69e9208751ef7270361d3c3"
+mirror_sha256: "98b4ec02384d35c6445bd5d9c9dd98bf8d263746e96fa4f0934d08f449fabed4"
+etag: "sha256-1733f12050751f3fdab6eed564512d3f1f01cd7c53cc90b62d9b34e33243cebd"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -45,7 +45,7 @@ sequenceDiagram
 
 `last_rotated_at` 을 생성 시각으로 채우는 이유는 NULL 로 두면 Cafe24 백그라운드 갱신의 기준 시각 비교에서 계속 빠질 수 있어서다. 스캐너 조건에 `IS NULL` 분기도 따로 둔다.
 
-INSERT 는 트랜잭션 안에서 한다. 트랜잭션을 열면 먼저 워크스페이스, 멤버십 순으로 잠그고(`lockForIntegrationWrite`) 그다음 통합을 INSERT 한다. 멤버십은 개인 통합일 때만 잠근다. 개인 통합인데 요청자의 멤버십이 그 사이 없어졌으면 403 `NOT_A_MEMBER` 다. 미리보기 토큰 소비와 자격 증명 검증은 잠그기 전에 끝낸다. 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+INSERT 는 트랜잭션 안에서 한다. 트랜잭션을 열면 먼저 워크스페이스, 멤버십 순으로 잠그고(`lockForIntegrationWrite`) 그다음 통합을 INSERT 한다. 멤버십은 개인 통합일 때만 잠근다. 개인 통합인데 요청자의 멤버십이 그 사이 없어졌으면 403 `NOT_A_MEMBER` 다. 미리보기 토큰 소비와 자격 증명 검증은 잠그기 전에 끝낸다. 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다) 가 정한다.
 
 ## OAuth 연결과 설치
 
@@ -173,12 +173,16 @@ MakeShop 에는 재설치 대기 표시가 없다. 설치를 마친 행은 상�
 
 `mode='new'` 콜백 시점에는 통합의 최종 이름과 공개 범위가 정해지지 않았다. 사용자는 팝업이 닫힌 뒤 폼에서 마저 입력한다. 콜백에서 바로 행을 만들면 미완성 행이 목록에 보이고, 사용자가 폼을 떠나면 주인 없는 행이 남는다. 대신 토큰을 미리보기 토큰 테이블(10분, 암호화)에 맡기고 참조 토큰만 프런트엔드로 보낸다. `POST /api/integrations` 가 이 토큰을 한 번만 원자적으로 소비해 최종 행을 만든다. 폼을 떠나면 남는 것은 만료된 행뿐이고 다음 `oauth/begin` 이 지운다. 한때 «OAuth 콜백이 바로 통합을 INSERT/UPDATE 한다» 는 서술이 있었으나 이 설계로 대체됐다. 콜백의 직접 UPDATE 는 통합 재인증·추가 권한 요청·설치 후속 콜백에만 남는다.
 
-### 자격 증명 교체는 연결 테스트 뒤 잠근 행 위에 다시 합친다 (2026-11-12)
+### 자격 증명 교체는 연결 테스트 뒤 잠근 행 위에 다시 합친다
+
+결정일: 2026-11-12
 
 자격 증명 교체는 연결 테스트를 마친 뒤 잠근 행을 다시 읽고 그 위에 새 값을 다시 합친다(`IntegrationsService.rotate`). 요청 시점에 읽은 행 위에 합쳐 저장하면 테스트가 몇 초 걸리는 동안 먼저 커밋된 다른 교체가 옛 값으로 되돌아간다. 형제 흐름인 통합 재인증 · 추가 권한 요청 콜백과 같은 순서다.
 
 뺀 안: 연결 테스트까지 잠금 안에 넣으면 테스트하지 않은 조합이 생기지 않지만, 잠금을 쥔 채 외부를 불러 DB 커넥션 점유가 길어진다. 토큰 갱신이 advisory lock 을 뺀 이유와 같다. 테스트하지 않은 조합은 두 교체가 서로 다른 필드를 바꿀 때만 생겨서 받아들였다.
 
-### `EDITOR_REQUIRED` 의 카탈로그 서술을 고쳤다 (2026-11-13)
+### `EDITOR_REQUIRED` 의 카탈로그 서술을 고쳤다
+
+결정일: 2026-11-13
 
 커밋 직전 재판정 항목은 에러 코드 카탈로그가 `EDITOR_REQUIRED` 를 가드 거부 코드로만 적는다고 했다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 승인본(v34)은 §6.2 의 `EDITOR_REQUIRED` 행에 통합 OAuth 콜백의 커밋 직전 재판정(`assertPersonalWriteRole`)을 이미 적어서 그 문장을 카탈로그를 가리키는 문장으로 바꿨다. 동작은 바뀌지 않았다.

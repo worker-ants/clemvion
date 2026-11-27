@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 24
+version: 25
 status: "approved"
 requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067", "REQ-INTMGMT-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "9f1c434715170804b8a917bc2dfea714a76666cee0768877a02c27284a70ae05"
+content_hash: "f67d535fb61cfe90ed907068f9830530d9663d21a2d6bceba6231fdfed137764"
 read_as: "approved_fallback"
-task: "CLE-T-T8M5XV"
+task: "CLE-T-24PRNR"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "f3bd30292f3ea96b19ff723bd3711becd3c5790fa087afc133c89db9cee732a6"
-etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
+mirror_sha256: "6ab4a4974891b1227f95f1be5d66c75a1e75c0ebe9b357c57becc5200d8140e7"
+etag: "sha256-e2be7176832b41074a8ae75bb0b060f62b06cadd2c9a542f2664b107bb60be53"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,13 +77,13 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 - REQ-INTMGMT-040 WHEN 통합 조회 응답을 만들면 THE SYSTEM SHALL 자격 증명을 가리고 파생 값 `autoRefresh`·`appUrl` 을 싣는다.
 - REQ-INTMGMT-041 WHEN 사용자가 Cafe24 상점 식별자를 입력하면 THE SYSTEM SHALL 같은 상점의 Cafe24 통합이 이미 있는지 중복 사전 감지로 미리 알린다.
 - REQ-INTMGMT-042 IF 중복 사전 감지의 충돌 행이 요청자가 볼 수 없는 개인 통합이면 THE SYSTEM SHALL 통합 ID 와 이름을 빼고 충돌 여부와 상태만 돌려준다.
-- REQ-INTMGMT-043 WHEN 통합의 생성·수정·삭제·자격 증명 교체·비OAuth 재인증·공개 범위 전환이 일어나면 THE SYSTEM SHALL `resource_type='integration'` 감사 로그를 남긴다.
+- REQ-INTMGMT-043 WHEN 통합의 생성·수정·삭제·자격 증명 교체·비OAuth 통합 재인증·공개 범위 전환이 일어나면 THE SYSTEM SHALL `resource_type='integration'` 감사 로그를 남긴다.
 - REQ-INTMGMT-044 WHEN OAuth 통합 재인증이 콜백으로 끝나면 THE SYSTEM SHALL `integration.reauthorized` 감사 로그를 남긴다. (미구현)
 - REQ-INTMGMT-045 WHEN 노드 설정 패널에서 통합을 고르면 THE SYSTEM SHALL 서비스 유형으로 거른 통합 선택기를 보이고 해당 유형 통합이 없으면 만들기 링크를 보인다.
 - REQ-INTMGMT-046 IF 노드에 저장된 통합이 삭제됐으면 THE SYSTEM SHALL `{id앞8자}… (missing)` 옵션을 더해 값을 보존한다.
 - REQ-INTMGMT-047 WHEN 통합 조회 응답을 만들면 THE SYSTEM SHALL 재설치 대기 표시를 `reinstallRequestedAt`(ISO 8601 시각 또는 `null`)으로 싣고 남긴 지 24시간이 지난 표시는 `null` 로 싣는다.
 - REQ-INTMGMT-048 WHILE 통합 조회 응답의 `reinstallRequestedAt` 이 `null` 이 아닌 동안 THE SYSTEM SHALL 상세 화면 머리 아래에 «테스트 실행» 을 누르라는 안내와 요청 시각을 info 톤으로 보인다.
-- REQ-INTMGMT-049 WHEN 보안 탭이 통합 재인증 버튼을 막으면 THE SYSTEM SHALL 설치 대기, 설치 기한 만료, App URL 없음, MakeShop 가운데 해당하는 이유의 안내 문구를 버튼 아래에 보인다.
+- REQ-INTMGMT-049 WHEN 보안 탭이 통합 재인증 버튼을 막으면 THE SYSTEM SHALL 설치 대기, 설치 기한 만료, MakeShop, App URL 없음 가운데 해당하는 이유의 안내 문구를 버튼 아래에 보인다.
 - REQ-INTMGMT-050 WHEN 통합 재인증 응답이 `cafe24_private_pending` 이면 THE SYSTEM SHALL 팝업을 열지 않고 info 토스트를 보인 뒤 통합을 다시 조회한다.
 - REQ-INTMGMT-051 WHEN 뷰어가 자기 개인 통합을 삭제하면 THE SYSTEM SHALL 다른 역할과 같은 사용처 검사를 거쳐 허용한다.
 - REQ-INTMGMT-052 IF 실행 중인 노드가 워크플로우 작성자가 통합 소유자가 아닌 개인 통합을 참조하면 THE SYSTEM SHALL 없는 통합을 참조할 때와 똑같이 통합 노드는 같은 노드 에러 코드로 실패시키고 AI 에이전트의 MCP 서버 항목은 그 서버만 건너뛴다.
@@ -100,9 +100,9 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 - REQ-INTMGMT-063 WHEN 통합 목록이나 상세 화면을 보이면 THE SYSTEM SHALL 지금 사용자가 역할이나 통합 소유 때문에 할 수 없는 변경 동작(목록 헤더와 빈 상태의 통합 추가, 별칭 수정, 통합 재인증, 자격 증명 교체, 추가 권한 요청, 공개 범위 전환, 삭제)의 버튼을 보이지 않고 공개 범위 전환과 삭제를 둘 다 할 수 없으면 위험 영역 탭도 보이지 않는다. 통합 추가를 할 수 없으면 `N` 키로도 추가 모달이 열리지 않는다. 연결 테스트처럼 조회성 동작의 버튼은 보인다.
 - REQ-INTMGMT-064 IF 뷰어가 통합 추가 화면 주소(`/integrations/new`)로 들어오면 THE SYSTEM SHALL 추가 단계 대신 편집자 이상만 통합을 추가할 수 있다는 안내와 목록으로 돌아가는 링크를 보인다.
 - REQ-INTMGMT-065 WHEN 멤버가 워크스페이스를 나가거나 제거되면 THE SYSTEM SHALL 멤버십을 지우는 트랜잭션 안에서 그 멤버가 통합 소유자인 그 워크스페이스의 개인 통합을 상태와 사용처에 관계없이 모두 지운다. 커밋 뒤 지운 통합마다 캐시를 무효화하고 `details.mode` 와 `details.memberUserId` 를 실은 `integration.deleted` 감사 로그를 남긴다.
-- REQ-INTMGMT-066 WHEN 개인 통합 행을 만들거나(통합 생성) Cafe24 Private·MakeShop `oauth/begin` 이 개인 공개 범위 요청으로 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 같은 트랜잭션에서 워크스페이스, 멤버십, 통합 순으로 잠그고 통합 소유자의 멤버십을 다시 읽어 없으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십이 있는지만 보고 역할은 보지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+- REQ-INTMGMT-066 WHEN 개인 통합 행을 만들거나(통합 생성) Cafe24 Private·MakeShop `oauth/begin` 이 개인 공개 범위 요청으로 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 같은 트랜잭션에서 워크스페이스, 멤버십, 통합 순으로 잠그고 통합 소유자의 멤버십을 다시 읽어 없으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십이 있는지만 보고 역할은 보지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다) 가 정한다.
 - REQ-INTMGMT-067 IF 관리자가 조직 통합을 개인으로 전환하려는데 통합을 만든 사람(`created_by`)이 그 워크스페이스 멤버가 아니면 THE SYSTEM SHALL 409 `INTEGRATION_OWNER_NOT_MEMBER` 로 거절하고 통합을 바꾸지 않는다. 판정은 전환 트랜잭션 안에서 REQ-INTMGMT-066 과 같은 순서로 잠근 멤버십으로 한다.
-- REQ-INTMGMT-068 WHEN 조직 공개 범위로 통합 행을 만들거나(통합 생성) Cafe24 Private·MakeShop `oauth/begin` 이 조직 공개 범위 요청으로 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 같은 트랜잭션에서 통합 행보다 먼저 워크스페이스 행을 잠그고 워크스페이스가 그 사이 지워졌으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십은 잠그지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+- REQ-INTMGMT-068 WHEN 조직 공개 범위로 통합 행을 만들거나(통합 생성) Cafe24 Private·MakeShop `oauth/begin` 이 조직 공개 범위 요청으로 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 같은 트랜잭션에서 통합 행보다 먼저 워크스페이스 행을 잠그고 워크스페이스가 그 사이 지워졌으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십은 잠그지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다) 가 정한다.
 
 통합 참조가 놓이는 자리와 저장 검사가 거절할 값 모양(문자열이 아닌 값, 표현식이 아니면서 UUID 모양이 아닌 문자열)은 [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다. 위 054 의 거절 대상도 이 규칙을 따른다.
 
@@ -177,17 +177,23 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 
 다른 문서가 링크하던 결정 제목은 같은 제목으로 남기고 본문이 있는 하위 문서로 잇는다.
 
-### 나간 멤버의 개인 통합은 나갈 때 지운다 (2026-10-29)
+### 나간 멤버의 개인 통합은 나갈 때 지운다
 
-→ [하위 문서](CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29). 잠금 순서는 [통합 쓰기의 잠금 순서](CLE-INT-MANAGE-PERM.md#통합-쓰기의-잠금-순서) 가 정한다.
+결정일: 2026-10-29
 
-### 나간 멤버의 개인 통합으로 바꾸는 전환은 거절한다 (2026-10-29)
+→ [하위 문서](CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합은-나갈-때-지운다). 잠금 순서는 [통합 쓰기의 잠금 순서](CLE-INT-MANAGE-PERM.md#통합-쓰기의-잠금-순서) 가 정한다.
 
-→ [하위 문서](CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29)
+### 나간 멤버의 개인 통합으로 바꾸는 전환은 거절한다
 
-### 개인 통합의 역할 하한과 노드 사용 기준을 정한다 (2026-10-24)
+결정일: 2026-10-29
 
-→ [하위 문서](CLE-INT-MANAGE-USE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24)
+→ [하위 문서](CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다)
+
+### 개인 통합의 역할 하한과 노드 사용 기준을 정한다
+
+결정일: 2026-10-24
+
+→ [하위 문서](CLE-INT-MANAGE-USE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다)
 
 #### 실행 시점 거절도 없는 통합과 같은 노드 에러다
 
@@ -205,13 +211,17 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 
 → [하위 문서](CLE-INT-MANAGE-USE.md#활동-로그는-얻은-통합에만-쓴다)
 
-### 통합 화면은 할 수 없는 변경 동작을 숨긴다 (2026-10-29)
+### 통합 화면은 할 수 없는 변경 동작을 숨긴다
 
-→ [하위 문서](CLE-INT-MANAGE-DETAIL.md#통합-화면은-할-수-없는-변경-동작을-숨긴다-2026-10-29)
+결정일: 2026-10-29
 
-### 자격 증명 교체의 연결 테스트 실패는 400 이다 (2026-11-12)
+→ [하위 문서](CLE-INT-MANAGE-DETAIL.md#통합-화면은-할-수-없는-변경-동작을-숨긴다)
 
-→ [하위 문서](CLE-INT-MANAGE-RUN.md#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12)
+### 자격 증명 교체의 연결 테스트 실패는 400 이다
+
+결정일: 2026-11-12
+
+→ [하위 문서](CLE-INT-MANAGE-RUN.md#자격-증명-교체의-연결-테스트-실패는-400-이다)
 
 ### 설치 대기 연결 테스트는 200 과 `success:false` 로 거절한다
 
@@ -223,8 +233,8 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 
 2026-10-29, Task CLE-T-TGZGM9. 새 요구사항은 065 · 066 이다.
 
-- REQ-INTMGMT-005: Cafe24 Private·MakeShop 의 `oauth/begin` 이 설치 대기 행을 만드는 것도 생성이라고 더했다. 이 경로는 이름 UNIQUE 에 걸리면 `RESOURCE_CONFLICT` 를 냈다. 만료된 설치 대기 행이 상점 자리를 놓게 되면서([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) 같은 상점을 다시 등록하는 begin 이 만료 행의 이름과 겹치는 일이 생긴다. Cafe24 Private 의 기본 이름은 상점 식별자로 만들어서 같은 상점이면 이름도 같다. 사용자가 이름을 바꿔 다시 시도할 수 있게 이름 칸에 에러로 표시되는 코드를 낸다.
-- REQ-INTMGMT-019: 멤버가 나가거나 제거될 때의 삭제는 이 거절을 거치지 않는다고 더했다. 나간 멤버의 개인 통합은 사용처와 관계없이 지운다([나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)).
+- REQ-INTMGMT-005: Cafe24 Private·MakeShop 의 `oauth/begin` 이 설치 대기 행을 만드는 것도 생성이라고 더했다. 이 경로는 이름 UNIQUE 에 걸리면 `RESOURCE_CONFLICT` 를 냈다. 만료된 설치 대기 행이 상점 자리를 놓게 되면서([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)) 같은 상점을 다시 등록하는 begin 이 만료 행의 이름과 겹치는 일이 생긴다. Cafe24 Private 의 기본 이름은 상점 식별자로 만들어서 같은 상점이면 이름도 같다. 사용자가 이름을 바꿔 다시 시도할 수 있게 이름 칸에 에러로 표시되는 코드를 낸다.
+- REQ-INTMGMT-019: 멤버가 나가거나 제거될 때의 삭제는 이 거절을 거치지 않는다고 더했다. 나간 멤버의 개인 통합은 사용처와 관계없이 지운다([나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다)).
 
 2026-10-29, Task CLE-T-G56XCH. 새 요구사항은 067 이다.
 
@@ -234,7 +244,7 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 
 2026-10-30, Task CLE-T-PS7JQY · CLE-T-395HK2. 068 은 잠금 절 · 에러 표에만 있던 조직 행 잠금 규칙을 요구사항 줄로 올린 것이다. 다른 문서가 개인 통합만 다루는 066 으로 이 규칙을 인용하고 있었다.
 
-- REQ-INTMGMT-066: 잠금 모드(`FOR KEY SHARE`·`FOR SHARE`)를 요구사항 줄에서 빼고 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 의 잠금 절로 옮겼다. 요구사항 줄에는 «워크스페이스, 멤버십, 통합 순» 과 멤버십 재확인만 남겼다. 잠금 순서를 그 절 한 곳에서 정하려는 것이다(NERV Task `CLE-T-G56XCH` 리뷰 후속). 요구는 그대로다.
+- REQ-INTMGMT-066: 잠금 모드(`FOR KEY SHARE`·`FOR SHARE`)를 요구사항 줄에서 빼고 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다) 의 잠금 절로 옮겼다. 요구사항 줄에는 «워크스페이스, 멤버십, 통합 순» 과 멤버십 재확인만 남겼다. 잠금 순서를 그 절 한 곳에서 정하려는 것이다(NERV Task `CLE-T-G56XCH` 리뷰 후속). 요구는 그대로다.
 - REQ-INTMGMT-005·065·066·067: 구현돼 미구현 표시를 걷었다. [권한](#권한) 의 «정했지만 아직 코드에 없는 것» 에서 이 항목을 지웠다.
 
 2026-10-31, Task CLE-T-KQ37NJ.
@@ -253,7 +263,7 @@ etag: "sha256-2b438af6bf0aafe4a788014625d4e9a67f46ecb2f0847c694dc5e8421f842752"
 - REQ-INTMGMT-031(2026-10-25): 뷰어의 조직 통합 삭제도 `ADMIN_REQUIRED` 라고 더했다. [「뷰어도 자기 개인 통합을 보고 지울 수 있다」](#뷰어도-자기-개인-통합을-보고-지울-수-있다) 로 삭제 라우트가 뷰어를 막지 않게 되면서 따라온 변경인데 요구사항 문장에 없었다. 그때 삭제 라우트는 편집자 이상이라 뷰어가 `EDITOR_REQUIRED` 를 받았으므로 클라이언트에 보이는 코드가 바뀐다(finding 01a17058-f45e-72bb-a5aa-610ce260c2e2).
 - REQ-INTMGMT-054(2026-10-25): 참조 값이 표현식이면 거절하지도 비우지도 않는다고 더했다. [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 에는 있고 요구사항 줄에는 없었다(finding 01a1705c-cb6b-76e0-a4b7-5e9b0348e9a4).
 - REQ-INTMGMT-062(2026-10-25): «통합의 워크스페이스가 실행의 워크스페이스와 같을 때만» 을 «실행 중에 조회해 얻은 통합에만» 으로 바꿨다. 얻은 통합은 워크스페이스 검사를 이미 통과했으므로 앞 조건을 포함한다([「활동 로그는 얻은 통합에만 쓴다」](#활동-로그는-얻은-통합에만-쓴다)).
-- REQ-INTMGMT-006(2026-10-29): 위험 영역 탭은 공개 범위 전환이나 삭제를 할 수 있는 사람에게만 보인다고 더했다(REQ-INTMGMT-063, [통합 화면은 할 수 없는 변경 동작을 숨긴다](#통합-화면은-할-수-없는-변경-동작을-숨긴다-2026-10-29)).
+- REQ-INTMGMT-006(2026-10-29): 위험 영역 탭은 공개 범위 전환이나 삭제를 할 수 있는 사람에게만 보인다고 더했다(REQ-INTMGMT-063, [통합 화면은 할 수 없는 변경 동작을 숨긴다](#통합-화면은-할-수-없는-변경-동작을-숨긴다)).
 
 2026-11-19, Task CLE-T-GZRYQ3 · CLE-T-WMH3EK.
 
