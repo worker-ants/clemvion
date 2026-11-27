@@ -197,7 +197,7 @@ To/CC/BCC take arrays. Each entry is trimmed and blanks are dropped. If no recip
 <FieldTable rows={[
   {name: "tls", required: false, type: "Integration credential", description: "TLS connection with `secure: true`.", default: "-"},
   {name: "starttls", required: false, type: "Integration credential", description: "`secure: false, requireTLS: true`.", default: "-"},
-  {name: "none", required: false, type: "Integration credential", description: "Plain SMTP without TLS.", default: "-"}
+  {name: "none", required: false, type: "Integration credential", description: "Does not enforce TLS. STARTTLS is used when the server advertises it, but an attacker in the middle can strip that advertisement and the password and message body then travel in plain text. Pick `starttls` or `tls` when the server supports them.", default: "-"}
 ]} />
 
 ## Cafe24
