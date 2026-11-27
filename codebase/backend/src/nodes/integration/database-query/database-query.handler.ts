@@ -389,11 +389,10 @@ export class DatabaseQueryHandler
     parameters: unknown[],
     abortSignal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
+    // mysql2 는 `?` 를 쓴다. 화면 안내의 PostgreSQL 식 `$N` 을 `?` 로 바꾸고 바인딩 배열을 번호대로 다시 만든다.
+    // 연결을 얻기 전에 바꿔서 잘못된 번호(`INVALID_PARAMETERS`)는 쿼리를 보내지 않고 끝낸다.
+    const { sql, values } = convertMysqlPlaceholders(query, parameters);
     const pool = this.resolveMysqlPool(integrationId, creds);
-    // mysql2 uses `?` placeholders. Convert `$1, $2, ...` from the
-    // PostgreSQL-flavoured UI hint into positional `?` marks. Parameters
-    // are still bound positionally against `parameters[]`.
-    const sql = convertPgPlaceholders(query);
     // getConnection 으로 명시 획득 — in-flight cancel(§2.1)에 connection `threadId`
     // 가 필요하다. abort 시 **일회성 별도 연결**로 `KILL QUERY <threadId>` 를 발행해
     // 진행 중 쿼리만 끊는다(연결은 유지). best-effort — 권한(PROCESS)·타이밍에 의존.
@@ -412,7 +411,7 @@ export class DatabaseQueryHandler
     if (abortSignal)
       abortSignal.addEventListener('abort', onAbort, { once: true });
     try {
-      const [rawRows, fields] = await connection.query(sql, parameters);
+      const [rawRows, fields] = await connection.query(sql, values);
       if (Array.isArray(rawRows)) {
         const rows = rawRows as RowDataPacket[];
         return {
@@ -795,9 +794,37 @@ function skipSqlBlank(
  *   전체가 실행되지 않는다.
  * - 달러 인용(`$$…$$` · `$tag$…$tag$`)은 PostgreSQL 에서만 인용이다. MySQL 에서 `$` 는 식별자 글자다.
  * - 같은 따옴표를 두 번 쓰면 따옴표 글자 하나다. 닫히지 않았으면 `ambiguous` 다.
+ *
+ * `backslash` 가 `'escape'` 면 방언을 아는 실행 경로다({@link convertMysqlPlaceholders}). MySQL 의 작은따옴표 ·
+ * 큰따옴표 안에서 백슬래시는 다음 글자 하나를 이스케이프하고 `ambiguous` 가 되지 않는다. mysql2 가 `?` 를 채울 때
+ * 리터럴을 읽는 법(기본 SQL 모드)과 같다. 기본값 `'ambiguous'` 는 두 방언을 함께 읽는 dry-run 판정용이다.
  */
-function skipSqlQuoted(sql: string, pos: number, dialect: SqlDialect): SqlSkip {
+function skipSqlQuoted(
+  sql: string,
+  pos: number,
+  dialect: SqlDialect,
+  backslash: 'ambiguous' | 'escape' = 'ambiguous',
+): SqlSkip {
   const ch = sql[pos];
+  if (
+    backslash === 'escape' &&
+    dialect === 'mysql' &&
+    (ch === "'" || ch === '"')
+  ) {
+    for (let i = pos + 1; i < sql.length; i += 1) {
+      if (sql[i] === '\\') {
+        i += 1;
+        continue;
+      }
+      if (sql[i] !== ch) continue;
+      if (sql[i + 1] === ch) {
+        i += 1;
+        continue;
+      }
+      return { kind: 'skip', next: i + 1 };
+    }
+    return SQL_AMBIGUOUS;
+  }
   if (ch === "'" || ch === '"' || ch === '`') {
     const backslashAmbiguous =
       ch === "'" || (ch === '"' && dialect === 'mysql');
@@ -936,10 +963,88 @@ function parseParameters(raw: unknown): unknown[] {
   );
 }
 
-function convertPgPlaceholders(sql: string): string {
-  // Convert `$1, $2, ...` to `?`. Parameters remain positional, so authors
-  // must list `$N` markers in the same order as the `parameters` array.
-  return sql.replace(/\$\d+/g, '?');
+/** MySQL 비인용 식별자에 쓸 수 있는 글자(`$` 포함). `$N` 앞뒤에 붙으면 플레이스홀더가 아니라 식별자의 일부다. */
+const MYSQL_IDENTIFIER_CHAR = /[\p{L}\p{N}_$]/u;
+
+/**
+ * MySQL 실행용 플레이스홀더 변환([Database Query 「실행 로직」](CLE-NODE-DBQUERY#실행-로직) 3단계, REQ-DBQ-003 · 007).
+ * 쿼리의 `$N` 을 mysql2 의 `?` 로 바꾸고 바인딩 배열을 `$N` 이 나온 순서대로 `parameters[N-1]` 로 다시 만든다.
+ * `$2 … $1` 처럼 번호가 등장 순서와 달라도 번호대로 바인딩하고, 같은 번호를 두 번 쓰면 값도 두 번 싣는다.
+ *
+ * - 문자열 리터럴 · 따옴표 식별자 · 주석 안의 `$N` 은 바꾸지 않는다. 스캔은 dry-run 판정의 MySQL 규칙
+ *   ({@link skipSqlQuoted} · {@link skipSqlComment})을 그대로 쓰고, 리터럴 안 백슬래시는 이스케이프로 읽는다.
+ *   MySQL 이 SQL 로 읽는 `--x`(공백 없는 `--`)와 실행 주석 `/*! … *\/` 의 안쪽은 바꾼다.
+ * - 앞이나 뒤에 식별자 글자가 붙은 `$N`(`a$1` · `$1a`)은 식별자라 바꾸지 않는다.
+ * - `$N` 이 하나도 없으면 쿼리와 `parameters` 를 그대로 돌려준다. MySQL 고유의 `?` 를 쓴 쿼리가 이 경로다.
+ * - `$N` 과 고유 `?` 를 섞어 쓰거나, N 이 0 이거나 `parameters` 길이보다 크면 `INVALID_PARAMETERS` 다. 어느 값을
+ *   어디에 묶을지 정할 수 없어서 쿼리를 보내지 않는다.
+ * - 닫히지 않은 리터럴을 만나면 그 뒤는 손대지 않는다. 쿼리 자체가 MySQL 구문 오류다.
+ *
+ * 한계: 서버가 `NO_BACKSLASH_ESCAPES` 모드면 백슬래시를 글자로 읽어 리터럴 경계가 이 스캔과 다를 수 있다.
+ */
+export function convertMysqlPlaceholders(
+  sql: string,
+  parameters: unknown[],
+): { sql: string; values: unknown[] } {
+  let out = '';
+  let copied = 0;
+  const values: unknown[] = [];
+  let nativePlaceholder = false;
+  let pos = 0;
+  while (pos < sql.length) {
+    const quoted = skipSqlQuoted(sql, pos, 'mysql', 'escape');
+    if (quoted.kind === 'ambiguous') break;
+    if (quoted.kind === 'skip') {
+      pos = quoted.next;
+      continue;
+    }
+    const comment = skipSqlComment(sql, pos, 'mysql', false);
+    if (comment.kind === 'skip') {
+      pos = comment.next;
+      continue;
+    }
+    // 판정용 스캐너가 `ambiguous` 로 돌려주는 주석 모양(`--x` · `/*!` · 닫히지 않거나 겹친 블록)은 MySQL 이 SQL 로
+    // 읽는 글자로 보고 한 글자씩 넘어간다.
+    const ch = sql[pos];
+    if (ch === '?') {
+      nativePlaceholder = true;
+      pos += 1;
+      continue;
+    }
+    if (ch === '$') {
+      const digits = /^\$(\d+)/.exec(sql.slice(pos));
+      const before = pos > 0 ? sql[pos - 1] : '';
+      const end = digits ? pos + digits[0].length : pos;
+      const after = sql[end] ?? '';
+      if (
+        digits &&
+        !MYSQL_IDENTIFIER_CHAR.test(before) &&
+        !MYSQL_IDENTIFIER_CHAR.test(after)
+      ) {
+        const n = Number(digits[1]);
+        if (n < 1 || n > parameters.length) {
+          throw new IntegrationError(
+            'INVALID_PARAMETERS',
+            `query uses $${digits[1]} but parameters has ${parameters.length} value(s)`,
+          );
+        }
+        values.push(parameters[n - 1]);
+        out += sql.slice(copied, pos) + '?';
+        copied = end;
+        pos = end;
+        continue;
+      }
+    }
+    pos += 1;
+  }
+  if (values.length === 0) return { sql, values: parameters };
+  if (nativePlaceholder) {
+    throw new IntegrationError(
+      'INVALID_PARAMETERS',
+      'query mixes $N placeholders with ? placeholders',
+    );
+  }
+  return { sql: out + sql.slice(copied), values };
 }
 
 function hashCredentials(creds: DbCredentials): string {

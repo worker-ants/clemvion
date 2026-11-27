@@ -1,10 +1,12 @@
 import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import {
+  convertMysqlPlaceholders,
   DatabaseQueryHandler,
   extractSqlVerb,
   isWriteOperation,
 } from './database-query.handler.js';
+import { IntegrationError } from '../_base/integration-handler-base.js';
 import { Logger } from '@nestjs/common';
 import {
   assertSafeOutboundHostResolved,
@@ -946,6 +948,101 @@ describe('DatabaseQueryHandler', () => {
       await handler.shutdown();
     });
 
+    // `$N` 은 `parameters[N-1]` 이다. 등장 순서가 번호와 달라도 번호대로 바인딩한다(REQ-DBQ-003 · 007, CLE-T-6BV9VP).
+    it('binds MySQL $N by number, not by order of appearance', async () => {
+      const { service } = makeService({ integration: MYSQL_INTEGRATION_BASE });
+      mysqlQueryMock.mockResolvedValue([[], []]);
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: "SELECT * FROM t WHERE b = $2 AND note <> '$1' AND a = $1",
+          parameters: ['first', 'second'],
+        },
+        ctx(),
+      )) as unknown as { port: string };
+      expect(out.port).toBe('success');
+      expect(mysqlQueryMock).toHaveBeenCalledWith(
+        "SELECT * FROM t WHERE b = ? AND note <> '$1' AND a = ?",
+        ['second', 'first'],
+      );
+      await handler.shutdown();
+    });
+
+    it('routes a MySQL $N beyond the parameters array to INVALID_PARAMETERS without querying', async () => {
+      const { service, logUsage } = makeService({
+        integration: MYSQL_INTEGRATION_BASE,
+      });
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'SELECT * FROM t WHERE a = $1 AND b = $3',
+          parameters: ['a', 'b'],
+        },
+        ctx(),
+      )) as unknown as ErrorPortOutput;
+      expect(out.port).toBe('error');
+      expect(out.output.error.code).toBe('INVALID_PARAMETERS');
+      expect(out.output.error.message).toContain('$3');
+      expect(mysqlQueryMock).not.toHaveBeenCalled();
+      // 통합을 얻은 뒤의 실패라 활동 로그를 남긴다.
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
+        expect.objectContaining({ status: 'failed' }),
+      );
+      await handler.shutdown();
+    });
+
+    it('leaves the PostgreSQL query and parameters untouched', async () => {
+      const { service } = makeService();
+      queryMock.mockResolvedValue({ rows: [], rowCount: 0 });
+      const handler = new DatabaseQueryHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'SELECT * FROM t WHERE b = $2 AND a = $1',
+          parameters: ['first', 'second'],
+        },
+        ctx(),
+      );
+      expect(queryMock).toHaveBeenCalledWith(
+        'SELECT * FROM t WHERE b = $2 AND a = $1',
+        ['first', 'second'],
+      );
+      await handler.shutdown();
+    });
+
+    // 설정 에코는 평가 전 원본을 싣는다. 배열 · JSON 문자열 · 표현식 템플릿 어느 쪽이든 그대로다([노드 출력 규약](CLE-NODE-OUTPUT)
+    // Principle 7). 실행에 쓴 값(평가 · 파싱한 배열)이 아니다(CLE-T-6BV9VP).
+    it.each<[string, unknown]>([
+      ['array', [18, 'x']],
+      ['JSON array string', '[18, "x"]'],
+      ['expression template', '{{ $json.ids }}'],
+    ])(
+      'echoes config.parameters as the raw %s',
+      async (_label, rawParameters) => {
+        const { service } = makeService();
+        queryMock.mockResolvedValue({ rows: [], rowCount: 0 });
+        const handler = new DatabaseQueryHandler(service as never);
+        const rawConfig = {
+          integrationId: 'int-1',
+          query: 'SELECT $1, $2',
+          parameters: rawParameters,
+        };
+        const out = (await handler.execute(
+          null,
+          { ...rawConfig, parameters: [18, 'x'] },
+          { ...ctx(), rawConfig },
+        )) as unknown as { config: { parameters: unknown } };
+        expect(out.config.parameters).toBe(rawParameters);
+        await handler.shutdown();
+      },
+    );
+
     it('normalizes MySQL INSERT ResultSetHeader to rowCount/insertId', async () => {
       const { service } = makeService({ integration: MYSQL_INTEGRATION_BASE });
       mysqlQueryMock.mockResolvedValue([
@@ -1639,6 +1736,102 @@ describe('extractSqlVerb', () => {
 // W8 — isWriteOperation unit tests (dry-run 부수효과 판정, CLE-NODE-DBQUERY 「dry-run」)
 // CLE-T-KH11HA: queryType 과 관계없이 SQL 첫 동사를 본다. 읽기 동사만 실제로 실행하고 쓰기 동사와
 // 판정이 애매한 쿼리(WITH · CALL · DO · COPY · EXPLAIN 등)는 mock 으로 끝낸다.
+describe('convertMysqlPlaceholders (CLE-T-6BV9VP)', () => {
+  const convert = (sql: string, params: unknown[]) =>
+    convertMysqlPlaceholders(sql, params);
+
+  it('rebinds $N to parameters[N-1] in order of appearance, repeating as needed', () => {
+    expect(convert('SELECT $2, $1, $2', ['a', 'b'])).toEqual({
+      sql: 'SELECT ?, ?, ?',
+      values: ['b', 'a', 'b'],
+    });
+  });
+
+  it('passes a query without $N through untouched (native ? placeholders)', () => {
+    const params = [1, 2];
+    const out = convert('INSERT INTO t (a, b) VALUES (?, ?)', params);
+    expect(out.sql).toBe('INSERT INTO t (a, b) VALUES (?, ?)');
+    expect(out.values).toBe(params);
+  });
+
+  it.each<[string, string, string]>([
+    ['single-quoted literal', "SELECT '$1' , $1", "SELECT '$1' , ?"],
+    [
+      'doubled quote inside literal',
+      "SELECT 'it''s $1', $1",
+      "SELECT 'it''s $1', ?",
+    ],
+    [
+      'backslash escape inside literal',
+      "SELECT 'O\\'$1', $1",
+      "SELECT 'O\\'$1', ?",
+    ],
+    ['double-quoted string', 'SELECT "$1 \\" $1", $1', 'SELECT "$1 \\" $1", ?'],
+    [
+      'backtick identifier',
+      'SELECT `c$1` FROM t WHERE a = $1',
+      'SELECT `c$1` FROM t WHERE a = ?',
+    ],
+    ['-- line comment', 'SELECT $1 -- $1\nFROM t', 'SELECT ? -- $1\nFROM t'],
+    ['# line comment', 'SELECT $1 # $1\nFROM t', 'SELECT ? # $1\nFROM t'],
+    ['block comment', 'SELECT /* $1 */ $1', 'SELECT /* $1 */ ?'],
+    [
+      'identifier with $ before the number',
+      'SELECT a$1, $1 FROM t',
+      'SELECT a$1, ? FROM t',
+    ],
+    [
+      'identifier with letters after the number',
+      'SELECT $1a, $1 FROM t',
+      'SELECT $1a, ? FROM t',
+    ],
+  ])('skips $N inside a %s', (_label, sql, expected) => {
+    expect(convert(sql, ['v'])).toEqual({ sql: expected, values: ['v'] });
+  });
+
+  it.each<[string, string, string]>([
+    // MySQL 은 `--` 뒤에 공백이 있어야 주석으로 읽는다. `--$1` 은 두 번의 부호 반전 뒤의 값이다.
+    ['-- without a following space', 'SELECT 1 --$1', 'SELECT 1 --?'],
+    // 실행 주석 `/*! … */` 의 안쪽은 MySQL 이 SQL 로 실행한다.
+    ['executable comment', 'SELECT /*!50000 $1 */ 1', 'SELECT /*!50000 ? */ 1'],
+  ])(
+    'converts $N inside a %s, which MySQL reads as SQL',
+    (_label, sql, expected) => {
+      expect(convert(sql, ['v'])).toEqual({ sql: expected, values: ['v'] });
+    },
+  );
+
+  it.each<[string, string, unknown[]]>([
+    ['beyond the parameters array', 'SELECT $1, $3', ['a', 'b']],
+    ['$0', 'SELECT $0', ['a']],
+    ['with an empty parameters array', 'SELECT $1', []],
+    ['mixed with a native ? placeholder', 'SELECT $1, ?', ['a', 'b']],
+  ])('rejects $N %s with INVALID_PARAMETERS', (_label, sql, params) => {
+    let thrown: unknown;
+    try {
+      convert(sql, params);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(IntegrationError);
+    expect((thrown as IntegrationError).code).toBe('INVALID_PARAMETERS');
+  });
+
+  it('ignores a ? inside a literal or comment when $N is used', () => {
+    expect(convert("SELECT '?', $1 /* ? */", ['v'])).toEqual({
+      sql: "SELECT '?', ? /* ? */",
+      values: ['v'],
+    });
+  });
+
+  it('stops at an unclosed literal and leaves the rest as written', () => {
+    expect(convert("SELECT $1, 'open $1", ['v'])).toEqual({
+      sql: "SELECT ?, 'open $1",
+      values: ['v'],
+    });
+  });
+});
+
 describe('isWriteOperation', () => {
   // queryType 이 insert · update · delete 가 아니면 SQL 로만 판정한다. 세 값 모두에서 같은 결과인지 본다.
   const SQL_JUDGED_QUERY_TYPES = ['select', 'raw', undefined] as const;
