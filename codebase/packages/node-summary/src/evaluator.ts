@@ -63,6 +63,13 @@ function resolveOperand(operand: string, config: NodeConfig): unknown {
     if (typeof value === 'string') return value.length;
     return 0;
   }
+  // `isInteger(path)` — true only when the value itself is an integer number
+  // (no string coercion). Returns a boolean, so it is used as a bare atom
+  // (`isInteger(x)` / `!isInteger(x)`), not as a comparison operand.
+  const isIntegerMatch = trimmed.match(/^isInteger\(\s*([^)]+?)\s*\)$/);
+  if (isIntegerMatch) {
+    return Number.isInteger(getPath(config, isIntegerMatch[1]));
+  }
   // Heuristic: numeric literal → number; otherwise dotted path lookup.
   // Bare identifiers that don't exist on the config will resolve to
   // `undefined` (truthiness false), which is the legacy behavior.

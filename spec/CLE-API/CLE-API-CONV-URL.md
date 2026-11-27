@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "6f58189bc91fb9efa9d1a375d421372fe7d145763b965370033c842837991163"
+content_hash: "2a29af63f43d65092bc6d9bf65169fd4ff65d763ead86e22d22e73a3a9591e01"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-VWC60Z"
 source_paths: []
-mirror_sha256: "1b034946a057cd7a6c71e157c3e38af0f64e4d46e2f47e0aefb535eea37682b4"
-etag: "sha256-511adbc8314625a5c115c34b21a92361e54c8e12b1b768d99e5910daba7fc8ee"
+mirror_sha256: "84a92643ded48658e6221ec9c19c23e2a971ce9461d2d7e74a0c474b67368a41"
+etag: "sha256-bd460eb358db17e236edaf6a30567bd48231d0b5bd3fc7d834148e0ab28a600c"
 ---
 ## 개요
 
@@ -53,12 +53,12 @@ etag: "sha256-511adbc8314625a5c115c34b21a92361e54c8e12b1b768d99e5910daba7fc8ee"
 
 ### 2.3 워크스페이스 스코핑
 
-모든 리소스 API 는 현재 워크스페이스 컨텍스트에서 동작한다.
+모든 리소스 API 는 현재 워크스페이스 안에서 동작한다.
 
 - 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다. `jwt.strategy` 가 멤버십을 검증한 뒤 그 값을 `request.user.workspaceId` 로 채택한다.
 - 워크스페이스 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 한다.
 - **전환기 하위 호환(header-first)**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터와 `RolesGuard` 가 그 워크스페이스를 먼저 쓴다. 헤더가 없으면 토큰 클레임을 쓴다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 기준이 된다.
-- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. `@WorkspaceId()` 를 함께 쓰지 않으면 헤더와 토큰 컨텍스트를 쓰지 않는다(2026-09-25). 함께 쓰면 가드가 헤더 · 토큰이 가리키는 현재 워크스페이스의 멤버십도 따로 본다([API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드가-무조건-한다)). 가드가 경로 값도 검증하는 근거는 [API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터-워크스페이스도-가드가-본다) 의 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」에 있다.
+- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. `@WorkspaceId()` 를 함께 쓰지 않으면 헤더 값과 토큰 클레임 값을 쓰지 않는다(2026-09-25). 함께 쓰면 가드가 헤더 · 토큰이 가리키는 현재 워크스페이스의 멤버십도 따로 본다([API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드가-무조건-한다)). 가드가 경로 값도 검증하는 근거는 [API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터-워크스페이스도-가드가-본다) 의 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」에 있다.
 - 결정 우선순위·전환 흐름·마이그레이션의 단일 기준은 [워크스페이스 전환](../CLE-ACCT/CLE-ACCT-WS-SPACE.md#전환-api-와-토큰) 의 「전환 API 와 토큰」 절과 [「API 인가」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#api-인가) 절이다.
 - 구현 상태: 구현됨(2026-07-07). `jwt.strategy` 는 토큰 클레임을 `activeWorkspaceId ?? workspaceId` 로 이중으로 읽고 그 멤버십을 검증해 현재 워크스페이스를 확정한다. 데코레이터와 `RolesGuard` 는 전환기 동안 헤더를 먼저 본다.
 
@@ -116,6 +116,10 @@ Authorization: Bearer {access-token}   (payload.activeWorkspaceId)
 GET /api/workflows?status=active&tag=marketing
 GET /api/triggers?type=webhook&status=active
 ```
+
+### 4.3 경로 id 파라미터
+
+이름이 `id` 이거나 `Id` 로 끝나는 경로 파라미터는 UUID 다. 컨트롤러는 그 파라미터에 `ParseUUIDPipe` 와 `@ApiParam({ format: 'uuid' })` 를 함께 둔다. 저장소 가드(`repo-guards/__tests__/param-uuid-pipe.spec.ts`)가 둘 중 하나라도 빠지면 CI 를 실패시킨다. 형식 밖의 값은 400 `VALIDATION_ERROR` 다. 통과 범위와 예외(워크스페이스 `:id` 는 가드가 먼저 판정하고, 본인 초대 경로는 404 로 답한다)는 [API 인가 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#x-workspace-id-형식-검사) 가 정한다.
 
 ## 12. 공통 API 패턴
 

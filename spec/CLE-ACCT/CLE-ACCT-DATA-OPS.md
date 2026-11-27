@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "88e9352416c13b8bb89d96fa7367728f9773491609292cf5e6ce9bcffe30f9be"
+content_hash: "b5e289087c71f3ccda7eb0cfc1976ed50029fbc04424b4ef6f0a644beb8b1493"
 read_as: "approved_fallback"
-task: "CLE-T-VPF9EH"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "6e9cd6dfabd5953f56637c090300cf72f4e668f3c75eb342b2b2310d8cd976f2"
-etag: "sha256-c5bad5cfb8756800217255096349f7f7c69f8d73cc57742056f0a455c1bc79da"
+mirror_sha256: "bf01734ca14a85e855d177bc990f2cc29a424ac299bb37f2c02dcc826950d35a"
+etag: "sha256-0046c80afe1ccbef733df727f832dac39fe4478b3c68aa5311e91efbf4c64761"
 ---
 ## 개요
 
@@ -29,7 +29,7 @@ etag: "sha256-c5bad5cfb8756800217255096349f7f7c69f8d73cc57742056f0a455c1bc79da"
 | `user` | 가입 | INSERT `email, password_hash, name, locale, theme, email_verify_token, email_verify_expires_at, created_at` | `email UNIQUE`(V001) |
 | `user` | 프로필 수정 | UPDATE `name, avatar_url, locale, theme`. `theme` 이 `light`·`dark`·`system` 밖이면 API 가 먼저 400 `VALIDATION_ERROR` 로 막는다 | `chk_user_theme` |
 | `user` | 로그인 실패 | UPDATE `login_attempts, locked_until` | 없음 |
-| `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id, email_verified, avatar_url`(`oauth_provider IS NULL` 조건부). 이메일 인증 전 계정이면 같은 조건부 UPDATE 에 `email_verified = false` 조건을 더하고 `password_hash, password_reset_token, password_reset_expires_at, email_verify_token, email_verify_expires_at` 를 NULL 로 비운다. 순서와 세션 폐기는 [인증 흐름 「소셜 로그인」](CLE-ACCT-DATA-AUTH.md#소셜-로그인) | 없음 |
+| `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id, email_verified, avatar_url`(`oauth_provider IS NULL` 조건부). 이메일 인증 전 계정이면 같은 조건부 UPDATE 에 `email_verified = false` 조건을 더하고 `password_hash, password_reset_token, password_reset_expires_at, email_verify_token, email_verify_expires_at` 를 NULL 로 비운다. 순서와 로그인 세션 폐기는 [인증 흐름 「소셜 로그인」](CLE-ACCT-DATA-AUTH.md#소셜-로그인) | 없음 |
 | `user` | TOTP 켜기·끄기 | UPDATE `two_factor_enabled, two_factor_secret, two_factor_setup_started_at, totp_recovery_codes`. 설정 시작은 비밀번호를 확인한 뒤 `two_factor_secret` 과 `two_factor_setup_started_at = now` 를 `two_factor_enabled = false` 조건부 UPDATE 하나로 쓴다. 활성화 검증은 `two_factor_secret` 이 코드를 확인한 secret 과 같다는 조건을 더한 조건부 UPDATE 로 `two_factor_enabled=true` 와 `totp_recovery_codes` 를 쓰고 `two_factor_setup_started_at` 을 NULL 로 비운다. 끄기는 비밀번호와 코드(6자리 TOTP 코드나 TOTP 복구 코드)를 모두 확인한 뒤 `two_factor_enabled` 를 `false` 로, 나머지 세 컬럼을 NULL 로 바꾼다. 활성화 검증에서 그 사이 secret 이 바뀌었거나 끄기의 코드가 틀리면 401 `TOTP_INVALID` 이고 컬럼은 그대로다. 코드 확인 실패는 로그인 이력에 쓰지 않는다. 상태별 결과와 에러 코드(409 `TOTP_ALREADY_ENABLED`, 401 `TOTP_INVALID`, 400 `TOTP_NOT_INITIALIZED`)와 만료 비우기 조건은 [인증 흐름 「TOTP 대기 secret」](CLE-ACCT-DATA-AUTH.md#totp-대기-secret-usertwo_factor_setup_started_at) | 없음 |
 | `user` | Passkey 복구 코드 발급·소진·재발급·비우기 | UPDATE `webauthn_recovery_codes`. 첫 등록이 발급하고 복구 코드 사용이 맞은 항목을 지우고 재발급이 새 묶음으로 바꾼다. 사용자가 마지막 credential 을 지우면 NULL 로 비운다(counter 역행 삭제는 비우지 않는다). 이 쓰기와 `webauthn_credential` 의 INSERT · DELETE 는 사용자 행을 `FOR NO KEY UPDATE` 로 먼저 잠근 트랜잭션에서 한다([Passkey 기능과 등록 「사용자 행 잠금」](CLE-ACCT-SIGNIN-PASSKEY.md#사용자-행-잠금)) | 없음 |
 | `user` | 이메일 변경 | UPDATE `pending_email, email_change_token, email_change_expires_at`, 확정 때 `email, email_verified`. `pending_email` 은 앞뒤 공백을 지운 소문자로 저장하고 확정 때 그 값을 `email` 로 옮긴다 | `email UNIQUE`, `LOWER(email)`(V101) |
@@ -43,7 +43,7 @@ etag: "sha256-c5bad5cfb8756800217255096349f7f7c69f8d73cc57742056f0a455c1bc79da"
 | `login_history` | 모든 이벤트 | INSERT `user_id, email, event, ip_address, user_agent, device_label, family_id, failure_reason, created_at` | `(user_id, created_at DESC)`, `(email, created_at DESC)`(V040) |
 | `workspace` | 가입(이메일 인증 단계)·팀 생성 | INSERT `name, type, owner_id, slug, settings={}, created_at` | `slug UNIQUE`(V001), `uq_workspace_personal_owner`(V109) |
 | `workspace` | 소유자 이양 | UPDATE `owner_id` | 없음 |
-| `workspace` | 설정 변경 | UPDATE `settings`(부분 병합), `updated_at` | 없음 |
+| `workspace` | 설정 변경 | 행을 잠그지 않고 읽어 보낸 키를 합친 `settings` 와 `updated_at` 을 UPDATE([워크스페이스 데이터와 흐름 「설정 변경」](CLE-ACCT-DATA-WS.md#설정-변경)) | 없음 |
 | `workspace` | 삭제 | DELETE(같은 트랜잭션에서 `workspace_invitation`·`workspace_member` 를 먼저 명시 삭제) | 없음 |
 | `secret_store` | 워크스페이스 삭제 | 커밋 뒤 트리거마다 DELETE `ref LIKE 'secret://triggers/<id>/%'` | FK 없음(V063) |
 | `workspace_member` | 가입·초대 수락·직접 추가 | INSERT `workspace_id, user_id, role, invited_at, joined_at` | `(workspace_id, user_id) UNIQUE`, `(user_id)`(V129) |
@@ -68,29 +68,23 @@ etag: "sha256-c5bad5cfb8756800217255096349f7f7c69f8d73cc57742056f0a455c1bc79da"
 
 BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 인증 챌린지 기록 `auth:webauthn-auth-challenge:<challenge>` 가 있다. 챌린지 기록은 TTL 로 사라지므로 정리 배치가 없다. 이 기록의 보존 기간 · 용도 · 실패 정책은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록) 이 정한다. 이 영역이 만드는 키의 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 가 정본이다.
 
-요청 빈도 제한은 `@nestjs/throttler` 로 구현했다. 카운터는 공유 Redis 에 센다. Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 센다. 키(`throttle:hit:<해시>` · `throttle:block:<해시>`)는 공통 모듈 `common/throttler` 가 소유하고 이 영역의 키가 아니다. 저장소의 동작은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 가 정한다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
+요청 빈도 제한은 `@nestjs/throttler` 로 구현했다. 한도 수치, 집계 키, 카운터 저장소, 한도를 건너뛰는 조건은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다. 카운터 Redis 키(`throttle:hit:<해시>` · `throttle:block:<해시>`)는 공통 모듈 `common/throttler` 가 소유하고 이 영역의 키가 아니다. 웹훅 수신(`POST /api/hooks/:endpointPath`)은 전역 가드 `UserThrottlerGuard` 대신 라우트 가드 `HookTriggerThrottlerGuard` 가 센다. 서명 참조가 있는 채팅 채널 트리거를 세지 않는 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 
-서명 참조가 있는 채팅 채널 트리거 요청(`POST /api/hooks/:endpointPath` 가운데 트리거 설정에 `config.chatChannel.provider` 와 `config.chatChannel.inboundSigningRef` 가 모두 있는 요청)은 전역 한도로 세지 않는다. 이 라우트는 `@DeferGlobalThrottle()` 로 전역 가드 `UserThrottlerGuard` 가 넘기고, `PublicWebhookThrottleGuard` 뒤의 라우트 가드 `HookTriggerThrottlerGuard` 가 그 가드가 조회한 트리거로 면제 여부를 판정(`isSignedChatChannelTrigger`)해 전역 가드와 같은 한도 · 저장소 · 집계 키로 센다. 서명 참조가 없는 채팅 채널 트리거, 트리거가 없거나 조회에 실패한 요청은 센다. 정책과 근거는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
+아래 표는 이 영역이 거는 요청 빈도 제한의 구현 위치다. 범위마다 한도와 집계 키는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표의 같은 범위 행에 있다.
 
-한도 수치는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 사본이다. 이 표는 집계 키와 구현 위치의 정본이다.
+| 범위 | 위치 |
+| --- | --- |
+| 전역 (모든 HTTP API) | `app.module.ts` 의 `ThrottlerModule.forRootAsync`, `common/guards/user-throttler.guard.ts`(`UserThrottlerGuard`, `@DeferGlobalThrottle()`), `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`). `POST /api/hooks/:endpointPath` 는 `modules/hooks/hook-trigger-throttler.guard.ts`(`HookTriggerThrottlerGuard`)와 면제 판정 `modules/chat-channel/chat-channel-secret-refs.ts`(`isSignedChatChannelTrigger`) |
+| `register`·`login` | `auth.controller.ts` 의 `@Throttle` |
+| `forgot-password`·`resend-verification`·`check-email` | `auth.controller.ts` |
+| `2fa/setup`·`2fa/verify`·`2fa/disable` | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
+| `2fa/webauthn/register/options`·`2fa/webauthn/recovery-codes/regenerate`·`2fa/webauthn/credentials/:id/delete` | `webauthn/webauthn.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
+| 이메일 변경 `request`·`resend` | `users.controller.ts` |
+| `auth/sessions/:familyId/revoke`·`auth/sessions/revoke-others` | `sessions.controller.ts` |
+| 초대 발급·재발송 | `workspaces.controller.ts`(`INVITATION_THROTTLE`, 값은 `SENSITIVE_ACTION_THROTTLE`) |
+| 공개 초대 메타 조회 | `invitations.controller.ts` |
 
-| 범위 | 한도 | 집계 키 | 위치 |
-| --- | --- | --- | --- |
-| 전역 (모든 HTTP API) | 분당 100회 | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts`(`UserThrottlerGuard`, `@DeferGlobalThrottle()`), `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`). `POST /api/hooks/:endpointPath` 는 `modules/hooks/hook-trigger-throttler.guard.ts`(`HookTriggerThrottlerGuard`)와 면제 판정 `modules/chat-channel/chat-channel-secret-refs.ts`(`isSignedChatChannelTrigger`) |
-| `register`·`login` | 분당 10회 | IP | `auth.controller.ts` 의 `@Throttle` |
-| `forgot-password`·`resend-verification`·`check-email` | 분당 5회 | IP | `auth.controller.ts` |
-| `2fa/setup` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/verify` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/disable` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/webauthn/register/options`·`2fa/webauthn/recovery-codes/regenerate`·`2fa/webauthn/credentials/:id/delete` | 분당 10회 | 사용자 | `webauthn/webauthn.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| 이메일 변경 `request`·`resend` | 분당 5회 | 사용자 | `users.controller.ts` |
-| `auth/sessions/:familyId/revoke`·`auth/sessions/revoke-others` | 분당 10회·5회 | 사용자 | `sessions.controller.ts` |
-| 초대 발급·재발송 | 분당 10건 | 사용자 | `workspaces.controller.ts`(`INVITATION_THROTTLE`, 값은 `SENSITIVE_ACTION_THROTTLE`) |
-| 공개 초대 메타 조회 | 분당 30건 | IP | `invitations.controller.ts` |
-
-전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
-
-초대 발송 · provider probe · 2단계 인증 설정 시작 · 활성화 검증 · 끄기 · Passkey 등록 옵션 · Passkey 복구 코드 재발급 · Passkey 삭제는 `SENSITIVE_ACTION_THROTTLE` 상수를 공유하고 카운터는 라우트마다 따로 센다. `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트(2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급 · 삭제)에 이 상수가 모두 걸려 있는지는 단위 테스트로 고정한다. 검사 대상은 테스트에 적어 둔 라우트 목록뿐이라 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
+`SENSITIVE_ACTION_THROTTLE` 을 함께 쓰는 라우트와 비밀번호 재확인 라우트에 그 상수가 걸렸는지 보는 단위 테스트는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 표 아래에 있다.
 
 `register`·`login` 의 IP 단위 요청 빈도 제한은 계정 잠금(5회 실패, 10분)과 별개의 이중 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 빈도 제한이 먼저 막는다. 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
 
@@ -100,7 +94,7 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 | --- | --- | --- |
 | SMTP (`MailService`, `codebase/backend/src/modules/mail/mail.service.ts`, 전송기 `mail.transporter.ts`) | 내부에서 외부로 | 이메일 인증, 비밀번호 재설정, 초대 메일, 이메일 변경 확인(새 주소), 변경 통지(옛 주소). 알림 메일은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 같은 `MailService` 로 보낸다. 시스템 전역 SMTP 만 쓴다. `MAIL_TRANSPORT` 가 `console` 이 아니면(보통 `smtp`) `MailService` 가 보내는 모든 메일을 암호화한 연결로만 보낸다(`MAIL_SECURE` 가 `true` 가 아니면 STARTTLS 를 강제하고 `MAIL_REQUIRE_TLS=false` 로만 끈다). 워크스페이스 SMTP 통합(Send Email 노드)은 이 설정과 무관하고 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) 의 `secure` 를 따른다 |
 | OAuth 제공자 (Google, GitHub) | 외부에서 내부로(콜백) | authorize, token, userinfo(`auth-oauth.service.ts`). 셀프 호스팅용 LDAP·SAML 은 미구현(Planned)이다([가입과 로그인](CLE-ACCT-SIGNIN.md)) |
-| 감사 로그 | 내부 참조 | 워크스페이스 컨텍스트가 있는 동작은 `audit_log`, 사용자 인증 이벤트는 `login_history`. 워크스페이스·멤버 액션(`workspace.transfer_ownership`, `workspace.created`, `workspace.updated`, `member.invited`, `member.role_changed`, `member.removed`)은 `workspaces.service.ts` 와 `workspace-invitations.service.ts` 가 남긴다. [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
+| 감사 로그 | 내부 참조 | 현재 워크스페이스가 있는 동작은 `audit_log`, 사용자 인증 이벤트는 `login_history`. 워크스페이스·멤버 액션(`workspace.transfer_ownership`, `workspace.created`, `workspace.updated`, `member.invited`, `member.role_changed`, `member.removed`)은 `workspaces.service.ts` 와 `workspace-invitations.service.ts` 가 남긴다. [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
 
 ## Rationale
 
@@ -133,7 +127,7 @@ STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 �
 
 ### 요청 한도의 집계 기준을 코드에 맞췄다
 
-2026-10-10 정리다(NERV Task `CLE-T-ERAJ7P`). 세션 종료 한도와 전역 한도를 «IP 당» 으로 적었던 것을 코드에 맞췄다. 코드의 `UserThrottlerGuard` 는 인증한 요청을 사용자(`user:<sub>`)로 세고 IP 는 인증 없는 `@Public` 라우트에만 쓴다. 세션 종료 두 라우트는 JWT 인증 라우트라서 사용자 기준이다. 전역 한도도 같은 가드를 지나므로 인증 요청은 사용자 기준이다. 이것으로 미결 «전역 요청 한도의 집계 기준» 을 닫았다.
+2026-10-10 정리다(NERV Task `CLE-T-ERAJ7P`). 세션 강제 종료 한도와 전역 한도를 «IP 당» 으로 적었던 것을 코드에 맞췄다. 코드의 `UserThrottlerGuard` 는 인증한 요청을 사용자(`user:<sub>`)로 세고 IP 는 인증 없는 `@Public` 라우트에만 쓴다. 세션 강제 종료 두 라우트는 JWT 인증 라우트라서 사용자 기준이다. 전역 한도도 같은 가드를 지나므로 인증 요청은 사용자 기준이다. 이것으로 미결 «전역 요청 한도의 집계 기준» 을 닫았다.
 
 코드를 예전 문서에 맞춰 모든 요청을 IP 로 세는 안은 기각했다. 사무실처럼 한 IP 를 여러 사용자가 함께 쓰면 서로의 한도를 깎는다. 한 사용자가 IP 를 바꿔 가며 한도를 피할 수도 있다. `register`·`login` 처럼 인증 전 라우트는 사용자를 알 수 없어 IP 로 센다.
 
@@ -179,4 +173,10 @@ NERV Task `CLE-T-HQQNEA`. `user` 행의 Passkey 복구 코드 쓰기에 사용�
 
 결정일: 2026-11-21
 
-NERV Task `CLE-T-JK1JFZ`. 그전에는 `@nestjs/throttler` 기본 메모리 저장소라 서버 인스턴스마다 따로 셌고 Redis 키가 없었다. 이제 공유 Redis 에 세고 Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 센다. Redis 장애 때도 제한은 꺼지지 않는다. 이 문서의 집계 키 표와 한도 수치는 이 변경으로 바뀌지 않는다. 저장소의 동작과 기각한 대안은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 와 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 의 Rationale 에 있다.
+NERV Task `CLE-T-JK1JFZ`. 그전에는 `@nestjs/throttler` 기본 메모리 저장소라 서버 인스턴스마다 따로 셌고 Redis 키가 없었다. 이제 공유 Redis 에 세고 Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 센다. Redis 장애 때도 제한은 꺼지지 않는다. 집계 키와 한도 수치는 이 변경으로 바뀌지 않는다. 저장소의 동작과 기각한 대안은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 와 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 의 Rationale 에 있다.
+
+### 요청 한도 수치와 집계 키를 HTTP API 규약 §7 로 넘겼다
+
+결정일: 2026-11-27
+
+NERV Task `CLE-T-4WK6MT`. 요청 빈도 제한 표가 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 한도 수치와 집계 키를 옮겨 적고 있었다. 사본은 한쪽만 고쳐지기 쉬워서 두 열을 지우고 이 영역의 구현 위치만 남겼다. 같은 이유로 `SENSITIVE_ACTION_THROTTLE` 을 함께 쓰는 라우트 목록과 단위 테스트 설명도 §7 로 넘겼다. 옛 설명은 테스트가 적어 둔 라우트 목록만 본다고 적었지만 테스트(`password-recheck-throttle.spec.ts`)는 auth 모듈의 컨트롤러를 모두 읽는다.

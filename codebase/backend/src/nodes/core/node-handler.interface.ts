@@ -278,6 +278,14 @@ export interface ExecutionContext {
  */
 export interface ParallelBranchContext extends ExecutionContext {
   parentParallelConcurrency: number;
+  /**
+   * 이번 병렬 분기 실행에서 엔진이 분기 사본 캐시에 출력을 쓴 노드 ID 집합.
+   * `ParallelExecutor` 가 분기 컨텍스트를 만들 때 빈 집합으로 넣고, 엔진이 출력을 쓸 때마다
+   * 채운다. 엔진은 이 집합으로 병렬 분기의 결과 노드(REQ-PARALLEL-030)를 고르고 바깥
+   * 컨텍스트에 옮길 출력을 정한다. 컨텍스트를 만들 때 함께 생기므로 기록할 곳이 빠진 채
+   * 분기가 실행되는 일은 없다. 핸들러는 읽지 않는다.
+   */
+  branchWrittenNodeIds: Set<string>;
 }
 
 export interface ValidationResult {

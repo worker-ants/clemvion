@@ -2,19 +2,19 @@
 id: "CLE-KB-GRAPH"
 title: "Graph RAG"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-GRAPHRAG-001", "REQ-GRAPHRAG-002", "REQ-GRAPHRAG-003", "REQ-GRAPHRAG-004", "REQ-GRAPHRAG-005", "REQ-GRAPHRAG-006", "REQ-GRAPHRAG-007", "REQ-GRAPHRAG-008", "REQ-GRAPHRAG-009", "REQ-GRAPHRAG-010", "REQ-GRAPHRAG-011", "REQ-GRAPHRAG-012", "REQ-GRAPHRAG-013", "REQ-GRAPHRAG-014", "REQ-GRAPHRAG-015", "REQ-GRAPHRAG-016", "REQ-GRAPHRAG-017", "REQ-GRAPHRAG-018", "REQ-GRAPHRAG-019", "REQ-GRAPHRAG-020", "REQ-GRAPHRAG-021", "REQ-GRAPHRAG-022", "REQ-GRAPHRAG-023", "REQ-GRAPHRAG-024", "REQ-GRAPHRAG-025", "REQ-GRAPHRAG-026", "REQ-GRAPHRAG-027", "REQ-GRAPHRAG-028", "REQ-GRAPHRAG-029", "REQ-GRAPHRAG-030", "REQ-GRAPHRAG-031", "REQ-GRAPHRAG-032", "REQ-GRAPHRAG-033", "REQ-GRAPHRAG-034", "REQ-GRAPHRAG-035", "REQ-GRAPHRAG-036", "REQ-GRAPHRAG-037", "REQ-GRAPHRAG-038", "REQ-GRAPHRAG-039", "REQ-GRAPHRAG-040", "REQ-GRAPHRAG-041", "REQ-GRAPHRAG-042", "REQ-GRAPHRAG-043"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "e933c8d147c38389df7c7e77ca8ccbb7ab501732e4f5c1a4d7af8af1222eb3cf"
+content_hash: "0555b1e571ac32996804b8bfa3f0f2201646d8e3938abc2940407b1a3e7dc16d"
 read_as: "approved_fallback"
-task: "CLE-T-PVGKXK"
+task: "CLE-T-12YQBA"
 source_paths: ["spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/10-graph-rag.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "085ffb1c935a4180302241699c588622c95e32e0651b53bd11ad7ef0f8dbe476"
-etag: "sha256-8dc5b7dbd8cf4acfe2b9092b700ec1e1822828fedbd1e515e5fdb67e7a14da0a"
+mirror_sha256: "6f0f8bc439dcd402c50e1a62c7cf0a9247f7495607c01550d4a64605af26a7ef"
+etag: "sha256-b2191ac31645ac86abc60382a46136fb9b6eb274d23312d33bde32b174f3ffd1"
 ---
 > 구현 상태: 구현됨 (P0~P2) · 원문: `spec/5-system/10-graph-rag.md`, `spec/4-nodes/4-integration/_product-overview.md` (§3.2 KB-MD-03, §3.4 KB-AG-04), `spec/data-flow/6-knowledge-base.md` (§1.2·§1.3 그래프 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -228,6 +228,8 @@ Graph RAG(`rag_mode=graph`)는 문서에서 Entity(`GraphEntity`)와 Relation(`G
 
 도메인 용어 Entity, Relation, 청크-Entity 매핑의 실제 클래스 이름은 `GraphEntity`, `GraphRelation`, `GraphChunkEntity` 다. TypeORM 의 `@Entity` 데코레이터와 이름이 겹쳐 접두를 붙였다(DTO 는 `GraphEntityDto` 등, 프런트엔드 import 도 같다). 도메인 용어는 접두 없는 형태를 유지한다. 접두는 구현 언어의 제약이지 제품 개념이 아니다. 구현을 찾을 때는 접두형으로 찾는다. `Entity` 로 찾으면 TypeORM 데코레이터에 묻힌다.
 
-### 지식 저장소 단위 토큰 표시를 비목표로 둔 이유 (2026-07-11)
+### 지식 저장소 단위 토큰 표시를 비목표로 둔 이유
+
+결정일: 2026-07-11
 
 추출 사용량은 워크스페이스 단위 집계가 단일 기준이다. LLM 사용량 쪽이 추출 서비스의 컨텍스트 NULL 을 "의도된 누락" 으로 확정했다. 지식 저장소 단위 귀속은 그 불변식을 뒤집는 별도 결정이라 채택하지 않았다. 예전에는 KB-GR-EX-07 과 NF-GR-05 가 이를 충족으로 잘못 표시했는데 실제로는 스키마, API, WebSocket, 화면 어디에도 지식 저장소 단위 경로가 없었다. 그래서 비목표로 정직하게 바꿨다.

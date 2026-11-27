@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { SSE_SUBSCRIBER_CONNECTION_NAME } from '../src/modules/external-interaction/sse.constants';
 
 /**
  * e2e: EIA SSE 스트림의 Redis 쪽 동작과 트리거 단위 토큰 무효 때 닫기.
@@ -133,9 +134,6 @@ async function waitEnded(conn: SseConnection, label: string): Promise<void> {
     clearTimeout(timer);
   }
 }
-
-/** 백엔드의 구독 연결 이름. `SSE_SUBSCRIBER_CONNECTION_NAME` 과 같다. */
-const SUBSCRIBER_CONNECTION_NAME = 'eia-sse-sub';
 
 /** 크기 상한을 넘어 이벤트 대신 실린 생략 표시 메시지. */
 function omittedMessage(executionId: string, seq: number): string {
@@ -457,7 +455,9 @@ describe('EIA SSE — Redis fan-out 과 트리거 단위 토큰 무효 때 닫�
     const list = (await redis.client('LIST')) as string;
     const ids = list
       .split('\n')
-      .filter((line) => line.includes(` name=${SUBSCRIBER_CONNECTION_NAME} `))
+      .filter((line) =>
+        line.includes(` name=${SSE_SUBSCRIBER_CONNECTION_NAME} `),
+      )
       .map((line) => /(?:^|\s)id=(\d+)/.exec(line)?.[1])
       .filter((id): id is string => id !== undefined);
     expect(ids.length).toBeGreaterThan(0);
@@ -559,9 +559,12 @@ describe('EIA SSE — Redis fan-out 과 트리거 단위 토큰 무효 때 닫�
     const rejected = await openSse(executionId, itk);
     await waitEnded(rejected, '429 응답');
     expect(rejected.status).toBe(429);
-    expect(
-      (JSON.parse(rejected.body()) as { error: { code: string } }).error.code,
-    ).toBe('TOO_MANY_CONNECTIONS');
+    // 전역 필터가 만든 오류 봉투라 `requestId` 가 있다(CLE-API-ERROR).
+    const rejectedBody = JSON.parse(rejected.body()) as {
+      error: { code: string; requestId?: string };
+    };
+    expect(rejectedBody.error.code).toBe('TOO_MANY_CONNECTIONS');
+    expect(typeof rejectedBody.error.requestId).toBe('string');
 
     // heartbeat 가 45초 넘게 끊긴 자리는 Lua 스크립트가 지우고 센다.
     await redis.zadd(key, now - 60_000, 'other-1');

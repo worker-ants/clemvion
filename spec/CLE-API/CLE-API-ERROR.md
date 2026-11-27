@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "60ae7be0bd4fe16655aba5a4614b1ec6bd3dd15142b22c8de106ddaa80ff226e"
+content_hash: "1e5617ee02c53c7a19f606be2fe0aa3ad4017823ec0d0c5a1c5bf19a13142d69"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-0TAE5G"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "684db88b1cac794d0ff855fadbe02e77ec94c6bfd9e92d0b95c8e8a84e3a83d1"
-etag: "sha256-24031bdd8d223fb2c1944963a50e4a7f0d9addb0a714367ca0186321ff38c4c0"
+mirror_sha256: "9404d1a2dc59e55407713bf57d8711ad9e9997df1bb3e6d53292be35a0e3a92c"
+etag: "sha256-f451c4344e41cb954a3843203a7497dc9f76090d543541537eab5f831edbb657"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -162,7 +162,9 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 
 `GlobalExceptionFilter` 는 `details` 를 값이 있을 때만 싣고 형태를 바꾸지 않고 그대로 넘긴다. OpenAPI 선언도 `type: 'object', additionalProperties: true` 로 열려 있다. 그래서 형태 선택은 발행 지점의 책임이고 그 엔드포인트를 문서화하는 절에 어느 형태인지 적는다.
 
-### 2.5 `field` 를 실으면 `code` 도 싣는다 (2026-09-11)
+### 2.5 `field` 를 실으면 `code` 도 싣는다
+
+결정일: 2026-09-11
 
 `details` 항목에 `field` 가 있으면 그 항목은 어느 필드가 왜 거부됐는지를 알린다. §2.3 표가 이 경우를 `details[].code` 쪽에 이미 배정한다. 그런데 §2.4 표의 형태 예시가 예시로 읽혀 `code` 없이 `field` 만 싣는 관례가 두 형태 모두에 생겼다. `field` 만 실으면 사유가 기계가 읽을 수 있는 자리에 아예 없다. `message` 는 사람이 읽을 설명이라 소비자가 분기에 쓸 수 없다.
 
@@ -171,7 +173,9 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 - `field` 가 없는 진단 payload 는 대상이 아니다. `details: { errors }`, `{ offenders }`, `{ reason }` 처럼 요청 전체나 집계를 서술하는 자리는 사유가 이미 top-level 특화 `code`(`GRAPH_VALIDATION_FAILED` 등)에 있다. 거기에 `details.code` 를 얹으면 §2.3 의 "겹쳐 쓰지 않는다" 를 어긴다.
 - 자격 증명 교체가 400 `INTEGRATION_TEST_FAILED` 로 거절할 때 싣는 `details: { testCode }` 도 `field` 가 없는 진단 payload 다. `testCode` 는 연결 테스트 결과의 코드이고 에러 코드 카탈로그의 이름공간이 아니다. 그래서 키 이름을 `code` 로 두지 않는다. `details.code` 로 두면 에러 코드로 읽혀 §2.3 의 "겹쳐 쓰지 않는다" 와 부딪힌다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). 지금 구현은 이 값을 싣지 않는다(NERV Task `CLE-T-XCMNP6`).
 
-### 2.6 top-level 이 이미 특화 코드일 때 (2026-09-11)
+### 2.6 top-level 이 이미 특화 코드일 때
+
+결정일: 2026-09-11
 
 "겹쳐 쓰지 않는다" 가 막는 해악은 소비자가 어느 값으로 분기할지 갈리는 것이다. 그 일은 같은 사유가 두 자리에 실릴 때 생긴다. 그래서 판별 기준은 사유의 중복이고 `details[].code` 가 일반 표지이면 해당하지 않는다.
 
@@ -273,7 +277,9 @@ flowchart TD
 
 ## Rationale
 
-### `410` 기본 코드를 만들지 않은 이유 (2026-09-02)
+### `410` 기본 코드를 만들지 않은 이유
+
+결정일: 2026-09-02
 
 HTTP 상태 코드 표에 `410 Gone` 을 등재하면서 §2.2 기본값 목록에도 `410=<무언가>` 를 넣는 것이 자연스러워 보인다. 넣지 않는다.
 
@@ -287,7 +293,9 @@ HTTP 상태 코드 표에 `410 Gone` 을 등재하면서 §2.2 기본값 목록�
 
 body-parser 같은 http-errors 미들웨어가 던지는 4xx(예: 413 `request entity too large`)는 `GlobalExceptionFilter` 가 원문을 싣지 않고 상태별 고정 문구로 바꾼다. 라이브러리 원문에는 경로·버퍼 한계·미들웨어 힌트 같은 구현 세부가 섞일 수 있어 그대로 내보내면 정보가 샌다. 운영 가시성은 원문을 `logger.warn` 에만 남겨 확보한다. WebSocket `EXECUTION_INTERNAL_ERROR` 의 고정 문구 결정(내부 예외 메시지 비노출)과 같은 원칙이고 5xx 가림과도 일관된다.
 
-### `code` 를 지정하지 않은 `HttpException` 413 도 고정 문구로 바꾸는 이유 (2026-11-06)
+### `code` 를 지정하지 않은 `HttpException` 413 도 고정 문구로 바꾸는 이유
+
+결정일: 2026-11-06
 
 아바타 업로드(`POST /api/users/me/avatar`)와 지식 저장소 문서 업로드는 multer `limits.fileSize` 로 파일 크기를 막는다. 한도를 넘으면 Nest 가 multer `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException("File too large")` 로 바꾸고, 이 예외는 http-errors 분기가 아니라 `HttpException` 분기로 간다. 그래서 같은 413 인데도 본문 초과(body-parser)는 고정 문구를, 파일 초과는 multer 원문을 냈다. 라이브러리 원문이 응답에 실렸고 클라이언트는 두 문구를 따로 다뤄야 했다(NERV Task `CLE-T-8MQMGQ`).
 
@@ -296,27 +304,37 @@ body-parser 같은 http-errors 미들웨어가 던지는 4xx(예: 413 `request e
 - **기각한 대안**: `code` 를 지정하지 않은 `HttpException` 4xx 전부를 고정 문구로 바꾸는 것. 발행 지점이 사람에게 보일 문구를 직접 쓴 400 · 404 예외까지 지워진다. 413 은 `code` 없이 던지는 곳이 multer 변환뿐이라 413 만 좁게 바꿨다.
 - multer 의 다른 변환(400 `"Unexpected field"` 등)은 클라이언트가 보낸 필드 이름만 담고 내부 구현 정보가 없어 이번에 바꾸지 않았다.
 
-### `@Res` 직접 응답 경로의 `requestId` (2026-11-06)
+### `@Res` 직접 응답 경로의 `requestId`
+
+결정일: 2026-11-06
 
 설치 엔드포인트처럼 `@Res` 로 응답을 직접 쓰는 경로는 `GlobalExceptionFilter` 를 거치지 않아 필터가 `requestId` 를 붙이지 못한다. 규칙 3(요청 ID 는 모든 에러 응답에 싣는다)을 지키려고 그 컨트롤러가 필터와 같은 형식(uuid v4)으로 직접 발급한다. 형식이 같아야 로그 검색과 클라이언트 표시가 경로에 따라 갈리지 않는다. 필드 표가 필터 발급만 적어 이 경로를 빠뜨렸다는 일관성 검토 지적(NERV Task `CLE-T-909H23`, W2)으로 더했다. 위 413 변경과는 별건이다.
 
-### 헬스 체크 503 을 규칙 1 의 예외로 적는다 (2026-11-12)
+### 헬스 체크 503 을 규칙 1 의 예외로 적는다
+
+결정일: 2026-11-12
 
 `GET /api/health` 는 의존성 장애 때 예외를 던지지 않고 응답 상태 코드만 503 으로 바꾼다. 본문은 정상일 때와 같은 `{ data: { status, version, uptime, checks } }` 다. k8s 준비 상태 probe 와 외부 모니터는 상태 코드로 판정하고 운영자는 본문의 `checks` 로 어느 의존성이 비정상인지 본다. 에러 응답 봉투로 바꾸면 그 점검 결과가 응답에서 사라진다. 이 동작은 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 가 정했는데 규칙 1 은 예외 없이 적혀 있어 두 문서가 서로 다른 말을 했다(NERV Task `CLE-T-DM3AXQ` 항목 11). 그래서 규칙 1 에 예외를 적었다.
 
 - 이 503 에는 봉투가 없다. 그래서 봉투의 `requestId` · `code` 를 다루는 규칙 3 · 7 · 8 도 이 응답에는 적용하지 않는다.
 - **기각한 대안**: 규칙 9 의 외부 표면 목록에 헬스 체크를 넣는 것. 규칙 9 는 봉투 안의 기본 코드를 도메인 코드로 바꾸는 허용이라 봉투를 아예 쓰지 않는 이 경우와 결이 다르다.
 
-### 묶음 코드 아래의 필드별 사유를 §2.6 표에 적었다 (2026-11-12)
+### 묶음 코드 아래의 필드별 사유를 §2.6 표에 적었다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-DM3AXQ` 항목 10 에서 더했다. 트리거 파라미터 검증은 처음부터 top-level 특화 코드(`INVALID_TRIGGER_PARAMETERS` · `INVALID_WEBHOOK_PAYLOAD`)와 `details[].code` 의 필드별 사유를 함께 실었다. 그런데 §2.3 표는 이 선례의 top-level 을 기본값이라고 적었고 §2.6 표에는 이 경우가 없었다. 그래서 "둘을 겹쳐 쓰지 않는다" 를 어긴 것처럼 읽혔다.
 
 판별 기준(사유의 중복)은 바꾸지 않았다. 그 기준을 이 경우에 적용한 결과를 표에 한 행으로 적었다. 코드와 응답 형태는 바뀌지 않는다. 행마다의 설명은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 §4.2 와 `INVALID_TRIGGER_PARAMETERS` 행에 있다.
 
-### 자격 증명 교체의 `details.testCode` 를 §2.5 에 적었다 (2026-11-12)
+### 자격 증명 교체의 `details.testCode` 를 §2.5 에 적었다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-HGBHF2` 에서 더했다. [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12) 가 2026-11-12 에 자격 증명 교체의 연결 테스트 실패를 400 `INTEGRATION_TEST_FAILED` 로 두고 테스트 결과 코드를 `details.testCode` 에 싣기로 정했다(NERV Task `CLE-T-J6TZGK`). 이 payload 에는 `field` 가 없어 §2.5 의 대상이 아니다. 값이 에러 코드처럼 생겨 `details.code` 로 읽히기 쉬워서 키 이름을 `testCode` 로 둔 이유와 함께 §2.5 에 예로 적었다. 규칙은 바꾸지 않았다.
 
-### 실행 에러 예시의 필드 이름을 `nodeLabel` 로 고친 이유 (2026-08-17)
+### 실행 에러 예시의 필드 이름을 `nodeLabel` 로 고친 이유
+
+결정일: 2026-08-17
 
 옛 예시는 `nodeName` 이었다. 엔진이 내보내는 값은 모두 `nodeLabel: node.label ?? node.type` 이고 `nodeName` 을 쓰는 발행은 코드베이스에 0건임을 실측했다. WebSocket 실행 이벤트 표의 같은 어긋남을 고치면서 이 예시도 함께 맞췄다([WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).

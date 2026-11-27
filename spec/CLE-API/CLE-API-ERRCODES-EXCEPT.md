@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXCEPT"
 title: "에러 코드 — 예외 · 내부 분류 · 은퇴 코드"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "4a0550cc25edf60c98133d99e8861cd241ae816cc2f38fbb18017c4653bf9f6f"
+content_hash: "7628bd4f27bfc609d07394e67c0bceb9896c3d2554bbd9662accc02a13122a1c"
 read_as: "approved_fallback"
-task: "CLE-T-8WXV7T"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "5e79a64683d35528f11f1647e647beb9807c6c2d8c26dfb3484930db247e0cf9"
-etag: "sha256-d8fb78f00b1c9133717bf5380e464ff8a401ad324169469e97996ee2821adc2c"
+mirror_sha256: "103d033b6e2477f77277ab3fbbb78be041e62fc162598eb841b40bf2719f497b"
+etag: "sha256-5b2cb4b0ea4212174efafd67b56ff34eb488b36dc0e12f7cf2b1e11b6896362f"
 ---
 ## 개요
 
@@ -33,11 +33,11 @@ etag: "sha256-d8fb78f00b1c9133717bf5380e464ff8a401ad324169469e97996ee2821adc2c"
 | `CAFE24_404` · `CAFE24_422` · `CAFE24_4XX` · `CAFE24_5XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | Cafe24 · MakeShop API 가 2xx 가 아닌 상태로 답했다. `*_404` · `*_422` 는 그 상태이고 `*_5XX` 는 500~599, `*_4XX` 는 그 밖의 4xx 다. 401 · 403 · 429 는 API 클라이언트가 먼저 처리해 인증 실패 · 빈도 제한 코드가 된다(§6.22). AI 에이전트 도구 호출에서는 이 코드를 도구 결과에 싣지 않고 `mcpDiagnostics.errors[].code` 와 활동 로그, 통합 `last_error.code` 에 남긴다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `HTTP_4XX` · `HTTP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 범주를 적는다(규칙 1). `HTTP_4XX` 는 이름과 달리 따라가지 않은 3xx 도 담는다. 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | HTTP Request 노드가 받은 응답이 2xx 가 아니다. 상태가 500 이상이면 `HTTP_5XX`, 그 밖(3xx · 4xx)은 `HTTP_4XX` 다. 상태 번호는 `output.error.details.statusCode` 에 있다. 같은 실패의 활동 로그와 통합 `last_error.code` 에는 아래 `HTTP_{status}` 가 남는다 | [HTTP Request 노드 — 출력과 에러 「에러 코드」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#에러-코드) |
 | `HTTP_{status}` (예: `HTTP_404` · `HTTP_502`) | 없음 (통합 활동 로그 `error.code` · 통합 `last_error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 활동 로그 API(`GET /api/integrations/:id/activity`)와 통합 `last_error.code` 로 클라이언트에 나가고 이미 쌓인 활동 로그 행에도 남아 있다. 바꾸면 옛 행과 새 행의 값이 갈린다(§2) | `integration` 인증의 HTTP Request 노드가 보낸 요청에 서버가 2xx 가 아닌 상태(3xx · 4xx · 5xx)로 답했다. 번호는 응답 상태 그대로다. 같은 실패의 노드 출력 `output.error.code` 는 `HTTP_4XX` · `HTTP_5XX` 다(§6.6) | [HTTP Request 노드 — 실행 로직 「활동 로그」](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#활동-로그) |
-| `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 에도 난다 | MCP 서버 URL 이 https 가 아니거나 파싱할 수 없다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
+| `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 에도 난다 | MCP 서버 URL 이 https 가 아니거나 파싱할 수 없다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드), [MCP 클라이언트 — 연결과 URL 검증 「연결 테스트」](../CLE-INT/CLE-INT-MCP-CONN.md#연결-테스트) |
 | `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` | 404 · 410 · 410 · 400 (순서대로) | `lower_snake_case` 로 표기 규칙을 어긴다. 워크스페이스 초대 흐름 v1 에서 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR`)와 백엔드(`workspace-invitations.service.ts`, `auth.service.ts`)가 `code` 값으로 분기한다. 바꾸면 호환이 깨진다(§2) | 초대 토큰 없음·만료·사용됨·이메일 불일치. **초대 API 한정**이다. 초대 빈도 제한은 전역 필터의 대문자 `RATE_LIMITED`(429)다. 2026-11-20 에 발행처가 없던 소문자 `rate_limited` 를 이 행에서 뺐다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)). 2026-09-25 에 발행처가 없던 `forbidden` 을 이 행에서 뺐다(`code: 'forbidden'` 0건). 초대 권한 부족은 `RolesGuard` 의 `ADMIN_REQUIRED` 다. 소유자가 아닌 요청자의 관리자 역할 초대 거부는 서비스 계층이 내는 대문자 `OWNER_REQUIRED`(§6.2)라 이 예외에 들지 않는다. | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_type_mismatch` · `already_a_member` · `invitation_already_pending` · `invitation_already_accepted` | 403 · 409 · 409 · 409 | `lower_snake_case`. 위 초대 토큰 코드와 같은 모듈(`workspace-invitations.service.ts`)의 초대 발급·재발송 흐름 코드다. 프론트엔드는 `code` 로 분기하지 않고 `message` 만 보이지만 정규화하면 같은 모듈의 다른 소문자 코드와 대소문자가 섞이고 호환 이득이 0이라 소문자를 유지한다(2026-06-28 결정) | non-team 워크스페이스에 초대 / 이미 멤버 / 같은 이메일의 대기 초대 경합(partial UNIQUE) / 이미 수락된 초대의 재발송·취소. **초대 발급·재발송·취소 API 한정**이다. 직접 추가 경로의 대문자 코드와 같은 뜻의 **별개 코드**다(§6.12) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_not_found` · `user_not_found` · `admin_required` | 404 · 404 · 403 | `lower_snake_case`. 위 두 행과 같은 초대 모듈이 조회·RBAC 단계에서 발행한다. 모듈 안 소문자 일관성을 위해 유지한다(등록부 완전성 차원의 등재) | 워크스페이스 없음 / 대상 사용자 없음 / 관리자 미만 권한. 2026-09-25 이후 `admin_required` 는 HTTP 로 나가지 않는다. 초대 라우트가 `RolesGuard` 의 `@Roles('admin')` 를 먼저 거쳐 `ADMIN_REQUIRED` 가 나기 때문이다. 서비스 계층의 `admin_required` 는 가드가 빠졌을 때만 닿는 두 번째 방어선이다. **초대 모듈 한정**이고 직접 추가·관리 경로의 `WORKSPACE_NOT_FOUND`·`USER_NOT_FOUND`(§6.4)와 별개 코드다 | [계정과 워크스페이스 데이터 흐름 「초대 발급」](../CLE-ACCT/CLE-ACCT-DATA.md#초대-발급). 세 코드는 도메인 문서에 적혀 있지 않아 이 행이 유일한 등재다 |
-| `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth 콜백 `?error=`) | 없음 (302 리다이렉트) | `lower_snake_case`. 봉투의 `error.code` 가 아니라 로그인 OAuth 콜백이 `{frontend_url}/callback?error=<값>` 으로 보내는 **URL query 값**이다. v1 에서 굳었고 콜백 페이지가 이 값으로 분기한다(§2) | 소셜 로그인 콜백 실패 사유(state 불일치 / 코드 교환 실패 / 이메일 미제공 / 서버 에러 · 연결할 계정을 정하지 못함). 연결할 계정을 정하지 못한 경우는 이메일이 대소문자만 다른 기존 계정 여럿과 맞고 대소문자까지 같은 계정이 없을 때다([가입과 로그인 — 가입 · 재설정 · 이메일 변경 「이메일 비교 규칙」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)). 새 값을 두지 않고 `server_error` 를 쓴다. **로그인 OAuth 콜백 URL 한정**이고 통합 OAuth 의 `OAUTH_*` 봉투 코드와 별개다. `invalid_state` 는 §6.4 의 봉투 코드 `INVALID_STATE`(422, 상태 전이 불가)와 대소문자만 같고 뜻이 다른 별개 값이다 | [가입과 로그인 — 로그인과 소셜 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#에러-처리) |
+| `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth 콜백 `?error=`) | 없음 (302 리다이렉트) | `lower_snake_case`. 봉투의 `error.code` 가 아니라 로그인 OAuth 콜백이 `{frontend_url}/callback?error=<값>` 으로 보내는 **URL query 값**이다. v1 에서 굳었고 콜백 페이지가 이 값으로 분기한다(§2) | 소셜 로그인 콜백 실패 사유(state 불일치 / 코드 교환 실패 / 이메일 미제공 / 서버 에러 · 연결할 계정을 정하지 못함). 연결할 계정을 정하지 못한 경우는 이메일이 대소문자만 다른 기존 계정 여럿과 맞고 대소문자까지 같은 계정이 없을 때다([가입과 로그인 — 가입 · 재설정 · 이메일 변경 「이메일 비교 규칙」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)). 새 값을 두지 않고 `server_error` 를 쓴다. **로그인 OAuth 콜백 URL 한정**이다. 통합 OAuth 콜백의 실패 사유는 봉투에 실리지 않고 팝업 HTML 과 `last_error` 로 남는다. `invalid_state` 는 §6.4 의 봉투 코드 `INVALID_STATE`(422, 상태 전이 불가)와 대소문자만 같고 뜻이 다른 별개 값이다 | [가입과 로그인 — 로그인과 소셜 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#에러-처리) |
 | `WORKER_HEARTBEAT_TIMEOUT` | 없음 (HTTP 무관. 엔진 수준 `error.code`, 실행 `failed`) | "HEARTBEAT" 는 워커가 주기적으로 보내는 별도 heartbeat 채널을 암시하지만 그런 채널은 만들지 않는다. 처음에는 부팅 때 30분 넘게 멈춘 `running` 실행을 실패 처리했다. 2026-07-04 에 부팅 경로는 rehydration 재구동(`recoverStuckExecutions`, 이 코드를 쓰지 않음)으로 바꾸고 이 코드는 BullMQ stalled 재배달(`maxStalledCount=1`)을 다 쓸 때 `finalizeStalledExhausted` 가 내도록 뜻을 다시 정의했다. 코드와 여러 문서가 값으로 참조하므로 바꾸면 호환이 깨진다(§2) | 활성 세그먼트 워커의 최종 실패로 실행이 `failed` 가 된다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `AbortError` | 없음 (HTTP 무관. 노드 실행의 `error.code`, 노드 실행 `cancelled`) | PascalCase 다. 우리가 정한 코드가 아니라 웹 표준 `AbortSignal` 의 `DOMException.name` 을 그대로 옮긴 값이다. fetch 는 이 이름으로 던진다. DB 드라이버는 쿼리 취소 코드(PostgreSQL `57014` · MySQL `ER_QUERY_INTERRUPTED`)로 끝나고 Database Query 노드가 이 이름의 에러로 바꾼다. Anthropic · OpenAI SDK 는 `name` 이 `'Error'` 인 `APIUserAbortError` 를 던지고 AI 노드가 이를 메시지 `LLM call was aborted` 로 고정한 이 이름의 에러로 감싼다. 정규화하면 엔진 분류 키(`error.name === 'AbortError'`)와 `code` 가 갈라진다. 여러 핸들러와 테스트가 값으로 참조한다(§2) | 노드의 외부 I/O 가 노드 취소 신호(`context.abortSignal`)로 중단돼 노드 실행이 `cancelled` 가 된다. 엔진은 이 값을 노드 실행의 `error.code` 에 남기고 `output.error` 는 쓰지 않는다. 엔진의 `ExecutionCancelledError`(DB 관측 취소 가드)는 같은 상태로 끝나지만 `code` 를 싣지 않는 별개 신호다. ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과에 담을 때도 `name` 이 `AbortError` 인 에러는 이 값이다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md), [노드 취소 「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) |
 
@@ -116,11 +116,15 @@ etag: "sha256-d8fb78f00b1c9133717bf5380e464ff8a401ad324169469e97996ee2821adc2c"
 
 §5 의 기준은 "외부 노출 여부" 가 아니라 "외부 client 코드에 옛 코드로 분기하는 지점이 있었는가" 다. 사용자 문서 목록에만 나온 코드는 client 가 그 문자열로 분기하지 않으므로 교체의 호환 영향이 0이고 문서만 맞추면 된다. client 에 하드코딩 분기가 있었다면 §2 가 적용돼 새 코드나 정식 마이그레이션을 거친다(`WORKSPACE_REQUIRED` 가 이 기준의 첫 적용이다).
 
-### 그 이분법에 없던 세 번째 상태를 등급 B 로 적었다 (2026-08-22)
+### 그 이분법에 없던 세 번째 상태를 등급 B 로 적었다
+
+결정일: 2026-08-22
 
 위 기준은 "분기 0 을 확인" 과 "하드코딩 분기 있음" 두 갈래만 다룬다. 워크스페이스 JWT 로 부를 수 있는 내부 REST 는 저장소 밖 호출자를 배제할 수 없어 어느 쪽으로도 판정되지 않고 "찾지 못했다" 만 관측된다. `INVALID_INPUT` 통일이 그 첫 사례라 등급을 A 와 B 로 갈랐다. 갈래가 없으면 근거를 부풀려 A 로 적거나(원칙이 실제보다 강해진다) 위험이 없는데도 정식 마이그레이션을 강제하는 수밖에 없다. 등급을 나누면 각 행이 자기 근거의 강도를 드러낸다.
 
-### 재실행 경로의 코드를 `INVALID_INPUT` 에서 옮긴 경위 (2026-08-22)
+### 재실행 경로의 코드를 `INVALID_INPUT` 에서 옮긴 경위
+
+결정일: 2026-08-22
 
 옛 카탈로그는 "`RERUN_` prefix 를 붙이지 않고 이름 안정성상 유지한다" 고 적었다. 그 문장이 기각한 것은 `RERUN_INVALID_INPUT` 으로의 개명이었지 세 경로 통일이 아니었다. 통일 결정으로 이름 바꾸기 자체가 뒤집혔다(§5). 재실행은 2026-08-20 에 파라미터 검증 헬퍼의 세 번째 소비처가 됐다. 그전에는 내부 사유를 `errors` 키로 던져 필터가 읽지 못했고 필드별 내역이 응답에 실리지 않았다. `MASKED_VALUE_RESUBMITTED` 를 더하면서 배선을 함께 고쳤다.
 
@@ -128,7 +132,9 @@ etag: "sha256-d8fb78f00b1c9133717bf5380e464ff8a401ad324169469e97996ee2821adc2c"
 
 옛 코드 하나가 "지정한 설정 없음"(404)과 "워크스페이스 기본값 미설정"(400)을 함께 담아 같은 코드가 두 상태를 가졌다. id 경로는 `MODEL_CONFIG_NOT_FOUND`(404, 존재 누설 방지)로 한정하고 기본값 미설정은 설정을 안내하는 `MODEL_CONFIG_DEFAULT_MISSING`(400)으로 나눴다. `resolveEmbedding` 의 기본값 부재는 "설정 미완료 안내" 가 아니라 "이 자원을 지금 해석할 수 없음" 이 더 정확해 404 를 유지한다. 설정 안내(400)는 chat/LLM 기본값 경로(`resolveConfig`)에서만 낸다(사용자 결정 2026-06-12).
 
-### HTTP Request 노드의 활동 로그 코드 `HTTP_{status}` 를 등록했다 (2026-11-14)
+### HTTP Request 노드의 활동 로그 코드 `HTTP_{status}` 를 등록했다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-6G3084` 다. `integration` 인증의 HTTP Request 노드는 활동 로그에 상태 번호별 코드를 남겨 왔지만 카탈로그에 없었다(규칙 8). 이름이 규칙 1 을 어기므로 이 등록부에 올렸다.
 
@@ -136,11 +142,15 @@ NERV Task `CLE-T-6G3084` 다. `integration` 인증의 HTTP Request 노드는 활
 - `CAFE24_404` 행과 같은 근거다. 다만 노드 출력이 아니라 통합 활동 로그와 `last_error` 에만 나간다.
 - §6.6 에는 이 행을 가리키는 설명만 두었다.
 
-### 소셜 로그인 콜백 행에 계정을 정하지 못한 경우를 더했다 (2026-11-14)
+### 소셜 로그인 콜백 행에 계정을 정하지 못한 경우를 더했다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-NFNMZG` 다. 2026-11-05 에 소셜 로그인 콜백은 연결할 계정을 정하지 못하면 `server_error` 로 보내기로 했다(NERV Task `CLE-T-SFWX84`). 새 `error=` 값을 만들지 않았으므로 이 행의 값 목록은 그대로 두고 뜻 열에 그 경우를 더했다. 정의 문서는 그 표가 있는 로그인 문서의 「에러 처리」 절로 바꿨다. 새 값을 두지 않은 근거는 [가입과 로그인 — 가입 · 재설정 · 이메일 변경 Rationale 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다) 에 있다.
 
-### HTTP Request 노드의 `HTTP_4XX` · `HTTP_5XX` 를 등록했다 (2026-11-14)
+### HTTP Request 노드의 `HTTP_4XX` · `HTTP_5XX` 를 등록했다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-43KCNP` 다. 사람이 따라가지 않은 3xx 를 계속 `HTTP_4XX` 로 내기로 정했다([HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14)). 이름은 4xx 만 말하는데 3xx 도 담는다는 것이 문서에 드러나서 이 등록부에 올렸다.
 
@@ -154,7 +164,9 @@ NERV Task `CLE-T-43KCNP` 다. 사람이 따라가지 않은 3xx 를 계속 `HTTP
 
 NERV Task `CLE-T-GZRYQ3` 다. 옛 행은 fetch · SDK · DB 드라이버가 모두 이 이름으로 던진다고 적었다. 실제로 이 이름으로 던지는 것은 fetch 뿐이다. DB 드라이버는 쿼리 취소 코드로 끝나고 Anthropic · OpenAI SDK 의 `APIUserAbortError` 는 `name` 이 `'Error'` 라 엔진의 이름 판정을 비껴간다. 그래서 Database Query 노드와 AI 노드가 이 이름으로 바꿔 던진다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). 값과 이름을 유지하는 근거는 그대로다. 기록 위치도 노드 출력이 아니라 노드 실행의 `error.code` 로 적었다. 노드 취소는 에러 포트로 가지 않아 `output.error` 가 없다.
 
-### `MCP_HTTPS_REQUIRED` 행을 줄였다 (2026-11-20)
+### `MCP_HTTPS_REQUIRED` 행을 줄였다
+
+결정일: 2026-11-20
 
 NERV Task `CLE-T-DDN3MS` 가 MCP 서버의 주소 차단을 새 코드 `MCP_HOST_BLOCKED` 로 갈랐다. `MCP_HTTPS_REQUIRED` 에는 https 위반과 파싱할 수 없는 URL 만 남는다. 이름이 파싱 실패를 담지 못하므로 행은 남기고 이유와 뜻만 줄였다.
 

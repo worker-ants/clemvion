@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
+import { errorMessage } from '../../common/utils/error-message';
 import { withTimeout } from '../../common/utils/with-timeout';
 import { Execution } from '../executions/entities/execution.entity';
 import { ExecutionToken } from './entities/execution-token.entity';
@@ -54,7 +55,7 @@ export class SseStreamEligibilityService {
       if (!this.degraded) {
         this.degraded = true;
         this.logger.warn(
-          `EIA SSE 쓰기 대상 판정 조회 실패 — 판정하지 못한 실행은 Redis 에 쓴다(복구될 때까지 다시 남기지 않는다): ${err instanceof Error ? err.message : String(err)}`,
+          `EIA SSE 쓰기 대상 판정 조회 실패 — 판정하지 못한 실행은 Redis 에 쓴다(복구될 때까지 다시 남기지 않는다): ${errorMessage(err)}`,
         );
       }
       return true;

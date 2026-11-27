@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND-STREAM"
 title: "EIA 수신 API — SSE 이벤트 스트림"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-INBOUND"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-INBOUND"]
 area: "CLE-IX"
-content_hash: "604610395e9511551f110fbf65d0981bd4c01f50a2fa7ca6c5ef0e739bf674e8"
+content_hash: "8bddf2b927c55c8a38669c8de606a06e82aab5bdd16800f44035414147d5afe8"
 read_as: "approved_fallback"
-task: "CLE-T-YFVEPK"
+task: "CLE-T-RM5M5X"
 source_paths: []
-mirror_sha256: "4741bcce1024543d7a1345e31f0b92a72738ce74294241878eecb0a1f6ccd761"
-etag: "sha256-53e1522b36cbfd4d04442e3e627cf730078361bebc5ccf3ec5ba9d314ba6b472"
+mirror_sha256: "4963f87d3536d6d1a3a3de88a8416e512ed6a2da2a9866a6542653a474b344eb"
+etag: "sha256-87672b55aabd2399ce4a4f28a2c269baf22cbd824184f09efb48fbfc72df767b"
 ---
 ## 개요
 
@@ -96,7 +96,7 @@ SSE 는 알림 웹훅 이벤트(`execution.waiting_for_input`·`completed`·`fai
 - `Last-Event-Id` 헤더나 `?lastEventId=` 쿼리로 다시 연결하면 5분 재전송 버퍼(SSE replay buffer)에서 놓친 이벤트를 다시 보낸다.
 - 첫 연결에서 `?lastEventId=0` 을 명시하면 버퍼의 순번 1 이상 이벤트를 모두 다시 보낸다. 구독 전에 지나간 이벤트를 채울 수 있고, 상태 조회 시드와 함께 쓴다.
 - 서버는 다음 가운데 하나에 해당할 때마다 `execution.replay_unavailable` 을 한 번 보낸다. 클라이언트는 상태 조회로 현재 상태를 다시 읽는다. payload 는 `{ executionId, lastEventId, message }` 이고 `lastEventId` 는 클라이언트가 마지막으로 받은 순번이다. 연결한 뒤 받은 이벤트가 없으면 연결할 때 보낸 `Last-Event-Id` 이고 그것도 없으면 `0` 이다.
-  1. 버퍼가 요청 범위를 다 채우지 못한다(만료나 개수 상한으로 중간 순번 유실). 다시 보낼 수 있는 가장 이른 순번이 `Last-Event-Id + 1` 이 아니면 부분 재전송 대신 이 신호를 보낸다. 구현은 `sse-adapter.service.ts` 의 `replayOrSignalUnavailable` 이다. 버퍼 안의 연속 구간 재전송은 손실 없이 동작한다.
+  1. 버퍼가 요청 범위를 다 채우지 못한다(만료나 개수 상한으로 중간 순번 유실). 다시 보낼 수 있는 가장 이른 순번이 `Last-Event-Id + 1` 이 아니면 부분 재전송 대신 이 신호를 보낸다. 구현은 `sse-replay-plan.ts` 의 `planReplay` 다. 버퍼 안의 연속 구간 재전송은 손실 없이 동작한다.
   2. 버퍼에 `Last-Event-Id` 뒤의 이벤트가 없는데 버퍼가 비었거나 Redis 에서 읽지 못해 버퍼만으로 판정할 수 없다. 버퍼 키는 그 실행의 마지막 이벤트 뒤 5분이 지나면 사라진다. 그때 서버는 실행의 순번 카운터와 견준다. 카운터가 `Last-Event-Id` 보다 크면 그 사이 순번 가운데 연결을 준비하며 모은 실시간 이벤트에 없는 것이 있을 때 신호를 보낸다. 카운터를 읽지 못하면(키가 없음 · Redis 장애 · 메모리 모드) 놓쳤을 수 있다고 보고 신호를 보낸다. 견주는 방법과 카운터의 수명은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
   3. 연결을 준비하는 동안(연결 자리 얻기 · 토큰 다시 확인 · 재전송) 모은 실시간 이벤트가 재전송 버퍼의 개수 상한과 같은 상한을 넘었다. 서버는 가장 오래된 것부터 버린다. 실시간 전달로 바꾸기 전에 이 신호를 먼저 보내고 남은 이벤트를 보낸다.
   4. 서버의 실시간 구독 연결이 끊겼다 복구되거나 실행 채널 구독 확인이 늦게 왔다. 서버는 그 사이 놓친 구간을 재전송 버퍼로 채운다. 1 · 2 번과 같은 판정으로 채울 수 없으면 신호를 보낸다. `Last-Event-Id` 없이 연결했고 순번이 1 이상인 이벤트를 아직 받지 않은 스트림은 기준 순번이 없어서 이때 늘 신호를 받는다. 그 신호의 `lastEventId` 는 `0` 이다. 자세한 규칙은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
@@ -137,7 +137,7 @@ SSE 연결은 SSE 헤더를 보내기 전에만 오류 상태 코드로 거부�
 401 Unauthorized
 X-Refresh-Token-Url: /api/external/executions/{executionId}/refresh-token
 
-{"error":{"code":"TOKEN_INVALID","message":"Token rejected"}}
+{"error":{"code":"TOKEN_INVALID","message":"Token rejected","requestId":"3f2a…"}}
 ```
 
 SSE 헤더를 보낸 뒤 트리거 단위 토큰이 무효가 되면 서버는 따로 보내는 이벤트 없이 200 응답을 끝낸다([스트림 규칙](#스트림-규칙)).

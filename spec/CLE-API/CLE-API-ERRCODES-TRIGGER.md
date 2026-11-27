@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-TRIGGER"
 title: "에러 코드 카탈로그 — 웹훅 · 트리거 · 채팅 채널"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "cbb6d15d8d9f6c76d0fa8bd1f8ac622c761aa73a2bed1dacc8dbdc6d44ba1866"
+content_hash: "e2676cf7d2208896c0e62d6650e0dc172769fbe15bbbf0623310160fee5111d0"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "a54706bf5ab356fbcb989328336dbc7cf68f70f7cb976bd48508c02e6fa58617"
-etag: "sha256-c6e6c2387707faa5bcfa75520ee427cc6b59218c71e788676a3ddf6669faa113"
+mirror_sha256: "8812f91af76ca7405f0e4657e01e2cc2906c3c7276f6f79049b968df7e73f7a9"
+etag: "sha256-813ab09ed93df3f4c7207f32a737c0151f6f495419329a7338365b3d158588d5"
 ---
 ## 개요
 
@@ -123,7 +123,7 @@ NERV Task `CLE-T-KQ37NJ` 에서 정했다. 전에는 `basic_auth` 의 사용자 
 - **규칙 6 의 단서에 들지 않아 예외로 둔다.** 규칙 6 은 새 조건에 새 코드를 만들게 한다. 그 단서는 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건만 묶는다. 이 경우는 그 단서에 들지 않는다.
 - **예외의 범위**: 웹훅 인증에서 인증 설정의 기대값이 비었거나 읽지 못하는 경우뿐이다. 다른 조건이나 다른 표면으로 넓히지 않는다. 2026-11-05 에 기대값이나 헤더 이름이 문자열이 아닌 경우를 이 범위에 더했다([웹훅 인증의 `AUTH_FAILED` 예외에 문자열이 아닌 기대값과 헤더 이름을 더했다](#웹훅-인증의-auth_failed-예외에-문자열이-아닌-기대값과-헤더-이름을-더했다)).
 - **§3 예외 등록부에 올리지 않는다.** 이 예외는 이름을 정하는 결정이 아니라 기존 코드를 다시 쓰는 결정이다. §3 은 이름 규칙(규칙 1~3)을 따르지 않는 기존 코드를 적는 등록부다(규칙 7 · §3 첫 문단). `AUTH_FAILED` 는 이름 규칙을 따른다.
-- **`WEBAUTHN_INVALID` 선례와 경우가 다르다.** [2FA · Passkey 코드](CLE-API-ERRCODES-MFA.md) 의 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 은 다시 시도하면 풀리는 Redis 장애를 인증 실패와 갈랐지만 이번 경우는 사람이 인증 설정을 바로잡기 전에는 다시 보내도 풀리지 않아 호출자가 재시도를 판단할 일이 없다.
+- **`WEBAUTHN_INVALID` 선례와 경우가 다르다.** [2단계 인증 · Passkey 코드](CLE-API-ERRCODES-MFA.md) 의 「구현 반영 (NERV Task `CLE-T-GK9J2B`)」 은 다시 시도하면 풀리는 Redis 장애를 인증 실패와 갈랐지만 이번 경우는 사람이 인증 설정을 바로잡기 전에는 다시 보내도 풀리지 않아 호출자가 재시도를 판단할 일이 없다.
 
 ### 웹훅 인증의 `AUTH_FAILED` 예외에 문자열이 아닌 기대값과 헤더 이름을 더했다
 
