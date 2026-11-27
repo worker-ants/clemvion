@@ -12,7 +12,7 @@ import {
  * 보존), 스키마의 allow-list drift(특히 credential 유입)를 여기서 잡는다.
  *
  * `buildResumeCheckpoint` 실제 산출물과의 정합(builder↔schema drift)은
- * `execution-engine.service.spec.ts` 의 실 checkpoint 경로에서
+ * `execution-engine.service.ai-multiturn.spec.ts` 의 실 checkpoint 경로에서
  * `resumeCheckpointSchema.safeParse(realCheckpoint)` + credential 부재 단언으로
  * 별도 검증한다.
  */

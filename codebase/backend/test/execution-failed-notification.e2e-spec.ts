@@ -11,7 +11,7 @@ import type { RegisteredUser } from './helpers/auth';
  * e2e: `execution_failed` 알림 발사 경계 (spec/data-flow/8-notifications.md §1.1,
  * spec/data-flow/3-execution.md §143 격리 원칙).
  *
- * 검증 영역 (지금까지 execution-engine.service.spec.ts unit 화이트박스만 존재하던 것을
+ * 검증 영역 (지금까지 execution-engine.service.notifications-finalize.spec.ts unit 화이트박스만 존재하던 것을
  * 실 BullMQ + Postgres 인프라에서 통합 검증):
  *   1) top-level 실행 실패 → `execution_failed` 알림이 **정확히 top-level 에 대해서만** 발사되고
  *      딥링크 계약(resource_type='workflow' / resource_id=workflow.id, `_layout.md §3.1`)을 따른다.
