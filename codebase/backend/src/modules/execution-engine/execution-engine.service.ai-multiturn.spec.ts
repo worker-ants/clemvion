@@ -21,10 +21,7 @@ import {
   workflowId,
 } from './__test-utils__/engine-service-harness';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
-import {
-  armSlowPathResume,
-  flushResumeDrive,
-} from './__test-utils__/engine-service-resume-drive';
+import { armSlowPathResume } from './__test-utils__/engine-service-resume-drive';
 
 /**
  * ExecutionEngineService 단위 테스트: AI Agent 멀티턴 emit · 재개 턴 dispatch · LLM provider 규칙.
@@ -183,10 +180,9 @@ describe('ExecutionEngineService', () => {
       // Phase B (exec-park D4) — top-level AI multi-turn 은 첫 응답 emit 후
       // park-release 한다. 후속 turn 은 §7.5 slow-path(rehydration →
       // processAiResumeTurn → handleAiMessageTurn) 로 처리되므로 slow-path
-      // DB lookup 을 무장한 뒤 detached drive 완료까지 실제 타이머를 흘린다.
+      // DB lookup 을 무장하고 drive 가 끝날 때까지 continue* 를 await 한다.
       armSlowPathResume(h, 'node-agent', aiNodes[0]);
-      void service.continueAiConversation(executionId, 'hi');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, 'hi');
 
       const aiMessageCalls =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
@@ -272,8 +268,7 @@ describe('ExecutionEngineService', () => {
       // 후속 turn 입력은 §7.5 slow-path(rehydration)로 재개 → 동일 노드의
       // processMultiTurnMessage 가 호출된다.
       armSlowPathResume(h, 'node-agent', aiNodes[0]);
-      void service.continueAiConversation(executionId, 'hi');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, 'hi');
       expect(handler.processMultiTurnMessage).toHaveBeenCalled();
     });
 
@@ -319,8 +314,7 @@ describe('ExecutionEngineService', () => {
 
       // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn).
       armSlowPathResume(h, 'node-agent', aiNodes[0]);
-      void service.continueAiConversation(executionId, '주문 확인해줘');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, '주문 확인해줘');
 
       const calls = mockWebsocketService.emitExecutionEvent.mock.calls;
       const userMsgCalls = calls.filter(
@@ -416,8 +410,7 @@ describe('ExecutionEngineService', () => {
 
       // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn).
       armSlowPathResume(h, 'node-agent', aiNodes[0]);
-      void service.continueAiConversation(executionId, 'hi');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, 'hi');
 
       const aiMessageCalls =
         mockWebsocketService.emitExecutionEvent.mock.calls.filter(
@@ -492,11 +485,9 @@ describe('ExecutionEngineService', () => {
       // 첫 turn waiting 진입 시점의 save 호출은 무시 — 후속 turn 만 검증.
       mockNodeExecutionRepo.save.mockClear();
 
-      // 후속 turn 입력 — slow-path 재개. detached drive(processAiResumeTurn →
-      // handleAiMessageTurn 의 waiting 분기 re-park persist)가 완료되도록 실제
-      // 타이머를 흘린다.
-      void service.continueAiConversation(executionId, 'hi');
-      await flushResumeDrive();
+      // 후속 turn 입력 — slow-path 재개. drive(processAiResumeTurn →
+      // handleAiMessageTurn 의 waiting 분기 re-park persist)가 끝날 때까지 await 한다.
+      await service.continueAiConversation(executionId, 'hi');
 
       // 후속 turn waiting 분기에서 NodeExecution save 가 호출되어야 한다.
       // (Button/Form 대기 및 첫 turn 대기와 동일 패턴.)
@@ -764,8 +755,7 @@ describe('ExecutionEngineService', () => {
       // 첫 turn waiting 진입 후 후속 turn 처리.
       mockNodeExecutionRepo.save.mockClear();
 
-      void service.continueAiConversation(executionId, 'hello');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, 'hello');
 
       // handleAiMessageTurn 경로에서 NodeExecution save 가 호출됨.
       expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
@@ -855,8 +845,7 @@ describe('ExecutionEngineService', () => {
       mockWebsocketService.emitNodeEvent.mockClear();
 
       // 사용자 종료
-      void service.endAiConversation(executionId);
-      await flushResumeDrive();
+      await service.endAiConversation(executionId);
 
       // (a) handler.endMultiTurnConversation 호출됨
       expect(handler.endMultiTurnConversation).toHaveBeenCalledTimes(1);
@@ -940,11 +929,10 @@ describe('ExecutionEngineService', () => {
       mockWebsocketService.emitNodeEvent.mockClear();
       mockNodeExecutionRepo.save.mockClear();
 
-      // FAILED 경로는 slow-path detached drive(processAiResumeTurn →
+      // FAILED 경로는 slow-path drive(processAiResumeTurn →
       // handleAiMessageTurn try/catch → finalizeAiNode FAILED)를 거치므로
-      // detached drive 완료까지 실제 타이머를 흘린다.
-      void service.continueAiConversation(executionId, 'trigger error');
-      await flushResumeDrive();
+      // drive 가 끝날 때까지 await 한다.
+      await service.continueAiConversation(executionId, 'trigger error');
 
       // (a) handler.endMultiTurnConversation 이 'error' endReason + errorPayload
       //     로 1회 호출됨.
@@ -1017,10 +1005,6 @@ describe('ExecutionEngineService', () => {
   describe('processAiResumeTurn dispatch — form_submitted + unknown type (W11/W12)', () => {
     // `form_submitted` payload 가 handler.processMultiTurnMessage 에 도달하는지,
     // unknown type 이 warn log 를 남기고 re-park 하는지 검증.
-    // W15 (ai-review) — flushResumeDrive(200ms) × 다수(button×22·인터리빙 등) 누적이
-    // jest 기본 5s 타임아웃에 근접해 CI 고부하 시 flaky → 본 파일 타임아웃 상향.
-    jest.setTimeout(15_000);
-
     const makeAiDispatchHandler = (
       processReturn: () => unknown,
     ): NodeHandler & {
@@ -1119,8 +1103,7 @@ describe('ExecutionEngineService', () => {
       // processAiResumeTurn 의 form_submitted 분기).
       armSlowPathResume(h, 'node-agent-dispatch', aiDispatchNodes[0]);
       const formPayload = { field1: 'value1', type: '주문 문의' };
-      void service.continueExecution(executionId, formPayload);
-      await flushResumeDrive();
+      await service.continueExecution(executionId, formPayload);
 
       // processMultiTurnMessage 가 첫 번째 인자로 JSON.stringify(formPayload) 를 받았는지.
       // 호출 시그니처: processMultiTurnMessage(userMessage: string, state, options)
@@ -1167,8 +1150,7 @@ describe('ExecutionEngineService', () => {
       // (continueAiConversation → bus ai_message → applyContinuation →
       // rehydration → processAiResumeTurn 의 ai_message 분기).
       armSlowPathResume(h, 'node-agent-dispatch', aiDispatchNodes[0]);
-      void service.continueAiConversation(executionId, '안녕하세요');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, '안녕하세요');
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
         '안녕하세요',
@@ -1223,7 +1205,7 @@ describe('ExecutionEngineService', () => {
       await service.applyContinuation(executionId, 'ne-node-agent-dispatch', {
         type: 'totally_unknown_type_xyz',
       });
-      await flushResumeDrive();
+      await flushPromises();
 
       // warn log 가 호출됐는지 — unknown type 명(직렬화 포함) 또는 unknown 문구.
       const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
@@ -1305,7 +1287,7 @@ describe('ExecutionEngineService', () => {
           type: 'button_click',
           buttonId: `btn-${i}`,
         });
-        await flushResumeDrive(40);
+        await flushPromises();
       }
 
       // 22회 stale 클릭(옛 cap 20 초과)에도 핸들러 turn 처리(processMultiTurnMessage)는
@@ -1371,7 +1353,7 @@ describe('ExecutionEngineService', () => {
           type: 'button_click',
           buttonId: `stale-${i}`,
         });
-        await flushResumeDrive();
+        await flushPromises();
       }
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
 
@@ -1381,7 +1363,7 @@ describe('ExecutionEngineService', () => {
         type: 'ai_message',
         message: 'hello AI',
       });
-      await flushResumeDrive();
+      await flushPromises();
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
         'hello AI',

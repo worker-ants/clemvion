@@ -28,10 +28,7 @@ import {
   workflowId,
 } from './__test-utils__/engine-service-harness';
 import { BackgroundHandler } from '../../nodes/logic/background/background.handler';
-import {
-  armSlowPathResume,
-  flushResumeDrive,
-} from './__test-utils__/engine-service-resume-drive';
+import { armSlowPathResume } from './__test-utils__/engine-service-resume-drive';
 
 /**
  * ExecutionEngineService 단위 테스트: Form · Button 노드 대기와 재개.
@@ -305,15 +302,14 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       // Resume with form data — Phase B (PR-B1): slow-path rehydration 으로 재개
-      // 되므로 detached 드라이브 완료까지 실제 타이머를 흘린다. slow-path 가
-      // 통과하는 DB lookup mock 을 무장한다.
+      // 된다. slow-path 가 통과하는 DB lookup mock 을 무장하고 드라이브가 끝날
+      // 때까지 continue* 를 await 한다.
       armSlowPathResume(
         h,
         'node-form',
         formNodes.find((n) => n.id === 'node-form')!,
       );
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       // End node should now have been executed
       expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
@@ -389,8 +385,7 @@ describe('ExecutionEngineService', () => {
       expect(queueAdd).not.toHaveBeenCalled();
 
       armSlowPathResume(h, 'node-form', formNode);
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       const jobs = queueAdd.mock.calls.map(
         (call: unknown[]) => call[1] as BackgroundExecutionJob,
@@ -435,8 +430,7 @@ describe('ExecutionEngineService', () => {
         startedAt: new Date(),
       });
 
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       // node-end(하류)는 dispatch 되지 않는다 — node-start(park 이전, 1회)만.
       expect(mockHandler.execute).toHaveBeenCalledTimes(1);
@@ -500,8 +494,7 @@ describe('ExecutionEngineService', () => {
         return defaultQuery(sql, params);
       });
 
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       // (a) guarded UPDATE 경로가 실제로 시도됐다 (0행 매칭이라도 시도는 함).
       expect(mockExecutionRepo.query).toHaveBeenCalledWith(
@@ -550,8 +543,7 @@ describe('ExecutionEngineService', () => {
         'node-form',
         formNodes.find((n) => n.id === 'node-form')!,
       );
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
       expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -663,8 +655,7 @@ describe('ExecutionEngineService', () => {
         'node-form',
         formNodes.find((n) => n.id === 'node-form')!,
       );
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       expect(appendSpy).toHaveBeenCalledTimes(1);
       expect(appendSpy).toHaveBeenCalledWith(
@@ -700,8 +691,7 @@ describe('ExecutionEngineService', () => {
         'node-form',
         formNodes.find((n) => n.id === 'node-form')!,
       );
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       // Should emit execution.resumed, NOT execution.started
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -732,8 +722,7 @@ describe('ExecutionEngineService', () => {
         'node-form',
         formNodes.find((n) => n.id === 'node-form')!,
       );
-      void service.continueExecution(executionId, { approved: true });
-      await flushResumeDrive();
+      await service.continueExecution(executionId, { approved: true });
 
       // Form node should have a NODE_COMPLETED event
       expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
@@ -794,7 +783,7 @@ describe('ExecutionEngineService', () => {
       // emit 한다 — 전역 기본 mock(getDataSourceToken)이 이미 affected:1 로
       // 무장돼 있어 별도 오버라이드가 필요 없다.
       await service.cancelWaitingExecution(executionId);
-      await flushResumeDrive();
+      await flushPromises();
 
       // Should emit cancelled event
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -927,16 +916,8 @@ describe('ExecutionEngineService', () => {
       });
       // applyContinuation → rehydrateAndResume → resumeFromCheckpoint →
       // driveResumeAwaited 가 도착 payload 를 processFormResumeTurn 으로 직접
-      // 전달하고 남은 그래프를 순회해 COMPLETED 로 진행한다. drive 는 await 되지만
-      // 비동기 emit 정착을 위해 안전하게 polling 한다.
-      for (let i = 0; i < 50; i++) {
-        const completed = (
-          mockWebsocketService.emitExecutionEvent.mock.calls as unknown[][]
-        ).some((c) => c[1] === 'execution.completed');
-        if (completed) break;
-        await new Promise((r) => setTimeout(r, 20));
-        await flushPromises();
-      }
+      // 전달하고 남은 그래프를 순회해 COMPLETED 로 진행한다. drive 는 위 await 안에서
+      // 끝난다.
 
       // 6. 검증 — workflow 가 COMPLETED 까지 도달.
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -1290,14 +1271,13 @@ describe('ExecutionEngineService', () => {
       );
       await flushPromises();
       // Phase B (PR-B1) — button park-release → resume 은 §7.5 slow-path. slow-path
-      // DB lookup 무장 후 detached 드라이브 완료까지 실제 타이머를 흘린다.
+      // DB lookup 을 무장하고 드라이브가 끝날 때까지 continue* 를 await 한다.
       armSlowPathResume(
         h,
         'node-carousel',
         carouselNodes.find((n) => n.id === 'node-carousel')!,
       );
-      void service.continueButtonClick(executionId, 'btn-1');
-      await flushResumeDrive();
+      await service.continueButtonClick(executionId, 'btn-1');
 
       expect(appendSpy).toHaveBeenCalledTimes(1);
       expect(appendSpy).toHaveBeenCalledWith(
@@ -1362,15 +1342,7 @@ describe('ExecutionEngineService', () => {
         'node-carousel',
         carouselNodes.find((n) => n.id === 'node-carousel')!,
       );
-      void service.continueButtonClick(executionId, 'btn-1');
-      // detached slow-path 드라이브 완료(execution.completed)까지 real-timer polling.
-      for (let i = 0; i < 50; i++) {
-        const done = (
-          mockWebsocketService.emitExecutionEvent.mock.calls as unknown[][]
-        ).some((c) => c[1] === 'execution.completed');
-        if (done) break;
-        await flushResumeDrive(20);
-      }
+      await service.continueButtonClick(executionId, 'btn-1');
       expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -1484,8 +1456,7 @@ describe('ExecutionEngineService', () => {
       );
       // sentinel 없는 raw 값을 payload 로 직접 전달 — continueExecution 의 wrap 우회.
       const raw = { approved: true };
-      void service.applyContinuation(executionId, 'ne-node-form-w13', raw);
-      await flushResumeDrive();
+      await service.applyContinuation(executionId, 'ne-node-form-w13', raw);
 
       // warn log 가 sentinel 없는 폴백 분기임을 알리는지.
       const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));

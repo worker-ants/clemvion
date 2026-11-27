@@ -29,10 +29,7 @@ import {
 import { BackgroundHandler } from '../../nodes/logic/background/background.handler';
 import { CodeHandler } from '../../nodes/data/code/code.handler';
 import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
-import {
-  armSlowPathResume,
-  flushResumeDrive,
-} from './__test-utils__/engine-service-resume-drive';
+import { armSlowPathResume } from './__test-utils__/engine-service-resume-drive';
 
 /**
  * ExecutionEngineService 단위 테스트: 템플릿 표현식 · rawConfig · 순환 · 도달성 · 배열 출력 · 입력 수집.
@@ -481,8 +478,7 @@ describe('ExecutionEngineService', () => {
       // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn
       // → handleAiMessageTurn → processMultiTurnMessage). slow-path DB lookup 무장.
       armSlowPathResume(h, 'rc-ai', aiNode);
-      void service.continueAiConversation(executionId, 'hello');
-      await flushResumeDrive();
+      await service.continueAiConversation(executionId, 'hello');
 
       expect(processSpy).toHaveBeenCalledTimes(1);
       const stateArg = processSpy.mock.calls[0][1];
