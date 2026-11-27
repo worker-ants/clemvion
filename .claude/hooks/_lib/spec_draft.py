@@ -16,6 +16,12 @@ META_FIELDS = (
 )
 
 
+def tool_input_of(payload: dict) -> dict | None:
+    """훅 입력의 도구 인자(`tool_input`, 옛 이름 `input`). dict 가 아니면 None(훅은 통과시킨다)."""
+    tool_input = payload.get("tool_input") or payload.get("input") or {}
+    return tool_input if isinstance(tool_input, dict) else None
+
+
 def draft_key(tool_input: dict) -> str:
     """`spec_id`(기존 문서) 또는 `key`(새 문서). 둘 다 없으면 빈 문자열."""
     for name in ("spec_id", "key"):

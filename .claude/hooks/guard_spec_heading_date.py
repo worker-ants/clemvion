@@ -13,7 +13,8 @@ exit 0 → 허용, exit 2 → 차단(stderr 가 이유), 그 밖 → 런타임 �
 초안은 통과한다. 날짜 제목은 문서마다 영역 Task 가 옮겨 가는 중이라(2026-11-27 미러 201편 · 551개)
 전부 막으면 거의 모든 초안 저장이 막힌다.
 - 기존 문서(`spec_id` 가 키): 기준은 같은 문서 미러 `spec/**/<KEY>.md` 의 날짜 제목 수다.
-- 새 문서(`spec_id` 없음): 기준은 0 이다.
+- 새 문서(`spec_id` 없음): 기준은 0 이다. 다만 `key` 가 미러에 있는 문서를 가리키면(이미 있는 문서를
+  `spec_id` 없이 다시 저장하는 호출) 그 미러가 기준이다.
 
 막지 않는 것(기준을 알 수 없어 통과한다):
 - `spec_id` 가 UUID 이거나 미러에 없는 문서(카탈로그 사본 · 미러를 받기 전에 만든 문서).
@@ -37,7 +38,7 @@ from pathlib import Path
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
 from _lib.hook_input import read_payload  # noqa: E402
-from _lib.spec_draft import body_of  # noqa: E402
+from _lib.spec_draft import body_of, draft_key, tool_input_of  # noqa: E402
 from _lib.spec_heading import date_headings, strip_frontmatter  # noqa: E402
 
 _SPEC_KEY = re.compile(r"^CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*$")
@@ -49,25 +50,37 @@ def _repo_root() -> Path:
     return Path(env) if env else Path(THIS_DIR).parents[1]
 
 
-def baseline_headings(tool_input: dict, root: Path) -> list[str] | None:
-    """기준이 되는 날짜 제목 목록. 새 문서면 []. 기준을 알 수 없으면 None(통과)."""
-    spec_id = tool_input.get("spec_id")
-    if not isinstance(spec_id, str) or not spec_id:
-        return []
-    if not _SPEC_KEY.match(spec_id):
+def _mirror_headings(key: str, root: Path) -> list[str] | None:
+    """미러 `spec/**/<KEY>.md` 의 날짜 제목. 키 꼴이 아니거나 미러가 없으면 None.
+
+    같은 키의 미러가 여러 곳에 있으면(옮기다 남은 사본) 경로 순서로 첫 파일을 본다."""
+    if not _SPEC_KEY.match(key):
         return None
-    matches = sorted((root / "spec").rglob(f"{spec_id}.md"))
+    matches = sorted((root / "spec").rglob(f"{key}.md"))
     if not matches:
         return None
     return date_headings(strip_frontmatter(matches[0].read_text(encoding="utf-8")))
+
+
+def baseline_headings(tool_input: dict, root: Path) -> list[str] | None:
+    """기준이 되는 날짜 제목 목록. 새 문서면 []. 기준을 알 수 없으면 None(통과)."""
+    spec_id = tool_input.get("spec_id")
+    if isinstance(spec_id, str) and spec_id:
+        return _mirror_headings(spec_id, root)
+    key = tool_input.get("key")
+    if isinstance(key, str) and key:
+        found = _mirror_headings(key, root)
+        if found is not None:
+            return found
+    return []
 
 
 def main() -> int:
     if os.environ.get("BYPASS_SPEC_HEADING_GUARD") == "1":
         return 0
     payload = read_payload()
-    tool_input = payload.get("tool_input") or payload.get("input") or {}
-    if not isinstance(tool_input, dict):
+    tool_input = tool_input_of(payload)
+    if tool_input is None:
         return 0
     body = body_of(tool_input)
     if body is None:
@@ -81,7 +94,7 @@ def main() -> int:
     added = [h for h in now if h not in base] or now
     listed = "\n".join(f"             {h}" for h in added[:MAX_LISTED])
     more = f"\n             … 외 {len(added) - MAX_LISTED}개" if len(added) > MAX_LISTED else ""
-    key = tool_input.get("spec_id") or tool_input.get("key") or "(new spec)"
+    key = draft_key(tool_input) or "(new spec)"
     print(
         "BLOCKED by .claude/hooks/guard_spec_heading_date.py\n"
         f"  attempted: {payload.get('tool_name') or '(tool)'} on {key}\n"

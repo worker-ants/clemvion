@@ -6,9 +6,14 @@
 괄호 표기 `(2026-10-18)` 도 같다. 숫자가 앞뒤로 이어지면(`12026-10-180`) 날짜로 보지 않는다.
 
 날짜 제목으로 세지 않는 것:
-- 코드 블록(``` 또는 ~~~ 울타리) 안의 `#` 줄. 예제 · 셸 주석이다.
+- 코드 블록(``` 또는 ~~~ 울타리) 안의 `#` 줄. 예제 · 셸 주석이다. 백틱 울타리 뒤 info 문자열에 백틱이
+  있으면 울타리가 아니다(CommonMark).
 - 제목 아래 본문 줄 `결정일: YYYY-MM-DD`. 규칙 2 가 정한 자리다.
 - setext 제목(밑줄 `===` · `---`). 스펙 문서는 ATX 제목만 쓴다.
+
+닫히지 않은 울타리: CommonMark 로는 문서 끝까지 코드 블록이지만 여기서는 울타리 뒤의 날짜 제목을 센다.
+실수로 연 ``` 하나가 뒤쪽 제목을 모두 검사 밖으로 빼지 않게 하려는 것이다. 미러 기준도 같은 함수로 세므로
+기존 문서의 래칫은 어긋나지 않는다.
 
 날짜가 제목 이름의 일부인 경우(예: 날짜로 이름 붙인 외부 API 버전)도 날짜 제목으로 센다. 훅이 문서마다
 기존 수를 기준으로 삼으므로(래칫) 이미 있는 제목은 막히지 않고, 새로 쓰는 제목은 규칙 1 을 따른다.
@@ -27,21 +32,28 @@ def date_headings(body: str) -> list[str]:
     """본문의 날짜 제목 줄을 나온 순서대로(앞뒤 공백을 뗀 줄)."""
     found: list[str] = []
     fence: str | None = None
+    inside: list[str] = []  # 열린 울타리 안의 날짜 제목 꼴 줄. 닫히면 버리고, 끝까지 안 닫히면 센다.
     for line in body.splitlines():
         m = _FENCE.match(line)
         if fence is not None:
             # 닫는 울타리는 같은 문자로 여는 것 이상 길이이고 뒤에 공백만 온다.
             if m and m.group("fence")[0] == fence[0] and len(m.group("fence")) >= len(fence) \
                     and not line.strip()[len(m.group("fence")):].strip():
-                fence = None
+                fence, inside = None, []
+            elif _is_date_heading(line):
+                inside.append(line.strip())
             continue
-        if m:
+        if m and not (m.group("fence")[0] == "`" and "`" in line[m.end():]):
             fence = m.group("fence")
             continue
-        h = _HEADING.match(line)
-        if h and _DATE.search(h.group("text") or ""):
+        if _is_date_heading(line):
             found.append(line.strip())
-    return found
+    return found + inside
+
+
+def _is_date_heading(line: str) -> bool:
+    h = _HEADING.match(line)
+    return bool(h and _DATE.search(h.group("text") or ""))
 
 
 def strip_frontmatter(text: str) -> str:

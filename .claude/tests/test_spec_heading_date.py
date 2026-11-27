@@ -4,12 +4,14 @@
 고정하는 것:
 - 판정: ATX 제목 문구의 `YYYY-MM-DD`(괄호 표기 포함)만 날짜 제목이다. 코드 블록(``` · ~~~, 닫는 울타리는
   같은 문자 · 같거나 긴 길이) 안의 `#` 줄, 본문 줄 `결정일: YYYY-MM-DD`, 숫자가 이어진 꼴은 세지 않는다.
+  닫히지 않은 울타리 뒤의 날짜 제목은 센다. info 문자열에 백틱이 있는 백틱 줄은 울타리가 아니다.
+- 기준(`baseline_headings`): `spec_id` 키는 미러, `spec_id` 없이 미러에 있는 `key` 도 미러, 새 문서는 [].
 - 훅(래칫): 기존 문서는 미러 `spec/**/<KEY>.md` 의 날짜 제목 수보다 늘면 exit 2, 같거나 줄면 exit 0.
   새 문서(`spec_id` 없음)는 기준 0 이다. UUID · 미러에 없는 문서 · 본문 없는 호출은 통과한다.
   차단 메시지에 새로 생긴 제목이 나온다. 우회는 `BYPASS_SPEC_HEADING_GUARD=1` 만. 모양이 틀린
   페이로드와 런타임 오류는 통과한다(fail-open).
 - `settings.json` 이 NERV 초안 도구 두 이름에 훅을 걸고, 훅 파일이 없는 체크아웃에서 통과한다.
-- 실제 저장소 미러의 문서를 그대로 다시 저장하는 초안은 막히지 않는다.
+- 실제 저장소 미러의 문서를 그대로 다시 저장하는 초안은 막히지 않는다(날짜 제목이 남은 미러가 없으면 건너뛴다).
 """
 
 from __future__ import annotations
@@ -90,9 +92,59 @@ class DateHeadingsTest(unittest.TestCase):
         body = "```\n``` not a close\n# 안 2026-10-18\n```\n"
         self.assertEqual(self.f(body), [])
 
+    def test_unclosed_fence_still_counts_headings_after_it(self):
+        body = "## 앞 (2026-10-18)\n```\n## 안 (2026-10-19)\n## 뒤 (2026-10-20)\n"
+        self.assertEqual(self.f(body), ["## 앞 (2026-10-18)", "## 안 (2026-10-19)", "## 뒤 (2026-10-20)"])
+
+    def test_backtick_in_info_string_is_not_fence(self):
+        self.assertEqual(self.f("``` a`b\n## 밖 (2026-10-18)\n"), ["## 밖 (2026-10-18)"])
+        self.assertEqual(self.f("~~~ a`b\n## 안 (2026-10-18)\n~~~\n"), [])
+
+    def test_indented_fences(self):
+        body = "   ```\n## 안 (2026-10-18)\n   ```\n## 밖 (2026-10-19)\n"
+        self.assertEqual(self.f(body), ["## 밖 (2026-10-19)"])
+        body = "    ```\n## 밖 (2026-10-18)\n"  # 4칸이면 울타리가 아니다
+        self.assertEqual(self.f(body), ["## 밖 (2026-10-18)"])
+
+    def test_crlf_and_bare_hash(self):
+        self.assertEqual(self.f("## A (2026-10-18)\r\n#\r\n##\r\n본문\r\n"), ["## A (2026-10-18)"])
+
     def test_strip_frontmatter(self):
         self.assertEqual(spec_heading.strip_frontmatter('---\nid: "X"\n---\n## A\n'), "## A\n")
         self.assertEqual(spec_heading.strip_frontmatter("## A\n"), "## A\n")
+
+
+class BaselineTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        for area in ("CLE-A", "CLE-Z"):
+            (self.root / "spec" / area).mkdir(parents=True)
+        (self.root / "spec" / "CLE-A" / f"{KEY}.md").write_text(MIRROR_BODY, encoding="utf-8")
+        (self.root / "spec" / "CLE-Z" / f"{KEY}.md").write_text("## a (2026-01-01)\n## b (2026-01-02)\n",
+                                                               encoding="utf-8")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def base(self, **tool_input):
+        return hook.baseline_headings(tool_input, self.root)
+
+    def test_new_doc_is_zero(self):
+        for spec_id in (None, "", 3, ["x"]):
+            with self.subTest(spec_id=spec_id):
+                self.assertEqual(self.base(spec_id=spec_id), [])
+        self.assertEqual(self.base(key="CLE-T-NEW"), [])
+
+    def test_key_without_spec_id_uses_mirror(self):
+        self.assertEqual(self.base(key=KEY), [OLD])
+
+    def test_duplicate_mirror_takes_first_path(self):
+        self.assertEqual(self.base(spec_id=KEY), [OLD])
+
+    def test_unknown_is_none(self):
+        self.assertIsNone(self.base(spec_id="01a1dcc3-2ee1-731f-a225-724290a8a858"))
+        self.assertIsNone(self.base(spec_id="CLE-T-NOT-MIRRORED"))
 
 
 class HookTest(unittest.TestCase):
@@ -122,6 +174,30 @@ class HookTest(unittest.TestCase):
         self.assertIn("### 새 결정 (2026-11-27)", r.stderr)
         self.assertNotIn(OLD, r.stderr.split("new:")[1].split("instead:")[0])
         self.assertIn("1개에서 2개", r.stderr)
+
+    def test_duplicated_heading_blocks_and_lists_it(self):
+        r = run_hook(draft(MIRROR_BODY + f"\n{OLD}\n"), self.root)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(OLD, r.stderr.split("new:")[1].split("instead:")[0])
+
+    def test_swapped_heading_same_count_passes(self):
+        body = MIRROR_BODY.replace(OLD, "### 다른 결정 (2026-11-27)")
+        self.assertEqual(run_hook(draft(body), self.root).returncode, 0)
+
+    def test_listing_caps_at_five(self):
+        def added(n):
+            return MIRROR_BODY + "".join(f"\n## 새 {i} (2026-11-27)\n" for i in range(n))
+        r = run_hook(draft(added(5)), self.root)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("## 새 4 (2026-11-27)", r.stderr)
+        self.assertNotIn("외", r.stderr.split("new:")[1].split("instead:")[0])
+        r = run_hook(draft(added(6)), self.root)
+        self.assertIn("## 새 4 (2026-11-27)", r.stderr)
+        self.assertNotIn("## 새 5 (2026-11-27)", r.stderr)
+        self.assertIn("… 외 1개", r.stderr)
+
+    def test_existing_key_without_spec_id_uses_mirror(self):
+        self.assertEqual(run_hook(draft(MIRROR_BODY, spec_id=None, key=KEY), self.root).returncode, 0)
 
     def test_code_block_heading_added_passes(self):
         body = MIRROR_BODY + "\n```\n# 2026-11-27 로그\n```\n"
@@ -187,8 +263,9 @@ class RealMirrorTest(unittest.TestCase):
         for path in (_harness.REPO_ROOT / "spec").rglob("CLE-*.md"):
             body = spec_heading.strip_frontmatter(path.read_text(encoding="utf-8"))
             counted.append((len(spec_heading.date_headings(body)), path.stem, body))
-        counted.sort(reverse=True)
-        self.assertTrue(counted and counted[0][0] > 0, "날짜 제목이 있는 미러 문서가 없다")
+        counted = sorted((c for c in counted if c[0] > 0), reverse=True)
+        if not counted:
+            self.skipTest("날짜 제목이 남은 미러 문서가 없다(옮겨 가기가 끝났다)")
         for _, key, body in counted[:3]:
             with self.subTest(key=key):
                 r = run_hook(draft(body, spec_id=key), _harness.REPO_ROOT)

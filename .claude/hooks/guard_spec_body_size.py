@@ -25,34 +25,23 @@ exit 0 → 허용, exit 2 → 차단(stderr 가 이유), 그 밖 → 런타임 �
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import traceback
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
-from _lib.spec_draft import META_FIELDS, body_of, draft_key  # noqa: E402,F401  (META_FIELDS: 테스트가 본다)
+from _lib.hook_input import read_payload  # noqa: E402
+from _lib.spec_draft import META_FIELDS, body_of, draft_key, tool_input_of  # noqa: E402,F401  (META_FIELDS: 테스트가 본다)
 from _lib.spec_size import LIMIT, TARGET, is_exempt  # noqa: E402
-
-
-def _read_payload() -> dict:
-    raw = sys.stdin.read()
-    if not raw.strip():
-        return {}
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    return payload if isinstance(payload, dict) else {}
 
 
 def main() -> int:
     if os.environ.get("BYPASS_SPEC_SIZE_GUARD") == "1":
         return 0
-    payload = _read_payload()
-    tool_input = payload.get("tool_input") or payload.get("input") or {}
-    if not isinstance(tool_input, dict):
+    payload = read_payload()
+    tool_input = tool_input_of(payload)
+    if tool_input is None:
         return 0
     body = body_of(tool_input)
     if body is None:
