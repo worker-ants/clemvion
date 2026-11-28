@@ -357,7 +357,7 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     ).toBeNull();
   });
 
-  // 설치 시간이 지나 만료된 행은 App URL 도 비어 있지만(설치 토큰이 지워진다) 삭제 없이 같은 상점을 다시 등록하면 된다.
+  // 설치 기한이 지나 만료된 행은 App URL 도 비어 있지만(설치 토큰이 지워진다) 삭제 없이 같은 상점을 다시 등록하면 된다.
   // 안내 문구는 언어마다 알아보는 구절로 내용을 확인한다. 삭제를 요구하는 말은 없어야 한다.
   const INSTALL_TIMEOUT_COPY = {
     en: {

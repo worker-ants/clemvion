@@ -92,8 +92,10 @@ export const integrations = {
   reauthorizeBtn: "재인증",
   reauthorizeDisabledPendingInstall:
     "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요.",
+  statusInstallTimedOutDetail:
+    "설치 기한이 지났어요. 같은 상점을 새로 등록해 주세요",
   reauthorizeDisabledInstallTimeout:
-    "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
+    "설치 기한이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
   reauthorizeDisabledNoAppUrl:
     "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요.",
   reauthorizeDisabledMakeshop:
@@ -125,13 +127,13 @@ export const integrations = {
   requestScopesDisabledMakeshop:
     "MakeShop 통합은 권한을 추가할 수 없어요. 권한이 더 필요하면 통합을 삭제한 뒤 필요한 권한으로 다시 등록해 주세요.",
   requestScopesDisabledInstallTimeout:
-    "설치 시간이 지나 만료된 통합은 권한을 추가할 수 없어요. 이 통합을 지우지 않아도 필요한 권한으로 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
+    "설치 기한이 지나 만료된 통합은 권한을 추가할 수 없어요. 이 통합을 지우지 않아도 필요한 권한으로 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
   requestScopesDisabledNoAppUrl:
     "App URL 이 없어 권한 추가를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요.",
   cafe24PrivateScopeRequestTitle:
     "Cafe24 Developers 에서 권한을 추가해 주세요",
   cafe24PrivateScopeRequestDesc:
-    "Cafe24 Developers 의 앱 권한 설정에서 추가 scope 를 활성화한 뒤 '테스트 실행' 을 다시 누르면 새 token 으로 갱신됩니다. (Private 앱은 외부에서 OAuth 화면을 띄울 수 없어 Cafe24 측 작업이 필요해요.)",
+    "Cafe24 Developers 의 앱 권한 설정에서 추가 scope 를 활성화한 뒤 '테스트 실행' 을 다시 누르면 새 token 으로 갱신돼요. (Private 앱은 외부에서 OAuth 화면을 띄울 수 없어 Cafe24 측 작업이 필요해요.)",
   cafe24PrivateScopeRequestScopesAdded: "추가된 권한",
   noScopeOptionsAvailable: "이 서비스에는 추가로 요청할 권한이 없어요.",
   scopeOnlyOauth: "권한 관리는 OAuth 통합에서만 사용할 수 있어요.",
@@ -157,9 +159,9 @@ export const integrations = {
   activityDuration: "소요",
   activityError: "오류",
   scopeChangeTitle: "공개 범위 변경",
-  scopeChangeHint: "개인과 조직 사이를 이동하면 자격 증명의 공유 범위가 바뀝니다. 관리자만 변경할 수 있어요.",
+  scopeChangeHint: "개인과 조직 사이를 이동하면 자격 증명의 공유 범위가 바뀌어요. 관리자만 변경할 수 있어요.",
   scopeApply: "적용",
-  scopeChangeConfirm: "자격 증명이 워크스페이스 멤버 전체와 공유됩니다. 계속할까요?",
+  scopeChangeConfirm: "자격 증명을 워크스페이스 멤버 모두와 공유해요. 계속할까요?",
   scopeUpdated: "공개 범위를 변경했어요",
   scopeUpdateFailedDefault: "공개 범위 변경에 실패했어요",
   scopeToPersonalConfirm: "개인으로 바꾸면 이 통합을 만든 사람만 이 통합을 보고 쓸 수 있어요. 계속할까요?",
@@ -168,7 +170,7 @@ export const integrations = {
   scopeToPersonalWarningConfirm: "개인으로 바꾸기",
   scopeUsagesFailed: "사용처를 확인하지 못해 공개 범위를 바꾸지 않았어요",
   dangerDeleteTitle: "통합 삭제",
-  dangerDeleteHint: "워크플로우 노드가 이 통합을 참조 중이면 삭제가 차단됩니다.",
+  dangerDeleteHint: "워크플로우 노드가 이 통합을 참조 중이면 삭제가 차단돼요.",
   dangerDeleteBtn: "통합 삭제",
   confirmDeleteBtn: "삭제 확정",
   timeJustNow: "방금 전",

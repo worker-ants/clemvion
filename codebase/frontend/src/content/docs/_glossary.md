@@ -44,6 +44,7 @@
 | MCP | MCP | Model Context Protocol. 한글화하지 않고 그대로 사용 |
 | MCP Server | MCP 서버 | MCP를 통해 도구·리소스를 제공하는 외부 서버. AI Agent의 `MCP Servers` 필드로 연결 |
 | Version History | 버전 히스토리 | |
+| Install timed out / install deadline | 설치 시간 초과 / 설치 기한 | 상태 사유 이름은 "설치 시간 초과"(en "install timed out"). 문장 안에서 24시간 기간·만료를 말할 때는 "설치 기한"(en "install deadline"). 예: "설치 기한이 지나 만료된 통합" |
 
 ## 3. 문장 스타일
 

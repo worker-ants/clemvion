@@ -6,6 +6,7 @@ import {
   needsAttention,
 } from "../status-badge";
 import type { IntegrationDto } from "@/lib/api/integrations";
+import { translate } from "@/lib/i18n";
 
 // 이 파일의 단언은 모두 `Date.now()` 상대 시각(만료 임박 판정·humanizeUntil
 // 단위 경계)에 의존한다. 실제 시간을 쓰면 테스트가 타임스탬프를 만든 시점과
@@ -107,6 +108,22 @@ describe("computeStatus", () => {
     expect(view.detail).toContain("register the store again");
     expect(view.detail).not.toMatch(/delete/i);
   });
+
+  it.each([
+    ["ko", /설치 기한이 지났어요/, /같은 상점을 새로 등록해 주세요/, /삭제|지워/],
+    ["en", /Install timed out/, /register the store again/, /delete/i],
+  ] as const)(
+    "%s — install_timeout hint comes from the dictionary (CLE-T-PSQQ34)",
+    (locale, reason, reRegister, deleteRequired) => {
+      const view = computeStatus(
+        row({ status: "expired", statusReason: "install_timeout" }),
+        (key, params) => translate(locale, key, params),
+      );
+      expect(view.detail).toMatch(reason);
+      expect(view.detail).toMatch(reRegister);
+      expect(view.detail).not.toMatch(deleteRequired);
+    },
+  );
 
   it("does not surface the install_timeout hint on rows expired for another reason", () => {
     const view = computeStatus(
