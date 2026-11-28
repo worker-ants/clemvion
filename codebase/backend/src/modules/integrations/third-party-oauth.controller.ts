@@ -41,6 +41,7 @@ import { redactSecrets } from '../../shared/utils/sanitize-error-message';
 import {
   installErrorBody,
   newInstallRequestId,
+  classifyHttpFailure,
   resolveInstallFailure,
 } from './install-failure-response';
 
@@ -524,7 +525,7 @@ export class ThirdPartyOAuthController {
 
 /**
  * 원문을 가린 콜백 실패의 고정 문구. `HttpException` 이 아닌 예외와 5xx `HttpException` 이 쓴다.
- * 예외 원문은 팝업에 싣지 않는다(CWE-209). 설치 엔드포인트의 `resolveInstallFailure` 와 판정이 같다.
+ * 예외 원문은 팝업에 싣지 않는다(CWE-209). 설치 엔드포인트와 `classifyHttpFailure` 로 판정을 공유한다.
  */
 export const OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE =
   'OAuth failed due to an unexpected server error. Please try again later.';
@@ -541,23 +542,15 @@ export function resolveCallbackFailure(err: unknown): {
   unexpected: boolean;
 } {
   const code = readErrorCode(err);
-  if (!(err instanceof HttpException) || err.getStatus() >= 500) {
+  const shape = classifyHttpFailure(err);
+  if (shape.masked) {
     return {
       code,
       message: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
       unexpected: true,
     };
   }
-  const body = err.getResponse();
-  const bodyMessage =
-    typeof body === 'object' && body !== null
-      ? (body as { message?: unknown }).message
-      : undefined;
-  const message =
-    typeof bodyMessage === 'string' && bodyMessage.length > 0
-      ? bodyMessage
-      : err.message;
-  return { code, message, unexpected: false };
+  return { code, message: shape.message, unexpected: false };
 }
 
 /**

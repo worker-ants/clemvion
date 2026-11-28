@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   InternalServerErrorException,
   Logger,
   NotFoundException,
@@ -9,6 +10,7 @@ import type { Response } from 'express';
 import {
   ThirdPartyOAuthController,
   isValidPostMessageOrigin,
+  resolveCallbackFailure,
 } from './third-party-oauth.controller';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { INSTALL_UNEXPECTED_ERROR_MESSAGE } from './install-failure-response';
@@ -73,7 +75,12 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
     >
   >;
 
+  let logSpy: jest.SpyInstance;
+
   beforeEach(() => {
+    logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
     process.env.FRONTEND_URL = 'https://frontend.test';
     oauthService = {
       handleCallback: jest.fn(),
@@ -88,6 +95,7 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
   });
 
   afterEach(() => {
+    logSpy.mockRestore();
     delete process.env.FRONTEND_URL;
     delete process.env.APP_URL;
   });
@@ -147,9 +155,6 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
   });
 
   it('masks the message of a 5xx HttpException and keeps its code', async () => {
-    const logSpy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined);
     oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
       new InternalServerErrorException({
         code: 'OAUTH_CONFIG_MISSING',
@@ -169,13 +174,9 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
     expect(logSpy.mock.calls[0][0]).toContain(
       'CAFE24_CLIENT_SECRET is not configured',
     );
-    logSpy.mockRestore();
   });
 
   it('masks a non-HttpException error and uses the fallback code', async () => {
-    const logSpy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined);
     oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
       new Error('connect ECONNREFUSED 10.0.0.5:5432'),
     );
@@ -188,13 +189,9 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
       error: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
     });
     expect(logSpy).toHaveBeenCalledTimes(1);
-    logSpy.mockRestore();
   });
 
   it('does not log a 4xx failure (its message is author-defined)', async () => {
-    const logSpy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined);
     oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
       new BadRequestException({
         code: 'OAUTH_STATE_EXPIRED',
@@ -208,7 +205,34 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
       error: 'OAuth state has expired',
     });
     expect(logSpy).not.toHaveBeenCalled();
-    logSpy.mockRestore();
+  });
+
+  it('does not leak secret patterns of a 5xx error into the log', async () => {
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
+      new Error('token exchange failed client_secret=s3cr3t-value-123'),
+    );
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(res.body as string).not.toContain('s3cr3t-value-123');
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(String(logSpy.mock.calls[0][0])).not.toContain('s3cr3t-value-123');
+    expect(String(logSpy.mock.calls[0][0])).toContain('token exchange failed');
+  });
+
+  it('masks a thrown string and logs it without a stack', async () => {
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
+      'raw failure client_secret=s3cr3t-value-123',
+    );
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(readCallbackPayload(res.body as string)).toMatchObject({
+      code: 'OAUTH_CALLBACK_FAILED',
+      error: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
+    });
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(String(logSpy.mock.calls[0][0])).toContain('raw failure');
+    expect(String(logSpy.mock.calls[0][0])).not.toContain('s3cr3t-value-123');
+    expect(logSpy.mock.calls[0][1]).toBeUndefined();
   });
 
   it('fails closed when FRONTEND_URL and APP_URL are both missing', async () => {
@@ -1212,5 +1236,66 @@ describe('isValidPostMessageOrigin', () => {
     '//example.com',
   ])('rejects %s', (origin) => {
     expect(isValidPostMessageOrigin(origin)).toBe(false);
+  });
+});
+
+describe('resolveCallbackFailure', () => {
+  const MASK = OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE;
+
+  it.each([
+    [
+      'string response body',
+      new BadRequestException('plain msg'),
+      {
+        code: 'OAUTH_CALLBACK_FAILED',
+        message: 'plain msg',
+        unexpected: false,
+      },
+    ],
+    [
+      'array message (class-validator)',
+      new BadRequestException({ message: ['a must be x', 'b must be y'] }),
+      {
+        code: 'OAUTH_CALLBACK_FAILED',
+        message: 'Bad Request Exception',
+        unexpected: false,
+      },
+    ],
+    [
+      'empty message string',
+      new BadRequestException({ code: 'E_X', message: '' }),
+      { code: 'E_X', message: '', unexpected: false },
+    ],
+    [
+      '4xx without code',
+      new BadRequestException({ message: 'no code here' }),
+      {
+        code: 'OAUTH_CALLBACK_FAILED',
+        message: 'no code here',
+        unexpected: false,
+      },
+    ],
+    [
+      'status 499 is not masked',
+      new HttpException({ code: 'E_499', message: 'client closed' }, 499),
+      { code: 'E_499', message: 'client closed', unexpected: false },
+    ],
+    [
+      'status 500 is masked',
+      new HttpException({ code: 'E_500', message: 'leaky detail' }, 500),
+      { code: 'E_500', message: MASK, unexpected: true },
+    ],
+    [
+      'status 502 is masked',
+      new HttpException({ code: 'E_502', message: 'leaky detail' }, 502),
+      { code: 'E_502', message: MASK, unexpected: true },
+    ],
+    [
+      'status 503 with string body is masked',
+      new HttpException('leaky detail', 503),
+      { code: 'OAUTH_CALLBACK_FAILED', message: MASK, unexpected: true },
+    ],
+  ])('%s', (_name, err, expected) => {
+    expect(resolveCallbackFailure(err)).toEqual(expected);
   });
 });
