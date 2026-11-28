@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT-DEBUG"
 title: "AI 에이전트 노드 출력 — 표시물과 LLM 호출 기록"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT-OUTPUT"]
 area: "CLE-NODE-AI"
-content_hash: "843e0174cc8dbc57af903b7f75409618cefc54847b0af65cf9d6253bd19d2cd6"
+content_hash: "8d2305271c93ed18b47952d334d805ce0600d7fbe1972cadcf53181830ab7e62"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-KD2AZ2"
 source_paths: []
-mirror_sha256: "46959fdb0566c1396507e2f84a6b7ab8a0f6d71e3c7f2a6e26f7765c7d7102e7"
-etag: "sha256-6a8508a6820c3a10e0335fcc27088d715a9b8cefcf2cf55e06f3126da7801f9c"
+mirror_sha256: "006b5a3a5a1afe882f1e6d4036684a747522a1c01725e0b01deabdcb318ba013"
+etag: "sha256-73944d63e337a64d2f8972157327cb4ba5282e6f9197604a5a16bed27c292ade"
 ---
 ## 개요
 
@@ -133,7 +133,7 @@ type PresentationPayload = {
 
 - 한 턴에서 function calling 이 일어나면 `llmCalls` 에 항목이 여러 개 생긴다. 항목 하나가 LLM API 호출 하나다.
 - 프런트엔드는 각 assistant 메시지를 그 턴의 N번째 LLM 호출과 짝지어 디버그 정보를 보여 준다.
-- 실행 결과에 늘 들어간다. 워크플로우 소유자만 실행 결과를 조회할 수 있어 따로 접근 제어를 두지 않는다.
+- 실행 결과에 늘 들어간다. 실행 상세는 같은 워크스페이스 멤버면 Viewer 도 조회할 수 있고 이 값에 따로 접근 제어를 두지 않는다.
 - `requestPayload` 에 시스템 프롬프트와 전체 대화 이력이 들어갈 수 있다. 자격 증명은 나가는 응답(REST·WS)에서 자동으로 마스킹한다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)). DB 와 표현식에는 원문이 남는다.
 - 각 턴 항목의 `ragSources` 는 그 턴에 부른 지식 저장소 도구의 청크 delta, `ragDiagnostics` 는 그 턴 한정 진단이다. 노드 전체 누적은 `meta.ragSources`·`meta.ragDiagnostics` 이며 턴 delta 의 합이 전체 누적과 같다.
 - MCP 도구를 부른 턴에는 같은 delta·누적 관계로 `mcpDiagnostics` 도 턴 단위로 싣는다. 노드 전체 누적은 `meta.mcpDiagnostics` 다.

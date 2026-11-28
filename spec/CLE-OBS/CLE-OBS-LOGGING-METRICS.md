@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING-METRICS"
 title: "로깅과 헬스 체크 — 메트릭과 트레이싱"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-LOGGING"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-LOGGING"]
 area: "CLE-OBS"
-content_hash: "b45b207a3e78b7c7ff9e8810ad44facbe6b9e5b2437e5ba882bb18224c32a1ee"
+content_hash: "a428f86699cab5c24573eaf41ab5ebcc3e8cbbbe66b265a17fb5519ed32a9a4a"
 read_as: "approved_fallback"
-task: "CLE-T-FHG7MT"
+task: "CLE-T-95K2Q9"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "dc9ce317482504b0fd82a9d171f5b2a8835b1934f55c79fc9f6af592bfc8773c"
-etag: "sha256-0f93b212d04fd0ef8f33c5373d1c9660358ac7b23a27ec72a3ad51b77abfc399"
+mirror_sha256: "9eb06100709ecb3df60d6857ae010951a068904072402f1c388e8b1fab983632"
+etag: "sha256-8115a2a48c9a74288ce1848544375f13de2327d87ffa389f1b48fcabeb13e173"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md`, `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -134,7 +134,9 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
 
 이 원칙은 코드 유니온이 있는 라벨에 적용한다. 소스 시그니처가 이미 `string` 인 라벨(`clemvion.execution.errors` 의 `error_code`, `clemvion.audit.write_failed` 의 `resource_type`)은 유니온을 주장하지 않고 값 길이를 64자로 잘라 가짓수를 방어한다. 증명되지 않은 닫힘을 타입으로 적으면 다음 사람이 그것을 믿고 길이 제한을 지운다.
 
-### Redis fail-open 을 13곳 더 연결하고 reason 을 동작 이름으로 정했다 (2026-11-12)
+### Redis fail-open 을 13곳 더 연결하고 reason 을 동작 이름으로 정했다
+
+결정일: 2026-11-12
 
 대상은 Redis 명령이 실패하면 잡고 계속 진행하는 서비스다. 처음에는 EIA 멱등 캐시 하나만 연결돼 있었다. 직접 fail-open 하는 서비스를 찾아 13곳을 연결했고 범위는 사람이 정했다(전부 이번에 연결, NERV Task `CLE-T-7ER0Y0`).
 
@@ -150,7 +152,9 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
 
 `throttler` 의 Redis 명령은 250ms 안에 답하지 않으면 실패로 본다. 요청마다 도는 경로라 지연에 상한이 필요하다. 공유 연결은 `maxRetriesPerRequest` 가 3 이라 장애 때 명령이 재연결을 기다리며 멈춘다. 실패 뒤 5초 대기는 장애 중 요청마다 250ms 를 기다리지 않게 하려고 둔다. 대기 중 요청은 Redis 를 부르지 않으므로 세지 않는다. 그래도 장애가 이어지면 대기가 끝날 때마다 다시 실패해 카운터가 계속 오른다. 그래서 `rate(clemvion_redis_fail_open[5m]) > 0` 경보는 그대로 걸린다.
 
-### 채팅 채널 인바운드의 한도 도달과 오류 흡수를 카운터로 센다 (2026-11-14)
+### 채팅 채널 인바운드의 한도 도달과 오류 흡수를 카운터로 센다
+
+결정일: 2026-11-14
 
 14차 4번 묶음(NERV Task `CLE-T-A5T8D6`)은 서명 검증 실패 한도 도달과 `202` 로 흡수한 오류를 로그로만 남겼다. 로그로는 비율 · 추세 경보를 걸 수 없어 카운터 두 개를 더했다(NERV Task `CLE-T-5GVB9N`). 라벨은 `provider` 와 `event` 만 둔다. 트리거 id 는 가짓수가 끝없이 늘고 클라이언트 IP 는 남기지 않기로 했기 때문이다. 어느 트리거인지는 같은 시각의 로그로 찾는다.
 

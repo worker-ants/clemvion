@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "7f2cb69b26a8d3131679e5446d6d384de9415dfd4f9bd1b94dc8b04b5a1db1b5"
+content_hash: "43d32ee4233b4aac609813bef084ec64a041c14ecf92db6a62019a6ad352815b"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-B87H23"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "5567a93ac58635f77e31406d0834af71e7d30a3b7a562bba859508bc3dc36d42"
-etag: "sha256-976cd9d8759b5fae4676dda6ebce3c45d0a5f61f02047aa97eebc87f683b6ad8"
+mirror_sha256: "dc7964bbadd416fb6a30ca1f84ee57135cbf026d33aab640f7faa9caa20034a0"
+etag: "sha256-2059f4cd62d45b23c1e928b3bfaa98e51367528578930441f29f29409105c911"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -173,7 +173,7 @@ handshake 에 답하는 이유(2026-10-10 사용자 결정): 채팅 채널에서
 
 관문 밖에 둔 것: 이미 진행 중인 실행은 취소하지 않는다. 채팅 채널의 진행 중인 대화도 이어진다. 사용자가 직접 시작하는 실행(에디터 수동 실행, 에디터 단일 노드 실행, 재실행, 스케줄 "지금 실행")과 External Interaction API 의 진행 중 실행 명령은 관문을 거치지 않는다. 수동 실행이 비활성 워크플로우도 실행하는 동작은 이 결정 전부터 있었고 그대로 둔다. 워크플로우 호출 노드의 서브 워크플로우 실행도 관문을 거치지 않는다(지금 동작). 호출은 이미 시작된 부모 실행의 한 단계이고 관문은 외부 이벤트로 새 실행이 생기는 것만 막는다. Background 노드 워커도 같은 이유로 관문을 거치지 않는다. 이미 시작된 실행의 본문을 같은 실행 안에서 돌린다.
 
-왜 엔진이 아니라 호출부에서 확인하는가: 관문은 엔진 `execute()` 안에 두지 않았다. 진입점 세 곳이 각자 공용 함수 `isWorkflowInactive` 를 부른다. [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md#실행을-시작하는-워크스페이스를-진입-api-의-필수-옵션으로-둔다-2026-10-05) 의 「실행을 시작하는 워크스페이스를 진입 API 의 필수 옵션으로 둔다」 는 워크스페이스 대조를 엔진 한 곳에 두었다. 진입 경로마다 대조하면 새 경로가 대조를 빠뜨려도 막을 수단이 없다는 이유였다(그 절의 「엔진 한 곳에서 본다」). 이 관문을 엔진에 두지 않은 이유는 막아야 하는 자리다. 두 경로는 `execute()` 보다 앞에서 막아야 한다.
+왜 엔진이 아니라 호출부에서 확인하는가: 관문은 엔진 `execute()` 안에 두지 않았다. 진입점 세 곳이 각자 공용 함수 `isWorkflowInactive` 를 부른다. [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md#실행을-시작하는-워크스페이스를-진입-api-의-필수-옵션으로-둔다) 의 「실행을 시작하는 워크스페이스를 진입 API 의 필수 옵션으로 둔다」 는 워크스페이스 대조를 엔진 한 곳에 두었다. 진입 경로마다 대조하면 새 경로가 대조를 빠뜨려도 막을 수단이 없다는 이유였다(그 절의 「엔진 한 곳에서 본다」). 이 관문을 엔진에 두지 않은 이유는 막아야 하는 자리다. 두 경로는 `execute()` 보다 앞에서 막아야 한다.
 
 - 일반 웹훅은 인증보다 먼저 답한다. 비활성 트리거의 410 과 같은 자리에 두어 인증 설정 `last_used_at` 이 바뀌지 않게 했다. 엔진은 인증과 파라미터 검증 뒤에 불리므로 이 자리를 지킬 수 없다.
 - 채팅 채널은 update 마다 갈린다. 진행 중인 대화의 update 는 통과시키고 새 실행을 시작하는 update 만 막는다. 또 `/start` 의 기존 실행 취소보다 앞에서 막아야 한다. 엔진에서 막으면 기존 실행을 취소한 뒤에 새 실행이 거부돼 그 대화에 실행이 하나도 남지 않는다.

@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029", "REQ-DBQ-030", "REQ-DBQ-031", "REQ-DBQ-032"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "2d006abb35195d92e15ea37f6df0b75c4f22a55c805dd42d699893c2fec97f32"
+content_hash: "0fad5e21032796275a508822f46281eb0e8c1a651b3b7fe86622c84e201aa7a8"
 read_as: "approved_fallback"
-task: "CLE-T-DC5Y0P"
+task: "CLE-T-W50N35"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "bb0b765e9f388290860c824938b3a8e5dd306662ea5a8d86a8708fb45a5c5422"
-etag: "sha256-466eb4328e4d5081cdec8977c2f87da0c2f003c35e4f42b8ffade9aa2b9a1185"
+mirror_sha256: "afaeb96777b5fd81b1927f8c8acdc0a0b51116ac6c553e91572d729dbca2071b"
+etag: "sha256-a713ca6d1d947c01e102ecd81058bca39e2330c5b083701e6c390255f46c4d5e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -205,7 +205,7 @@ refactor 04 m-4 에서 정했다. 단일 프로세스에서는 자격 증명이 
 
 결정일: 2026-10-24
 
-규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
+규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다) Rationale 에 있다(REQ-INTMGMT-053).
 
 - 요구사항 변경: REQ-DBQ-027 은 «실행이 끝나면» 에서 «통합을 얻은 뒤 실행이 끝나면» 으로 범위를 좁혔다.
 
@@ -222,7 +222,7 @@ refactor 04 m-4 에서 정했다. 단일 프로세스에서는 자격 증명이 
 
 결정일: 2026-11-19
 
-이전에는 이 노드만 실행 취소 때도 `failed` 활동 로그 1건을 남겼다. catch 가 취소 여부를 보기 전에 `logUsage` 를 불렀기 때문이다. HTTP Request · Cafe24 · MakeShop 노드는 취소된 호출을 남기지 않아 네 노드의 규칙이 달랐다. 취소로 끝난 호출은 끝난 호출이 아니므로 활동 로그를 남기지 않는다. 2026-11-19 에 catch 첫머리에서 취소를 먼저 가려 활동 로그 없이 다시 던지게 고쳤다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 활동 로그 `status` 에 `cancelled` 값은 새로 두지 않았다. 근거 전체는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10)에 있다.
+이전에는 이 노드만 실행 취소 때도 `failed` 활동 로그 1건을 남겼다. catch 가 취소 여부를 보기 전에 `logUsage` 를 불렀기 때문이다. HTTP Request · Cafe24 · MakeShop 노드는 취소된 호출을 남기지 않아 네 노드의 규칙이 달랐다. 취소로 끝난 호출은 끝난 호출이 아니므로 활동 로그를 남기지 않는다. 2026-11-19 에 catch 첫머리에서 취소를 먼저 가려 활동 로그 없이 다시 던지게 고쳤다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 활동 로그 `status` 에 `cancelled` 값은 새로 두지 않았다. 근거 전체는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다)에 있다.
 
 - 요구사항 변경: REQ-DBQ-027 에 «실행 취소로 끝난 호출은 활동 로그를 남기지 않고 `AbortError` 를 그대로 던져 노드가 `cancelled` 로 끝난다» 를 더했다.
 

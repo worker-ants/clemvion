@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "8364da646ae9d75a90cd8f05e1b562ad120929b3ab1c226660c3415807c44b1c"
+content_hash: "7b5aca5cf7ce05f8f8c22e98e54a8b101be3121309eb61a8d60f80b0d604cab8"
 read_as: "approved_fallback"
-task: "CLE-T-SCFC83"
+task: "CLE-T-KD2AZ2"
 source_paths: []
-mirror_sha256: "4fb83bdb5b0be4ff1c0b540b128ad898830284e92ad3b0d7cd46556e9caae640"
-etag: "sha256-1ca6d299b9aa6b0de5facfe13ff61663c28c1ab16646925cd5561d4c86a937f1"
+mirror_sha256: "b9b8ada57b1b64305fd8f9928d3ca25eb98c2ed1e600745735da3ed4ca5db55b"
+etag: "sha256-e2bc662d51ecd9dbc70bd157be9118cbe860d04f09c9735390f73247286629f0"
 ---
 ## 개요
 
@@ -141,11 +141,11 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 «응답 노출 예외는 
 NERV Task `CLE-T-MG0EQZ` 가 개인 통합을 노드에서 쓸 수 있는 조건을 [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 에 정했다. 그 판정에 맞춰 「저장자」 · 「워크플로우 작성자」 를 더했다. 처음에는 「통합 소유자」 · 「저장자」 · 「워크플로우 작성자」 정의 칸에 판정 규칙을 한 문장씩 넣었다. 2026-10-25 에 그 문장을 뺐다. 규칙은 통합 관리가 정하고 이 사전은 뜻만 적는다. 규칙이 두 곳에 있으면 한쪽만 고쳐질 수 있다.
 
 - 판정에는 세 사람이 나온다. 통합을 가진 사람(통합 소유자), 워크플로우를 만든 사람(워크플로우 작성자), 저장을 요청한 사람(저장자)이다. 셋이 같은 사람일 때가 많아 이름을 나누지 않으면 판정 문장이 누구를 가리키는지 흐려진다.
-- 「소유자」 대신 「작성자」 를 골랐다. 「통합 소유자」 와 겹치지 않게 하려는 것이다. [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 같은 컬럼이다. 알림 문서의 수신자 규칙이 `createdBy` 라고 적고 `ExecutionEngineService.dispatchExecutionFailedNotification` 의 수신자도 `workflow.createdBy` 다(2026-10-25 코드 확인). 그래서 «워크플로우 소유자» 를 이 뜻으로는 쓰지 않는 표기에 올렸다.
+- 「소유자」 대신 「작성자」 를 골랐다. 「통합 소유자」 와 겹치지 않게 하려는 것이다. [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 이 쓰던 «워크플로우 소유자» 는 같은 컬럼이다. 알림 문서의 수신자 규칙이 `createdBy` 라고 적고 `ExecutionEngineService.dispatchExecutionFailedNotification` 의 수신자도 `workflow.createdBy` 다(2026-10-25 코드 확인). 그래서 «워크플로우 소유자» 를 이 뜻으로는 쓰지 않는 표기에 올렸다.
 - 「저장자」 는 역할 이름 「편집자(Editor)」 와 다르다. 관리자도 저장자가 된다. 그래서 «편집자» 를 이 뜻으로는 쓰지 않는 표기에 올렸다.
 - 「워크플로우 작성자」 의 뜻은 통합 노드 판정에서 쓰는 뜻이다. «워크플로우를 만드는 사람» 이라는 일반어 쓰임은 막지 않는다.
 - 「워크플로우 작성자」 정의에 버전 목록의 작성자와 다르다는 문장을 2026-10-25 에 더했다. [버전 기록](CLE-WF/CLE-WF-VERSION.md) 의 버전 목록은 그 버전을 저장한 사람을 «작성자» 로 보여 준다. 판정 문장에서 맨몸의 «작성자» 를 쓰면 어느 쪽인지 흐려진다.
-- 남은 용례: [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 NERV Task `CLE-T-KD2AZ2` 가 고친다. [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 «워크플로우 소유자만 실행 결과를 조회할 수 있어» 는 실행 결과 조회 권한을 말한다. 같은 뜻인지 확인하지 못해 같은 Task 가 먼저 뜻을 확인한다.
+- 남은 용례는 NERV Task `CLE-T-KD2AZ2` 가 정리했다. [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 «워크플로우 작성자» 로 바꿨다. [AI 에이전트 노드 출력 — 표시물과 LLM 호출 기록](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT-DEBUG.md) 의 «워크플로우 소유자만 실행 결과를 조회할 수 있어» 는 실행 결과 조회 권한을 말하는 문장이었고 이 용어와 뜻이 달랐다. 실제 권한(같은 워크스페이스 멤버면 Viewer 도 실행 상세를 조회한다)대로 고쳐 썼다.
 
 ### 「통합 암호화 키」 정의를 넓히고 두 용어를 더했다
 

@@ -2,19 +2,19 @@
 id: "CLE-API-WS-CONN"
 title: "WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "64e85952dfa4f82951162869deeb9baff7e2cff4e9e86d2f60f8a26ac496ac56"
+content_hash: "5542420ec07e2c081487a7c78afc84e6b0dabfd905c16f5e7b723dab621a344d"
 read_as: "approved_fallback"
-task: "CLE-T-FHG7MT"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "4ece18bfdea97f9edb4583db44e56075506fe74fd7648b46e4d6e2dace27a23f"
-etag: "sha256-717dddffa0ed3cc8b63082854c1d66667effcc4a7680dcaafe952be8782faec8"
+mirror_sha256: "16e7117396da1360577cd3c71d1e8984783d277971472d5906763e33d18b0a7f"
+etag: "sha256-ccad10545b2bc9615da38d03713a6d690b7654df1be710fc205e329155f6c9d2"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§2 · §5 · §6 · §9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -32,7 +32,7 @@ wss://{base_url}/ws        (Socket.IO namespace '/ws')
 
 - 프로토콜은 `wss://`(TLS 필수)다. 개발 환경에서만 `ws://` 를 허용한다.
 - 서버는 Socket.IO 게이트웨이로 핸드셰이크를 처리하고 transport 는 `websocket` 하나만 받는다(`transports: ['websocket']`). HTTP long-polling 은 받지 않는다.
-- 클라이언트도 `websocket` 으로 연결한다. transport 목록에 `polling` 을 두어도 서버가 받지 않으므로 WebSocket 이 막힌 네트워크(업그레이드를 막는 프록시 등)에서는 연결하지 못한다. 근거는 Rationale [「transport 를 websocket 하나로 좁힌 이유」](#transport-를-websocket-하나로-좁힌-이유-2026-11-14) 에 있다.
+- 클라이언트도 `websocket` 으로 연결한다. transport 목록에 `polling` 을 두어도 서버가 받지 않으므로 WebSocket 이 막힌 네트워크(업그레이드를 막는 프록시 등)에서는 연결하지 못한다. 근거는 Rationale [「transport 를 websocket 하나로 좁힌 이유」](#transport-를-websocket-하나로-좁힌-이유) 에 있다.
 
 ### 2.2 인증
 
@@ -180,7 +180,9 @@ flowchart LR
 
 ## Rationale
 
-### `system.maintenance` 발행과 서버 발신 app ping 비채택 (2026-09-02)
+### `system.maintenance` 발행과 서버 발신 app ping 비채택
+
+결정일: 2026-09-02
 
 [2026-07-08 결정](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택)이 범위 밖으로 남긴 셋 중 둘을 정식 비채택으로 종결했다. 그 결정이 이 둘을 다루지 않은 이유는 "트리거 소스 설계가 필요하다" 였는데 2026-08-31 착수 시도에서 설계가 필요한 것이 아니라 **대상이 없다**는 것이 실측됐다.
 
@@ -194,7 +196,9 @@ flowchart LR
   - `system.maintenance` 를 위해 관리자 API 부터 만드는 안: 순서가 뒤집힌다. 운영상 필요가 생겨 관리자 표면이 만들어지면 그때 이 이벤트를 다시 등재하는 비용은 작다. 페이로드 형태를 시스템 이벤트 표에 남겨 두는 이유가 그것이다.
 - 이때 서버 발신 `auth.token_expired` 는 "트리거 부재" 가 아니라 실재하는 인가 틈(만료된 토큰으로도 소켓이 이벤트를 계속 받음)으로 보고 계획으로 남겼다. 소켓 수명을 토큰 수명에 묶을지는 제품 결정이라 별도로 다뤘고 아래 결정으로 확정돼 같은 날 구현됐다.
 
-### 소켓 수명을 토큰 수명에 묶는다 (2026-09-02)
+### 소켓 수명을 토큰 수명에 묶는다
+
+결정일: 2026-09-02
 
 `auth.token_expired` 를 **보내고 끊는다.** 서버는 핸드셰이크에서 검증한 토큰의 `exp` 로 소켓별 타이머를 걸어 만료 **60초 전**에 1회 알리고 `exp` 에 `disconnect()` 한다.
 
@@ -230,7 +234,9 @@ flowchart LR
   - 멤버를 제거할 때 서버가 그 사용자의 소켓을 끊는 안: 제거 사실을 여러 서버 인스턴스에 알려야 한다. 수신까지 닫지만 멤버 관리와 게이트웨이를 잇는 새 장치가 필요하다. 명시적 폐기 뒤의 창도 그대로 남는다. 소켓을 바로 닫아야 할 요구가 생기면 폐기 전파 장치를 함께 설계한다.
 - HTTP 쪽 멤버십 검증 규칙은 [워크스페이스와 멤버 — API 인가 「멤버십 검증은 가드가 무조건 한다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드가-무조건-한다) 에 있다.
 
-### 재연결 복구: native WebSocket 은 스냅샷, `seq` 버퍼 재전송은 SSE (§6.2, 2026-05-31)
+### 재연결 복구: native WebSocket 은 스냅샷, `seq` 버퍼 재전송은 SSE (§6.2)
+
+결정일: 2026-05-31
 
 초기 §6.2 초안은 native WebSocket `subscribe.lastSeq` 로 5분 버퍼에서 `seq > lastSeq` 를 다시 보내고 만료되면 `replay.unavailable` 을 보낸다고 약속했다. 구현은 native WebSocket 에 버퍼를 두지 않고 재구독 때 `execution.snapshot`(현재 전체 상태)을 1회 보내는 방식으로 모였다. 문서를 구현에 맞췄다.
 
@@ -241,7 +247,9 @@ flowchart LR
 - **2026-10-17 보강**: 위 근거의 «SSE 어댑터도 같은 한계» 는 그날까지의 사실이다. SSE 재전송 버퍼는 이제 Redis Stream 이라 다른 인스턴스로 다시 연결해도 5분 재전송을 받는다. 키와 실패 정책은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 쪽 판단은 바뀌지 않았다.
 - **2026-11-14 보강**: 위 근거의 «다중 인스턴스 fan-out 미해결» 은 그날까지의 사실이다. 이제 채널 이벤트는 Socket.IO Redis adapter 로 모든 서버 인스턴스의 구독자에게 간다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달)). 스냅샷 모델을 유지하는 근거는 남은 둘이다. 스냅샷이 화면 복구에 충분하고, room 단위 `seq` 버퍼를 새로 두는 비용이 그 이득보다 크다. Redis 가 끊긴 동안 다른 서버 인스턴스의 구독자가 놓친 이벤트도 버퍼로 메우지 않는다.
 
-### transport 를 websocket 하나로 좁힌 이유 (2026-11-14)
+### transport 를 websocket 하나로 좁힌 이유
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-4YT18G` 에서 사람이 정한 결정이다. polling 은 한 연결의 HTTP 요청이 모두 처음 핸드셰이크한 서버 인스턴스에 닿아야 동작한다. 배포는 서버 인스턴스가 여럿이고 backend Ingress(HAProxy `leastconn`)에 sticky 설정이 없다. 그래서 polling 으로 내려간 클라이언트는 다른 서버 인스턴스에서 `Session ID unknown`(400)을 받고 재연결을 되풀이했다. Redis adapter([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달))를 걸어도 이 제약은 그대로다.
 

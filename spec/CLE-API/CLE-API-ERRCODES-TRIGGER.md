@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-TRIGGER"
 title: "에러 코드 카탈로그 — 웹훅 · 트리거 · 채팅 채널"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "e2676cf7d2208896c0e62d6650e0dc172769fbe15bbbf0623310160fee5111d0"
+content_hash: "d358b0309c7ece671a0844f995bf3db2b76584164fb191f79132586626e2ee4c"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-BN449Z"
 source_paths: []
-mirror_sha256: "8812f91af76ca7405f0e4657e01e2cc2906c3c7276f6f79049b968df7e73f7a9"
-etag: "sha256-813ab09ed93df3f4c7207f32a737c0151f6f495419329a7338365b3d158588d5"
+mirror_sha256: "136a23e554ce1b787bf7ed5bdd5a88f65caa587dd096ada4e35f1b7a512a4ca0"
+etag: "sha256-1c787f90b9054ce8cfa17a7a18c51ee78ce7d0284b59dde0d5eb5f501a0db6e2"
 ---
 ## 개요
 
@@ -30,7 +30,7 @@ etag: "sha256-813ab09ed93df3f4c7207f32a737c0151f6f495419329a7338365b3d158588d5"
 | `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 웹훅(`auth_config_id IS NULL` 이고 채팅 채널 트리거가 아닌 웹훅)의 IP 단위(IP 를 식별하지 못하면 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과(`PublicWebhookThrottleGuard`, 기본 분당 10) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅(채팅 채널 트리거 제외) IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅(채팅 채널 트리거 제외) 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, 인증 설정의 기대값(key · token · 사용자 이름 · 비밀번호 · secret)이 비어 있거나 문자열이 아니거나 복호화 불가 표식이라 읽지 못함, 인증 설정의 헤더 이름(`headerName` · `header`)이 문자열이 아님([웹훅 「인증」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#인증)), `ip_whitelist` 불일치가 모두 같은 코드다. 채팅 채널 트리거의 서명 검증 실패 한도 초과도 같은 코드다. 이때는 시크릿을 조회하지 않고 서명도 검증하지 않은 채 401 로 답한다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [채팅 채널 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) |
+| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, 인증 설정의 기대값(key · token · 사용자 이름 · 비밀번호 · secret)이 비어 있거나 문자열이 아니거나 복호화 불가 표식이라 읽지 못함, 인증 설정의 헤더 이름(`headerName` · `header`)이 문자열이 아님([웹훅 「인증」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#인증)), `ip_whitelist` 불일치가 모두 같은 코드다. 채팅 채널 트리거의 서명 검증 실패 한도 초과도 같은 코드다. 이때는 시크릿을 조회하지 않고 서명도 검증하지 않은 채 401 로 답한다. 인증 설정 평문 보기(`POST /api/auth-configs/:id/reveal`)도 계정에 비밀번호가 없거나(소셜 로그인 전용 계정) 재확인 비밀번호가 틀리면 이 코드로 거절한다(`AuthConfigsService.reveal`). 규칙 6 과 어긋나는 점은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md#미결-사항) 「미결 사항」에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [채팅 채널 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) |
 | `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 [Rationale](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유) 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `WORKFLOW_INACTIVE` | 410 | 트리거는 활성인데 그 트리거의 워크플로우가 비활성임(`workflow.is_active=false`). 채팅 채널 트리거는 이 코드를 내지 않는다. 확인 순서와 경로별 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
@@ -140,7 +140,7 @@ NERV Task `CLE-T-0Q768N` 에서 정했다. 웹훅 인증에서 인증 설정의 
 
 결정일: 2026-11-05
 
-NERV Task `CLE-T-SCDNDC` 에서 정했다. Basic Auth 인증 설정에 재생성을 요청하면 400 `AUTH_CONFIG_REGENERATE_UNSUPPORTED` 로 거부한다(§6.20). 전에는 발급할 값이 없는데도 요청이 성공했고 저장된 비밀번호를 평문으로 응답했다. 동작과 근거의 정본은 [외부 호출 인증 설정 「Basic Auth 재생성을 거부한다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#basic-auth-재생성을-거부한다-2026-11-05) 다.
+NERV Task `CLE-T-SCDNDC` 에서 정했다. Basic Auth 인증 설정에 재생성을 요청하면 400 `AUTH_CONFIG_REGENERATE_UNSUPPORTED` 로 거부한다(§6.20). 전에는 발급할 값이 없는데도 요청이 성공했고 저장된 비밀번호를 평문으로 응답했다. 동작과 근거의 정본은 [외부 호출 인증 설정 「Basic Auth 재생성을 거부한다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#basic-auth-재생성을-거부한다) 다.
 
 - **새 조건이라 새 코드를 만든다(규칙 6).** 이 API 에 전에 없던 거부 조건이다.
 - **`VALIDATION_ERROR` 를 쓰지 않는다.** 재생성 요청에는 본문이 없어 `details` 로 가리킬 필드가 없다. 요청 형식이 틀린 것이 아니라 대상 설정의 유형이 이 동작을 지원하지 않는 것이다.

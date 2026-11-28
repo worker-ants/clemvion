@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-EXEC"
 title: "AI 에이전트 노드 — 실행 로직"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "4d8aba702239b6e5c1b536de3787c6a1bab76f9b2fdeeabbc40de6d1c7ba53a2"
+content_hash: "42ec3a040225b7305765fecb0165c555994adde18220f275e47be58968df36d7"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "92094cf87a7e59794194841f7bbb6301a10d9a76c9b2b02146e554b0a2697e8d"
-etag: "sha256-8e2771ba39476723b2ce478a14e496e1957dacf7b68060e31db102035274c987"
+mirror_sha256: "81eefd0fd29e130a4ba1ea0a419589cfa1e9b291ec53ef850fb732a755c7b8ca"
+etag: "sha256-b5f2888977b215ff69f3cc737a1b7c42f6101b1de318b6bd8e07c4b7a1e56ead"
 ---
 ## 개요
 
@@ -125,15 +125,19 @@ stateDiagram-v2
 - 전체 거부는 폼 제출이 사용자 행위라 재시도가 의미 없고 UX 가 끊겨 기각했다. 꼬리 자르기는 순서에 뜻이 없는 폼 필드를 무작위로 버리는 효과라 기각했다.
 - 표시 전용의 `PRESENTATION_MAX_BYTES = 1MB` 는 같은 스키마 배열(`items`·`rows`)을 이분 탐색으로 꼬리 자르기한다. 알고리즘은 다르지만 "LLM 입력 상한 + 명시 잘림 메타" 라는 의도는 같고, 값은 크기 분포 차이로 다르다.
 
-### dry-run 재실행의 MCP 도구 임시 가드 (2026-10-10)
+### dry-run 재실행의 MCP 도구 임시 가드
+
+결정일: 2026-10-10
 
 임시 가드를 둔 근거와 막는 범위는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
 
 dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRun` 으로 도구 프로바이더에 넘긴다. 외부 호출을 하는 곳이 도구 프로바이더라서 외부로 보내기 바로 앞에서 도구 프로바이더가 이 값을 확인한다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
 
-가드는 실행을 거부하지 않고 `success` 결과로 흐름을 잇는다. dry-run 을 완전하게 구현한다는 방향(부수효과 도구만 모의 응답, [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 도구 단위 분류가 들어갈 때까지 AI 에이전트의 MCP 도구는 읽기 operation 까지 모두 막았다. 2026-10-23 에 부수효과 판정이 들어가 이 차단을 풀었다([아래 절](#dry-run-재실행의-도구-모의-응답-2026-10-23)).
+가드는 실행을 거부하지 않고 `success` 결과로 흐름을 잇는다. dry-run 을 완전하게 구현한다는 방향(부수효과 도구만 모의 응답, [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 도구 단위 분류가 들어갈 때까지 AI 에이전트의 MCP 도구는 읽기 operation 까지 모두 막았다. 2026-10-23 에 부수효과 판정이 들어가 이 차단을 풀었다([아래 절](#dry-run-재실행의-도구-모의-응답)).
 
-### dry-run 재실행의 도구 모의 응답 (2026-10-23)
+### dry-run 재실행의 도구 모의 응답
+
+결정일: 2026-10-23
 
 판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
 

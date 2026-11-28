@@ -2,19 +2,19 @@
 id: "CLE-WF-EDGE"
 title: "연결선"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-EDGE-001", "REQ-EDGE-002", "REQ-EDGE-003", "REQ-EDGE-004", "REQ-EDGE-005", "REQ-EDGE-006", "REQ-EDGE-007", "REQ-EDGE-008", "REQ-EDGE-009", "REQ-EDGE-010", "REQ-EDGE-011", "REQ-EDGE-012", "REQ-EDGE-013", "REQ-EDGE-014", "REQ-EDGE-015", "REQ-EDGE-016", "REQ-EDGE-017", "REQ-EDGE-018", "REQ-EDGE-019", "REQ-EDGE-020", "REQ-EDGE-021", "REQ-EDGE-022", "REQ-EDGE-023", "REQ-EDGE-024", "REQ-EDGE-025", "REQ-EDGE-026", "REQ-EDGE-027", "REQ-EDGE-028", "REQ-EDGE-029", "REQ-EDGE-030", "REQ-EDGE-031", "REQ-EDGE-032", "REQ-EDGE-033", "REQ-EDGE-034", "REQ-EDGE-035", "REQ-EDGE-036", "REQ-EDGE-037", "REQ-EDGE-038", "REQ-EDGE-039"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "e9c797a9f37373c0a9d3644d11aefc8af54e5d7ddb2bfe74cf8bd87be46b3830"
+content_hash: "fec10a36ea7a490514a370dd0e1200b442885322781f0bf14842780661bc9b57"
 read_as: "approved_fallback"
-task: "CLE-T-CNGC0P"
+task: "CLE-T-3WDHJT"
 source_paths: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "9ee842e64cf7c52a57031aaeb8e0767a4a0e1676ca1fc288554a6dc4ea15ea42"
-etag: "sha256-1cf63cb9704e38a7277979e81e751719ed6cf328972b472b9f9d87c6e7302f62"
+mirror_sha256: "8db360eab21ab55f60ce699bfb63d9ca200ac2a6b56433c0c3710e3171fa1fc3"
+etag: "sha256-661e2ea476fe05ebd7d9232f6772c26f9141ddd34385d3d54a1515755f9ab59a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/2-edge.md`, `spec/3-workflow-editor/_product-overview.md` (§3.3 ED-EG-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -194,7 +194,7 @@ AI 에이전트 노드 옆 도구 영역(Tool Area)에 노드를 놓아 도구�
 
 저장한 뒤 노드 설정이 바뀌어 포트가 사라진 연결선은 React Flow 가 `Couldn't create edge for source handle id` 경고를 찍고 끊어진 조각으로 그린다. 이를 불러올 때 `dropStaleEdges` 로 한꺼번에 정리한다. 다만 워크플로우를 **말없이 바꾸는** 동작이라 경고 토스트로 반드시 알리고, 영구 반영은 기존 저장 흐름(사용자가 저장할 때)에 맡긴다. 조용한 자동 수정 대신 "정리, 알림, 저장 때 확정" 을 고른 결정이다.
 
-이 정리는 그대로 두되 정책 변경으로 사라진 동적 에러 포트의 연결선만 설정 패널이 저장할 때 먼저 지운다(2026-11-14, REQ-NODEUI-044). 근거와 기각한 대안은 [노드 포트와 설정 패널 R-8](CLE-WF-NODEPANEL.md#r-8-정책을-바꾸면-동적-에러-포트의-연결선을-저장할-때-지운다-2026-11-14) 에 있다.
+이 정리는 그대로 두되 정책 변경으로 사라진 동적 에러 포트의 연결선만 설정 패널이 저장할 때 먼저 지운다(2026-11-14, REQ-NODEUI-044). 근거와 기각한 대안은 [노드 포트와 설정 패널 R-8](CLE-WF-NODEPANEL.md#r-8-정책을-바꾸면-동적-에러-포트의-연결선을-저장할-때-지운다) 에 있다.
 
 ### R-2. 순환은 에디터에서 경고하고 AI 어시스턴트 도구에서 막는다
 

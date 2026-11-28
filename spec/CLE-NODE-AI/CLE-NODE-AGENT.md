@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "8d5afd14184ad7267954a593ee80c96bd18c2cea966c47dfd33e70cee56c4435"
+content_hash: "67f743e703c3da61bbd05b73764019a002e6d066ab0c05d1553d2db2d2212e10"
 read_as: "approved_fallback"
-task: "CLE-T-2V3P8D"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "53245ef3e454debb4619fbff471bac1c5efad37f9661f9e8781a071a8f5b8f70"
-etag: "sha256-08bd8aae451c07e86ba9a8cb2249d7493d9eab4e6d5967b87e95a18b55495818"
+mirror_sha256: "489b55b328f7e59f3231f5fba81372047daa915a285ec4fed538c9cabcd55eaf"
+etag: "sha256-564785f823eb8fca522b932caf83647568a30a4376791d6d94454265c06727ff"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -183,14 +183,18 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 
 필드와 결정 근거는 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 에 있다. 이 노드는 설정 표, 실행 로직, 설정 에코 세 곳만 맞췄고 Cafe24 도구 description 자동 suffix 와 한 묶음으로 결정했다.
 
-### Anthropic 모델에는 temperature 를 보내지 않는다 (2026-11-12)
+### Anthropic 모델에는 temperature 를 보내지 않는다
 
-Anthropic 예외를 REQ-AGENT-004 에 둔 것은 Anthropic API 버전 `2026-10-21` 이 Messages 요청에 `temperature` 가 있으면 값과 모델에 상관없이 400 으로 거절하기 때문이다. 2026-11-12 사용자가 Anthropic 요청에서 `temperature` 를 빼기로 정했다. 자세한 근거와 기각한 대안은 [LLM 클라이언트 Rationale](../CLE-AI/CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12) 에 있다(NERV Task `CLE-T-GKZPKY`).
+결정일: 2026-11-12
+
+Anthropic 예외를 REQ-AGENT-004 에 둔 것은 Anthropic API 버전 `2026-10-21` 이 Messages 요청에 `temperature` 가 있으면 값과 모델에 상관없이 400 으로 거절하기 때문이다. 2026-11-12 사용자가 Anthropic 요청에서 `temperature` 를 빼기로 정했다. 자세한 근거와 기각한 대안은 [LLM 클라이언트 Rationale](../CLE-AI/CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다) 에 있다(NERV Task `CLE-T-GKZPKY`).
 
 ### `render_form` 제출 뒤 같은 폼 재호출을 막은 방법
 
 → [실행 로직](CLE-NODE-AGENT-EXEC.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법)
 
-### 단일 턴 롤링 요약 실패도 `error` 포트로 보낸 이유 (2026-11-05)
+### 단일 턴 롤링 요약 실패도 `error` 포트로 보낸 이유
 
-→ [에러와 타임아웃](CLE-NODE-AGENT-ERROR.md#단일-턴-롤링-요약-실패도-error-포트로-보낸-이유-2026-11-05)
+결정일: 2026-11-05
+
+→ [에러와 타임아웃](CLE-NODE-AGENT-ERROR.md#단일-턴-롤링-요약-실패도-error-포트로-보낸-이유)

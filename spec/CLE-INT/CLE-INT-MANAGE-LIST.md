@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-LIST"
 title: "통합 관리 — 목록과 추가 화면"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "9d04fe4419c6da0119ed8917c3ee4b75e111299e04d2656a351a5cb7a037a43e"
+content_hash: "453a79107fd2da8dc1b7315b6d026bfc80204664b2fde1910dffaf675e329bce"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-FH3246"
 source_paths: []
-mirror_sha256: "e2ccaeceb531f08282f8ae76fb2d51fc15cd80f392e344d090c8d52f32c4638b"
-etag: "sha256-4e44376c45ed996cb60d2c9cfeab52557f5a63aaceff744417cf82f37157fdcd"
+mirror_sha256: "77e897730084133aaaf2da7cc1c8084b7f613ed3c2151c44bd5a525c7bc6519e"
+etag: "sha256-e0147ab17b642517aff13914f7e613839b365fcd4a6ec9ba77a9b441531bed98"
 ---
 ## 개요
 
@@ -51,7 +51,7 @@ etag: "sha256-4e44376c45ed996cb60d2c9cfeab52557f5a63aaceff744417cf82f37157fdcd"
 | 별칭 | 사용자가 정한 이름(`Integration.name`) |
 | 인증 유형 | 통합 인증 유형(`auth_type`)을 대문자·공백을 정리해 보인다(`OAuth2`, `API Key`, `Bearer Token`, `Basic`, `Connection String`, `SMTP`, `Webhook Outbound`). `service_type='mcp'` 는 `MCP Server`, `service_type='cafe24'` 는 `Cafe24` 로 따로 보인다 |
 | 상태 문구 | `Connected`·`Expires in Nd`·`Expired`·`Error: <reason>`·`Pending install` 과 진단 단서. 규칙은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
-| 더보기(⋮) | 상세 열기, 연결 테스트(연결됨만), 통합 재인증(OAuth, 비활성 조건은 [상세 화면 보안 탭](CLE-INT-MANAGE-DETAIL.md#보안-탭)), 삭제(사용처가 있으면 비활성). 설치 대기 통합은 상세 열기와 삭제만 활성이다. 통합 재인증은 외부 쪽 «테스트 실행»·앱 설치가 정식이고 연결 테스트는 토큰이 없어 의미가 없다. 변경 항목(통합 재인증, 삭제)은 [권한](CLE-INT-MANAGE-PERM.md#권한) 표에서 그 동작을 할 수 있는 사람에게만 보인다 |
+| 카드 전체 | 상세 화면으로 가는 링크다. 카드에는 항목 메뉴(⋮)가 없고 연결 테스트 · 통합 재인증 · 삭제는 상세 화면에서 한다([Rationale](#목록-카드에-항목-메뉴를-두지-않는다)) |
 
 ### 검색과 필터
 
@@ -139,6 +139,16 @@ stateDiagram-v2
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/*.tsx`
 
 ## Rationale
+
+### 목록 카드에 항목 메뉴를 두지 않는다
+
+결정일: 2026-11-28
+
+카드 요소 표에 «더보기(⋮)» 메뉴 행이 있었지만 구현 카드는 전체가 상세 링크이고 메뉴가 없었다. 2026-11-28 에 사용자가 그 행을 지우기로 정했다(NERV Task `CLE-T-FH3246`). 메뉴를 만들 계획도 없다.
+
+- 삭제 · 통합 재인증의 비활성 판정과 이유별 안내는 상세 화면의 [보안 탭](CLE-INT-MANAGE-DETAIL.md#보안-탭) · [위험 영역 탭](CLE-INT-MANAGE-DETAIL.md#위험-영역-탭) 에 모여 있다. 카드 메뉴를 만들면 그 규칙을 한 곳 더 복제해야 한다.
+- [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 의 목록 항목 메뉴(REQ-LAYOUT-029)는 목록 화면의 공통 패턴이다. 통합 카드는 항목 액션을 모두 상세 화면에 두는 예외다.
+- 기각한 안: 메뉴 행에 미구현 표시를 붙이고 구현 Task 를 만드는 안. 위의 복제 비용 때문에 고르지 않았다.
 
 ### 중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다
 

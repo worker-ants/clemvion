@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "d775e8a5ca49bfd26859a9010391a6b41fb949f89b5a4c1b8b2c004cd7474a32"
+content_hash: "c249b44b7caf61147307028f6dd5274f7cf1eb03959ab986459714a8f6966be4"
 read_as: "approved_fallback"
-task: "CLE-T-2M0591"
+task: "CLE-T-1C2JE0"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "d61f99bec13d20a9ffddab7866ef2be91b207c82e87b7aa294bdc9847e0a1c0b"
-etag: "sha256-ae28346dfa03915c61a6561d3b7b260fd7b073915c021b61ff33c41c0bbddaab"
+mirror_sha256: "95f9cdb7a331d961ba8ecf8ef4c143f0b80164ee088cb3aeede95d3eaa097000"
+etag: "sha256-a1ed6cf32285aab381ba6c911d1146f4e3fde0caeffe8082f166f3300f907bbb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -69,7 +69,7 @@ erDiagram
 | `workflow` | 복제 | INSERT. 생성과 같은 컬럼. `name` 은 원본 + `" (Copy)"`, `is_active=false`, `current_version=1` 고정, description·tags·folder_id·settings 는 원본 값, `created_by` 는 **요청한 사용자** | 같음 |
 | `workflow` | 활성 토글 | UPDATE `is_active, updated_at` | 없음 |
 | `workflow` | 저장(버전 커밋) | UPDATE `current_version, updated_at` | 없음 |
-| `workflow` | 삭제 | DELETE. 자식 행 FK 파급은 [상태 전이](#상태-전이) 참조. 트리거 자원 정리: 외부 자원을 트랜잭션 **전에** 풀고, 트랜잭션 첫 호출로 잠금 대기 상한(5초)을 건 뒤 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 트리거 id 를 모은 다음 지운다. 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지우고 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort). 정리하는 자원은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md), 순서와 이유는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다. | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 모을 때 빠지는 트리거가 없게 한다. |
+| `workflow` | 삭제 | DELETE. 자식 행 FK 파급은 [상태 전이](#상태-전이) 참조. 트리거 자원 정리: 외부 자원을 트랜잭션 **전에** 풀고, 트랜잭션 첫 호출로 잠금 대기 상한(5초, 넘기면 503 `SERVICE_UNAVAILABLE`)을 건 뒤 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 트리거 id 를 모은 다음 지운다. 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지우고 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort). 정리하는 자원은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md), 순서와 이유는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다. | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 모을 때 빠지는 트리거가 없게 한다. |
 | `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement`(둘 다 설정 금지). `container_id`·`tool_owner_id` 는 같은 워크플로우 노드만(저장 전 거부, 복합 FK). 캔버스 저장이 새 노드로 싣는 `id` 가 다른 행의 id 면 거부(그 행을 덮어쓰지 않는다) |
 | `node` | 복제 | INSERT. 추가와 같은 컬럼이다. `id` 를 새로 발급하고 `container_id`·`tool_owner_id` 를 사본 UUID 로 바꾼다. `config` 는 원본 그대로다(기본값 다시 채우기, 모델 설정 채우기 없음). | 같음. 원본이 이미 통과한 레이블 유일성은 다시 검사하지 않는다. |
 | `node` | 이동·설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | 없음 |

@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM-STREAM"
 title: "LLM 클라이언트 — 에러 처리와 스트리밍"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "70c1944a462666885d819929797bd6066fe1d0343b3b54f48917c1e15f8135e6"
+content_hash: "438d09ce19fbb1b36dd994c609000fa30fb16ded6ad33f7681a7685d75838435"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "105fbbf8b7f9492d3e4e81af8be7097fa63af471601d88576b39a02d6a76ec5d"
-etag: "sha256-62ca7add3d5823a07a4c86d66393e3ed7c4ca787bb4a24507116b912d7029b13"
+mirror_sha256: "9788d1d4e72f546475957766cab7f0a31716b24af8b78e3894556763c7d3d9fb"
+etag: "sha256-618bce644f6384eb0e16732e3882fcc6124d2f36a111088577ef30e3bf19695c"
 ---
 ## 개요
 
@@ -96,9 +96,9 @@ type LlmStreamErrorCode = 'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPU
 | 클라이언트 취소 (사용자 Stop) | `done` (finishReason=`aborted`) | 서버는 usage 가 확인되는 만큼만 기록한다 |
 | 스트림을 여는 중 클라이언트 취소 | `done` (finishReason=`aborted`) | 모든 프로바이더가 같다. usage 는 0 이고 `model` 은 요청한 모델이다. usage 가 0 이라 사용량을 기록하지 않는다 |
 | `stream()` 이 없는 클라이언트에 스트리밍 요청 | `LlmService.chatStream` 이 스트림을 열기 전에 `LLM_STREAMING_UNSUPPORTED` 를 던진다(`BadRequestException`) | 어시스턴트는 non-streaming 대체 경로 없이 SSE `error` 이벤트로 넘긴다. 다섯 프로바이더 클라이언트가 모두 `stream()` 을 구현해 운영 환경의 발동 경로는 없다 |
-| 응답 헤더가 오기 전 SDK 요청 타임아웃 | `error` (code=`LLM_CONNECTION_ERROR`) | OpenAI 계열과 Anthropic 이 해당한다. Google 은 SDK 타임아웃이 없다. `stream()` 에는 앱 타임아웃(`timeoutMs`)이 없다. 그래서 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다. 스트림 유휴 감지는 두지 않는다([Rationale](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14)) |
+| 응답 헤더가 오기 전 SDK 요청 타임아웃 | `error` (code=`LLM_CONNECTION_ERROR`) | OpenAI 계열과 Anthropic 이 해당한다. Google 은 SDK 타임아웃이 없다. `stream()` 에는 앱 타임아웃(`timeoutMs`)이 없다. 그래서 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다. 스트림 유휴 감지는 두지 않는다([Rationale](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다)) |
 
-세 클라이언트(OpenAI 계열 · Anthropic · Google)는 스트림을 열 때의 실패를 예외로 던지지 않는다. 도중의 실패와 같은 `error` 이벤트로 낸다. OpenAI 계열은 열 때의 실패도 도중 실패와 같은 함수(`streamErrorEvent`)로 분류한다. 스트림을 여는 중의 취소는 실패가 아니어서 도중 취소와 같은 `done` 이벤트로 끝낸다. 이 이벤트는 공통 헬퍼 `abortedBeforeOpen`(`clients/stream-open.ts`)이 만든다. 어느 클라이언트도 실패한 스트림을 다시 열지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던지는 예외(스트리밍 미지원, 클라이언트 생성 실패)는 이 계약 밖이다. 결정과 기각한 대안은 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14) 에 있다.
+세 클라이언트(OpenAI 계열 · Anthropic · Google)는 스트림을 열 때의 실패를 예외로 던지지 않는다. 도중의 실패와 같은 `error` 이벤트로 낸다. OpenAI 계열은 열 때의 실패도 도중 실패와 같은 함수(`streamErrorEvent`)로 분류한다. 스트림을 여는 중의 취소는 실패가 아니어서 도중 취소와 같은 `done` 이벤트로 끝낸다. 이 이벤트는 공통 헬퍼 `abortedBeforeOpen`(`clients/stream-open.ts`)이 만든다. 어느 클라이언트도 실패한 스트림을 다시 열지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던지는 예외(스트리밍 미지원, 클라이언트 생성 실패)는 이 계약 밖이다. 결정과 기각한 대안은 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다) 에 있다.
 
 ### chat() 과의 관계
 
@@ -107,6 +107,8 @@ type LlmStreamErrorCode = 'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPU
 
 ## Rationale
 
-### 스트림 오류 `message` 는 진단용으로 둔다 (2026-11-13)
+### 스트림 오류 `message` 는 진단용으로 둔다
+
+결정일: 2026-11-13
 
 harmony 제어 토큰이 드러나면 `openai.client.ts` 는 처음에 `LLM_OUTPUT_MALFORMED` 의 `message` 에 사용자용 한국어 안내문을 실었다. 그런데 이 문구를 쓰는 유일한 소비자인 워크플로우 AI 어시스턴트는 클라이언트 `message` 를 로그에만 남기고 화면에는 코드별 고정 문구를 보낸다. 한국어 문장은 화면에 나가지 않은 채 다국어 규약의 하드코딩 한국어 점검에만 걸렸다. 그래서 클라이언트 계층은 사용자 문구를 정하지 않고, 스트림 `error` 의 `message` 는 어느 코드든 진단용으로 둔다. `LLM_OUTPUT_MALFORMED` 는 SDK 원문에 모델 출력이 섞일 수 있어 고정 영문 문장을 싣고 원문은 경고 로그에만 남긴다. 사용자에게 보일 문구를 클라이언트에서 정하는 안은 소비자마다 화면 언어와 안내 내용이 달라 택하지 않았다.

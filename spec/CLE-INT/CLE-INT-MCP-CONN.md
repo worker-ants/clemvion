@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-CONN"
 title: "MCP 클라이언트 — 연결과 URL 검증"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "a7fddd4507a0dd6ba9fd5c6a0e0873ec25ca5d0cad13d7783a33d682c040184a"
+content_hash: "a83bec8e35ac1093fa7eb491265b18b3ad212c26990148fb811303d0ef2fe286"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "abd5bac3de3cedda37f4110ee5208ade1828f5ed1ee262cdc02a460c7cf8b3a9"
-etag: "sha256-65eb2dc7a8c2f956a6651b55cc6fbd4491a19d8b5c1d4bded0d7c468730fed48"
+mirror_sha256: "b89be16add82e4486a7a3e77ec0595754c44fa6ff912ee0910f619dc4f1e48a2"
+etag: "sha256-ef858207ee7c805b7ce103b50d7dff91444e7cbce472402c7c504ac2b752bcf9"
 ---
 ## 개요
 
@@ -159,7 +159,7 @@ AI 에이전트 노드 실행 1회가 MCP 세션 1회다. 노드 실행이 시�
 외부 MCP 서버 URL 의 호스트가 IPv4 를 품은 IPv6 리터럴이면 품은 IPv4 를 IPv4 차단 대역으로 다시 판정한다. 작업은 NERV Task `CLE-T-DCQWEB` 다.
 
 - 그때까지 MCP 가드는 점 표기(`::ffff:127.0.0.1`)만 보는 정규식으로 IPv4-mapped 를 판정했다. 그러나 Node 의 `URL` 은 hostname 을 `[::ffff:7f00:1]` 같은 16진 표기로 바꿔 돌려준다. 그래서 그 정규식은 한 번도 맞지 않았고 loopback · 메타데이터 주소가 통과했다.
-- 판정 범위는 IPv4-mapped · IPv4-compatible · SIIT · NAT64 `/96` 넷이다. 6to4 와 NAT64 local-use prefix 는 이때 판정하지 않았고, 2026-11-20 에 대역표를 합치면서 판정하게 됐다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다)). 근거는 [알림 웹훅 Rationale 「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)」](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다. IPv4-mapped 만 판정하는 안은 기각했다. NAT64 망에서는 다른 표기로도 사설 IPv4 에 닿을 수 있기 때문이다.
+- 판정 범위는 IPv4-mapped · IPv4-compatible · SIIT · NAT64 `/96` 넷이다. 6to4 와 NAT64 local-use prefix 는 이때 판정하지 않았고, 2026-11-20 에 대역표를 합치면서 판정하게 됐다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다)). 근거는 [알림 웹훅 Rationale 「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다」](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다) 에 있다. IPv4-mapped 만 판정하는 안은 기각했다. NAT64 망에서는 다른 표기로도 사설 IPv4 에 닿을 수 있기 때문이다.
 - 그때 두 가드는 IPv6 리터럴 정규화(`normalizeIpv6Literal`)와 품은 IPv4 추출(`embeddedIpv4FromIpv6`)만 같이 쓰고 대역표는 따로 두었다. 2026-11-20 에 대역표까지 한 모듈로 모았다([대역표를 SSRF 가드 넷이 함께 쓴다](#대역표를-ssrf-가드-넷이-함께-쓴다)).
 - 그때 HTTP Request 노드 가드는 IPv4-mapped 만 판정했다. 이 범위도 2026-11-20 에 같은 대역표로 맞췄다.
 - 본문 「자격 증명과 URL 검증」 2항에 더한 `localhost` · CGNAT · `0.0.0.0/8` · `::` 는 구현이 이미 막던 대역이다. 본문을 구현에 맞췄다.
@@ -172,7 +172,7 @@ AI 에이전트 노드 실행 1회가 MCP 세션 1회다. 노드 실행이 시�
 외부 MCP 서버 URL 의 호스트 이름을 connect 직전에 DNS 로 해석하고, 돌아온 주소를 리터럴과 같은 판정으로 검사한다. 작업은 NERV Task `CLE-T-RAPNHB` 다.
 
 - 그때까지 본문 3항은 «SDK 가 fetch 할 때 transport 가 같은 검증을 한 번 더 한다» 고 적었다. 그러나 SDK 의 Streamable HTTP transport 는 주소를 검사하지 않는다. 그래서 사설 주소로 풀리는 호스트 이름(예: `127.0.0.1` 을 돌려주는 공개 도메인)은 리터럴 검사를 통과해 그대로 연결됐다. 본문을 구현에 맞추는 안 대신 구현을 본문의 뜻에 맞췄다.
-- 판정은 2항의 MCP 가드를 그대로 쓴다. IPv4 를 품은 IPv6 주소와 NAT64 도 리터럴과 같이 판정한다. HTTP Request 노드 가드(`assertSafeOutboundHostResolved`)를 가져다 쓰는 안은 기각했다. 그 가드는 `ALLOW_PRIVATE_HOST_TARGETS` 를 읽어 MCP 의 우회 수단이 둘이 된다. 그때는 판정 범위도 MCP 가드보다 좁았다(「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)」).
+- 판정은 2항의 MCP 가드를 그대로 쓴다. IPv4 를 품은 IPv6 주소와 NAT64 도 리터럴과 같이 판정한다. HTTP Request 노드 가드(`assertSafeOutboundHostResolved`)를 가져다 쓰는 안은 기각했다. 그 가드는 `ALLOW_PRIVATE_HOST_TARGETS` 를 읽어 MCP 의 우회 수단이 둘이 된다. 그때는 판정 범위도 MCP 가드보다 좁았다(「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다」).
 - 차단 message 는 리터럴 차단과 같게 호스트 이름만 싣는다. 연결 테스트는 차단 오류의 message 를 그대로 화면에 돌려주므로, 해석된 주소를 실으면 등록 화면이 내부 DNS 를 알아보는 통로가 된다. 호스트 이름은 등록하는 사람이 직접 넣은 값이라 돌려줘도 새로 드러나는 정보가 없다. HTTP Request 노드가 차단 message 를 한 문장으로 일반화한 결정(CLE-NODE-HTTP Rationale 「사설망 차단 메시지 일반화 (2026-07-05)」)과 다른 이유다. 그 결정이 가리려던 것은 해석된 IP 와 차단 사유다.
 - DNS 해석 실패는 막지 않고 넘긴다(fail-open). 해석되지 않는 호스트에는 연결도 되지 않으므로 SSRF 가 성립하지 않고, 실패는 connect 실패로 드러난다. HTTP Request 노드 가드의 구현(`assertSafeOutboundHostResolved`)도 해석 실패를 넘긴다.
 - 해석 시간 초과는 넘기지 않는다. 해석은 connect 의 AbortController 타임아웃보다 앞에서 돌아서, 상한이 없으면 connect 를 따로 감싸지 않는 연결 테스트 요청은 해석이 끝날 때까지 응답 없이 기다린다. 시간 초과를 넘기는 쪽으로 정하면 DNS 응답을 늦추는 것만으로 검사를 건너뛸 수 있다. 그래서 해석에 connect 와 같은 상한을 두고, 넘기면 connect 시간 초과와 같은 `MCP_TIMEOUT` 으로 끝낸다.
@@ -198,7 +198,7 @@ NERV Task `CLE-T-BS1WD1` 에서 transport 의 `fetch` 옵션으로 판정 fetch 
 
 2항의 IP 리터럴 판정을 공용 모듈 `ip-classifier.ts` 로 옮겼다. 작업은 NERV Task `CLE-T-753725` 이고 판정 범위는 NERV Task `CLE-T-63RSH6` 에서 정했다.
 
-- 통합 노드 · 알림 웹훅 · MCP · LLM 가드가 같은 대역표와 품은 IPv4 판정을 쓴다. 표는 가장 넓은 알림 웹훅 표로 맞췄다. 그래서 MCP 가드는 `192.0.0.0/24` · `198.18.0.0/15` · `224.0.0.0/4` · `240.0.0.0/4` · `fec0::/10` · `ff00::/8` · NAT64 local-use prefix 를 새로 막고, 6to4 가 품은 IPv4 를 판정한다. 이 대역을 막는 근거는 [알림 웹훅 Rationale 「특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다 (2026-11-12)」](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다-2026-11-12) 에 있다. 공인 서버가 쓰지 않는 대역이라 정상 MCP 서버가 잃는 것이 없다.
+- 통합 노드 · 알림 웹훅 · MCP · LLM 가드가 같은 대역표와 품은 IPv4 판정을 쓴다. 표는 가장 넓은 알림 웹훅 표로 맞췄다. 그래서 MCP 가드는 `192.0.0.0/24` · `198.18.0.0/15` · `224.0.0.0/4` · `240.0.0.0/4` · `fec0::/10` · `ff00::/8` · NAT64 local-use prefix 를 새로 막고, 6to4 가 품은 IPv4 를 판정한다. 이 대역을 막는 근거는 [알림 웹훅 Rationale 「특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다」](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다) 에 있다. 공인 서버가 쓰지 않는 대역이라 정상 MCP 서버가 잃는 것이 없다.
 - 정규화하지 못한 IPv6 모양 리터럴은 전처럼 막는다(fail-closed). 네 가드가 모두 이 처리를 따른다.
 - 공용 모듈은 환경 변수와 호스트 이름을 보지 않는다. `localhost` · 메타데이터 호스트 이름 목록과 우회 플래그 `MCP_ALLOW_INSECURE_URL` 은 MCP 가드에 남는다. 그래서 `ALLOW_PRIVATE_HOST_TARGETS` 는 지금도 MCP 에 닿지 않는다.
 

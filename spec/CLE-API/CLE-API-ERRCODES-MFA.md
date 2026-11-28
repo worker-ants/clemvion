@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-MFA"
 title: "에러 코드 카탈로그 — 2FA · Passkey · 재인증"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "5ae5259c5282659d183caee276f97aec7d9ab7d3d34f6c12dbeb13b425c82af4"
+content_hash: "dbc7b550a967c4b29cf8a9739d3cc09fe90addad6ff600e9db708e60d960e278"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-ZF0VGG"
 source_paths: []
-mirror_sha256: "64b88297242c815aeb6486939504b4cd1b7c0105f4ae6991d50336e63b4fc603"
-etag: "sha256-cb7e8096a285b0c7e7bb9486e176ac5b0305ba47e957021b2e84517776865672"
+mirror_sha256: "e7698db81c4479dd346c50c2f40db20af1445c551653904df33a60ee89c06a96"
+etag: "sha256-a14cf82a0eadbb50f9e62a8de2b2922a584a627ab0c301c963b79e45c7e0d4ea"
 ---
 ## 개요
 
@@ -48,7 +48,7 @@ etag: "sha256-cb7e8096a285b0c7e7bb9486e176ac5b0305ba47e957021b2e84517776865672"
 | `TOTP_ALREADY_ENABLED` | 409 | TOTP 가 이미 켜진 계정의 설정 시작(`POST /api/auth/2fa/setup`)과 활성화 검증(`POST /api/auth/2fa/verify`). secret 과 TOTP 복구 코드를 바꾸지 않는다. 바꾸려면 TOTP 를 끄고 다시 켠다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 
 - 이 표는 도메인 문서 본문에 문서화된 코드만 등재한다.
-- 로그인 실패 자체는 `LOGIN_FAILED`(§6.2)로 돌려준다(`PASSWORD_INVALID` 아님). 감사 기록은 `login_history` 의 `event`(`totp_failed` 등 소문자 값)와 `failure_reason`(`TOTP_INVALID`, `INVALID_PASSWORD` 등 대문자 사유값)에 남는다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). 사유값과 응답 에러 코드는 별개 층이다. `TOTP_INVALID` · `WEBAUTHN_COUNTER_REGRESSION` 처럼 이름이 같은 값도 있고 `INVALID_PASSWORD` 처럼 응답에서는 다른 코드(`LOGIN_FAILED`)로 나가는 값도 있다. 알 수 없는 이메일로 로그인하면 `failure_reason` 은 `USER_NOT_FOUND` 이고 응답은 `LOGIN_FAILED`(401)다(`auth.service.ts`).
+- 로그인 실패 자체는 `LOGIN_FAILED`(§6.2)로 돌려준다(`PASSWORD_INVALID` 아님). 감사 기록은 `login_history` 의 `event`(`totp_failed` 등 소문자 값)와 `failure_reason`(`TOTP_INVALID`, `INVALID_PASSWORD` 등 대문자 사유값)에 남는다([계정과 워크스페이스 데이터 흐름 — 사용자 · 인증 엔티티](../CLE-ACCT/CLE-ACCT-DATA-MODEL.md#loginhistory)). 사유값과 응답 에러 코드는 별개 층이다. `TOTP_INVALID` · `WEBAUTHN_COUNTER_REGRESSION` 처럼 이름이 같은 값도 있고 `INVALID_PASSWORD` 처럼 응답에서는 다른 코드(`LOGIN_FAILED`)로 나가는 값도 있다. 알 수 없는 이메일로 로그인하면 `failure_reason` 은 `USER_NOT_FOUND` 이고 응답은 `LOGIN_FAILED`(401)다(`auth.service.ts`).
 - **비슷한 이름 주의**: 비밀번호 재확인 계열 에러 코드는 셋이다(`PASSWORD_INVALID`, `PASSWORD_REQUIRED`, `REAUTH_REQUIRED`). 옛 `INVALID_PASSWORD` 는 2026-09-02 에 은퇴해 응답에 나가지 않는다(§5). 접미사가 같은 `WEBAUTHN_REQUIRED`(§6.3)는 이 계열이 아니다. 입력이 빠진 것이 아니라 TOTP 와 Passkey 가 모두 있는 계정의 TOTP 로그인을 막는 코드다. 로그인의 `EMAIL_VERIFICATION_REQUIRED`(§6.2)는 응답 에러 코드다. `EMAIL_NOT_VERIFIED` 는 같은 경우에 로그인 이력 `failure_reason` 에 남는 사유값이고 응답에는 나가지 않는다.
 - **비밀번호 재확인 실패 한도**: 비밀번호 재확인 실패가 사용자 단위 한도를 넘으면 창이 끝날 때까지 비밀번호를 대조하지 않고 `PASSWORD_INVALID` · `PASSWORD_REQUIRED` 대신 `RATE_LIMITED`(429)로 거부한다. 한도와 창은 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「비밀번호 재확인 실패 한도」 가 정한다.
 - **비슷한 이름 주의(TOTP 상태 코드)**: TOTP 상태 때문에 거부하는 코드는 셋이고 클라이언트가 할 일이 서로 다르다. `TOTP_ALREADY_ENABLED`(409)는 TOTP 가 이미 켜진 계정의 TOTP 설정 시작 · 활성화 검증이다. 클라이언트는 입력을 고치지 않고 켜진 상태를 다시 읽는다. `TOTP_NOT_ENABLED`(401)는 로그인 2단계 TOTP 검증 전용이고 클라이언트는 다시 로그인하게 안내한다. `TOTP_NOT_INITIALIZED`(400)는 대기 secret 없이(설정 시작 전이거나 10분이 지나 버림) 활성화 검증을 부른 경우이고 클라이언트는 설정 시작 단계로 돌아간다. 코드 불일치는 셋 가운데 어느 것도 아니고 `TOTP_INVALID`(401)다.
@@ -57,7 +57,7 @@ etag: "sha256-cb7e8096a285b0c7e7bb9486e176ac5b0305ba47e957021b2e84517776865672"
 ## 미결 사항
 
 - **`WEBAUTHN_NOT_REGISTERED` 의 상태 코드 통일은 호환 때문에 보류한다.** 로그인 2단계 Passkey 옵션은 400, Passkey 복구 코드 재발급은 비밀번호 확인 뒤 403 을 낸다. 403 은 [HTTP API 규약 — 응답 형식과 상태 코드 §6](CLE-API-CONV-RESP.md#6-http-상태-코드) 의 「권한 없음」 과 뜻이 맞지 않는다. 한쪽으로 맞추면 이미 내던 응답이 바뀌므로 두 값을 그대로 둔다.
-- **Passkey 경로의 서버 `message` 는 한국어다.** `WEBAUTHN_*` · `INVALID_OPTIONS_TOKEN` 같은 Passkey 경로의 에러 응답은 「WebAuthn 인증에 실패했어요.」 · 「이미 등록된 인증기예요.」 같은 기존 한국어 문구를 `message` 로 낸다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 · 5 에 어긋나고 [백엔드 문구 매핑 「코드와 동적 메시지 매핑 (규칙 5)」](../CLE-UI/CLE-UI-I18N-BACKEND.md#코드와-동적-메시지-매핑-규칙-5) 의 알려진 예외에도 없다. 이 문서와 도메인 문서가 인용한 한국어 문구는 기존 문구를 옮긴 것이고 규범이 아니다. 영문 전환은 인증 모듈 전체의 서버 문구를 영문으로 바꾸는 NERV Task `CLE-T-MNX9KP` 가 맡는다.
+- **Passkey 경로의 서버 `message` 는 영문 고정 문구다.** `WEBAUTHN_*` · `INVALID_OPTIONS_TOKEN` 같은 Passkey 경로의 에러 응답은 «WebAuthn authentication failed.» · «This authenticator is already registered.» 같은 영문 고정 문구를 `message` 로 낸다. 화면 문구는 `code` 로 고른다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 · 5). 서버 message 언어 가드가 `modules/auth` 를 검사해 한국어 문구가 다시 들어오지 않는다(NERV Task `CLE-T-MNX9KP`).
 
 ## Rationale
 
@@ -134,4 +134,4 @@ NERV Task `CLE-T-GWC9M3` 에서 사람이 정했다(NERV 질문 `01a1d933-b270-7
 - **규칙 5 와의 관계**: 규칙 5 는 이름 바꾸기를 막는다. 상태 코드를 바꾸는 것도 이미 내던 응답을 바꾸는 호환성 변경이라 같은 이유로 바꾸지 않는다. 2026-11-02 의 「상태 코드는 기존 400 을 따른다」 와 같은 판단이다.
 - **규칙 6 과의 관계**: 두 발행처의 뜻이 같아 코드를 나누지 않는다는 2026-11-14 판단(위 「Passkey 코드를 구현에 맞춰 고쳤다」)은 그대로다. 상태 코드가 다르다고 새 조건이 생기지는 않는다.
 - **다른 안**: 이 Task 본문은 [응답 형식과 상태 코드 §6](CLE-API-CONV-RESP.md#6-http-상태-코드) 에 이 403 을 예외로 적는 안도 올렸다. 사람이 미결로 보류하는 안을 골랐다.
-- **한국어 문구를 알려진 예외에 올리지 않았다.** 인증 모듈 서버 문구를 영문으로 바꾸는 NERV Task `CLE-T-MNX9KP` 가 이미 있다. 그 Task 는 인증 모듈을 「알려진 예외」 에 올리지 않는 것을 목표로 둔다.
+- **한국어 문구를 알려진 예외에 올리지 않았다.** 인증 모듈 서버 문구를 영문으로 바꾸는 NERV Task `CLE-T-MNX9KP` 가 이미 있다. 그 Task 는 인증 모듈을 「알려진 예외」 에 올리지 않는 것을 목표로 둔다. 그 Task 로 인증 모듈 서버 문구가 영문 고정 문구가 됐고 서버 message 언어 가드가 `modules/auth` 를 검사한다.

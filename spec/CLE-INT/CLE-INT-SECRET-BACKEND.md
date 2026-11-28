@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-BACKEND"
 title: "시크릿 저장소 — 인터페이스와 저장 백엔드"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "37c7343c4da3af5ca7fe7150b6c412e31cf592bd08622007c33ee9cac156c9ff"
+content_hash: "6326559828ced35d9b8e30f149f4ec7d475d1ec1ac92f6e14fe207449f8fc412"
 read_as: "approved_fallback"
-task: "CLE-T-4JM4R9"
+task: "CLE-T-GR5DFJ"
 source_paths: []
-mirror_sha256: "f7ba75d2f6efa7ca0b57ca1d480ba78ffda24e48bb0641157f097e1181fd82bd"
-etag: "sha256-a4e437611b778b794beae9b314e15d6c3adef397bc9315ef0848a508713a7a7a"
+mirror_sha256: "b81bf3ba491d99d4d10cffc0e22cb9902f080f1a9c32b8efe120d6d3cbb60fea"
+etag: "sha256-b76c3dc74d5c14f5dcf2d253e59641824239ed11dc2b7ac544b2bbfcb4ab5a5e"
 ---
 ## 개요
 
@@ -191,10 +191,10 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 - **트리거 생성.** 봇 토큰 입력에 `@MinLength(1)` 이 붙기 전에는 트리거 생성 경로에서 빈 문자열(`''`)이 검증을 통과했다. 빈 시크릿이 먼저 저장되고 그 뒤 채널 프로바이더 호출이 실패했다(실측).
 - **채팅 채널 PATCH.** `setupChatChannel` 은 `cfg.botToken ?? ''` 를 조건 없이 `rotate` 했다. PATCH 본문에서 `botToken` 을 빼기만 했다면 저장된 봇 토큰이 빈 값으로 지워졌을 것이다. 당시에는 `botToken` 이 필수라 일어나지 않았다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 가 이 경로에서 비밀을 쓰지 않게 해서 닫았다. 그 항목의 「처방의 함정」 에 경위가 있다.
 
-두 경로는 각각 막혔다. 그래도 호출부마다 막는 방식은 새 호출부가 가드를 빠뜨리면 다시 열린다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 는 `rotate` 의 빈 값 가드를 다른 호출부를 위해 따로 검토하기로 했고 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 도 이 가드를 넣지 않았다. 2026-11-06 에 아래와 같이 정했다(NERV Task `CLE-T-94Z6A5`).
+두 경로는 각각 막혔다. 그래도 호출부마다 막는 방식은 새 호출부가 가드를 빠뜨리면 다시 열린다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 는 `rotate` 의 빈 값 가드를 다른 호출부를 위해 따로 검토하기로 했고 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다) 도 이 가드를 넣지 않았다. 2026-11-06 에 아래와 같이 정했다(NERV Task `CLE-T-94Z6A5`).
 
 - **저장소가 빈 평문을 거부한다.** `store` · `rotate` 는 평문이 문자열이 아니거나 비었거나 공백만 있으면 throw 하고 행을 만들거나 바꾸지 않는다(규칙 27).
-- **전용 에러 코드를 만들지 않는다.** HTTP 로 새면 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 빈 값이 저장소까지 오면 고칠 쪽은 호출부 코드이고 클라이언트가 분기할 조건이 아니다. [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 이 `rotate` 의 워크스페이스 불일치 거부에 든 기준과 같다. 예외 메시지에 참조와 워크스페이스 id 를 싣지 않는 이유도 같다. 채팅 채널 설정은 실패 메시지를 화면에 보이는 `chat_channel_last_error` 에 저장한다(규칙 18).
+- **전용 에러 코드를 만들지 않는다.** HTTP 로 새면 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 빈 값이 저장소까지 오면 고칠 쪽은 호출부 코드이고 클라이언트가 분기할 조건이 아니다. [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다) 이 `rotate` 의 워크스페이스 불일치 거부에 든 기준과 같다. 예외 메시지에 참조와 워크스페이스 id 를 싣지 않는 이유도 같다. 채팅 채널 설정은 실패 메시지를 화면에 보이는 `chat_channel_last_error` 에 저장한다(규칙 18).
 - **호출부를 셌다.** 결정 때 `rotate` 호출부는 10곳이었다. 채팅 채널 바인더 3곳, 봇 토큰 재발급 3곳, 알림 서명 4곳이다. `store` 호출부는 없었다. 빈 값을 넘겨야 하는 호출부는 한 곳도 없었다.
 - **빈 값은 호출부가 먼저 거른다.** 결정 때 새 요청의 입력이 규칙 27 에 걸려 500 이 되는 경로는 없었다. 사용자 입력은 호출부가 400 으로 먼저 거르고 서버가 발급하는 값은 비지 않는다(아래 표). 그래서 규칙 27 에 걸리면 호출부 가드가 빠진 결함으로 본다. 새 호출부가 사용자 입력을 저장하면 규칙 27 앞에 400 검증을 둔다.
 - **재발급 백업은 비었거나 공백만 있는 옛 토큰을 건너뛴다.** 이 규칙이 생기기 전에 저장된 봇 토큰 가운데 비었거나 공백만 있는 행이 남아 있을 수 있다. 재발급이 그 값을 `bot-token.v2` 에 백업하려 하면 이 거부에 걸린다. 가드는 공백만 있는 값도 거부하므로 `''` 만 건너뛰면 `@MinLength(1)` 을 통과해 저장된 `" "` 같은 옛 행에서 재발급이 500 으로 실패한다. 이런 값은 보존할 토큰이 아니라서 백업을 건너뛴다(규칙 11).
@@ -207,7 +207,7 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 | Slack · Discord 인바운드 서명 자료(`inboundSigningPlaintext`) | 사용자 입력(채널 프로바이더가 발급한 값) | DTO 가 32~128자를 보고 채널 프로바이더별 lowercase hex 형식(Slack 32자, Discord 64자)을 본다. 바인더는 비어 있지 않은 문자열일 때만 `rotate` 한다 | 400 |
 | Telegram 인바운드 서명 자료(`secret_token`) | 서버 발급(`randomBytes(24)`) | 없다. 사용자 입력이 아니다 | 생기지 않는다 |
 | EIA 알림 서명 시크릿(첫 발급 · 교체 · 승격) | 서버 발급(`wsk_*`) | 없다. 요청 본문(`NotificationSigningDto`)은 `algorithm` 만 받는다. 승격은 v2 가 비어 있으면 건너뛴다 | 생기지 않는다 |
-| EIA 옛 평문 옮기기 | 2026-10-31 전에 원시 `config` 로 받아 저장된 옛 평문 `signing.secret` | `readStoredSigningSecret` 과 `migrateLegacyPlaintext` 가 같은 판정 `isUsableLegacyPlaintext` 를 쓴다. 비었거나 공백만 있는 값은 «없음» 으로 보고 `rotate` 에 넘기지 않는다. 새 값은 더 받지 않는다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)) | 옮기지 않는다. `notification` 이 실린 PATCH(`settle`)가 그 행에 새 `wsk_*` 를 발급한다. 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다 |
+| EIA 옛 평문 옮기기 | 2026-10-31 전에 원시 `config` 로 받아 저장된 옛 평문 `signing.secret` | `readStoredSigningSecret` 과 `migrateLegacyPlaintext` 가 같은 판정 `isUsableLegacyPlaintext` 를 쓴다. 비었거나 공백만 있는 값은 «없음» 으로 보고 `rotate` 에 넘기지 않는다. 새 값은 더 받지 않는다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다)) | 옮기지 않는다. `notification` 이 실린 PATCH(`settle`)가 그 행에 새 `wsk_*` 를 발급한다. 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다 |
 
 기각한 대안:
 

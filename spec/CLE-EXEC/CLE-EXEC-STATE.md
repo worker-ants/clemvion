@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "7c8e27a91fd3cb16019a6365a73e1eabe6cdb7742be1d0fe776021790f1af345"
+content_hash: "4129d95fb68145c3085291d29c3717266448437034ccad82c38cb69cd45663a7"
 read_as: "approved_fallback"
 task: "CLE-T-B87H23"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "be3369399cd16aa03836296e601ae3af654446bada13b34453fe0b9338298d92"
-etag: "sha256-33a75558ff460a0e6318e808048097432e324f2da1302c30c2fc044477a8407c"
+mirror_sha256: "c44a5c16b4b731e47c620909c81b8f4005a03933df4cd042cf626a45864dcd24"
+etag: "sha256-62dbf2aa4955a78e0e44633af7b64dd85f0e0b3561bd440c810e26547a898f1f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -197,7 +197,9 @@ stateDiagram-v2
 
 2026-07-02 에 재개 진입을 DB 원자 claim 으로 바꾸면서 재개 턴에 한해 이 결정을 부분 수정했다. 재개 턴의 LLM 에러는 claim 뒤 `running → failed` 로 마감한다. claim 이 개입하지 않는 마감은 그대로다. 결정 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 
-### 짝 없는 직접 마감도 트랜잭션 안에서 한다 (2026-08-30)
+### 짝 없는 직접 마감도 트랜잭션 안에서 한다
+
+결정일: 2026-08-30
 
 else 분기의 조건부 UPDATE 는 원래 트랜잭션 밖의 단발 쿼리였다. 결과 모양 가드(`updateReturningRows`)가 예외를 던져도 UPDATE 는 이미 커밋된 뒤였다. 가드가 발동하면 행은 종결 상태로 커밋된 채 종결 이벤트만 사라지고 그 실행은 부팅 복구 스캔에도 걸리지 않는다. 가드가 막으려던 무기한 대기가 가드가 발동한 순간 생기는 셈이었다.
 
@@ -209,7 +211,9 @@ UPDATE 를 `dataSource.transaction` 안에서 돌리도록 바꿨다. 예외가 
 
 DB 는 깨지지 않았다. `WHERE status IN (...)` 조건이 쓰기 자체를 지켰다. 틀린 것은 앱이 자기가 적용했는지 아는 쪽이었고 증상은 취소된 실행에도 종결 이벤트가 나간 것이다. 원인은 분기하는 여러 곳이 함께 쓰는 드라이버 메서드 한 곳이었다. 같은 결함의 반대 부호는 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 의 동시 실행 제한에 있었다. 불변식은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 이 정한다.
 
-### 마지막 턴 재시도 opt-in 은 DB 가드까지 전달해야 한다 (2026-07-30)
+### 마지막 턴 재시도 opt-in 은 DB 가드까지 전달해야 한다
+
+결정일: 2026-07-30
 
 `allowRetryReentry` opt-in 을 상태 머신에만 반영하고 DB 가드에 전달하지 않으면 마지막 턴 재시도의 짝 전이가 늘 0행이 돼 기능이 전혀 동작하지 않는다. 실제로 2026-07-30 까지 그 상태였다. 그래서 종결 정의 자체를 opt-in 에 따라 바꾸도록 했다. 2026-11-06 에는 DB 가드의 목록을 상태 머신에서 계산하게 바꿔 두 곳이 따로 어긋날 수 없게 했다(NERV Task `CLE-T-9WG82W`). opt-in 에서도 `completed`·`cancelled` 는 빼므로 진짜 동시 취소는 계속 막힌다.
 
@@ -227,14 +231,20 @@ rehydration 실패 세 경우(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RES
 
 이 결정의 본문 처리(실패 경우별 코드와 원자 마감)는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#rehydration-실패) 에 있다.
 
-### MCP 서버 항목에 표현식 여부를 저장하고 스키마 버전을 올리지 않는다 (2026-10-25)
+### MCP 서버 항목에 표현식 여부를 저장하고 스키마 버전을 올리지 않는다
 
-→ [MCP 서버 표현식 여부 보존](CLE-EXEC-STATE-MCPEXPR.md#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다-2026-10-25)
+결정일: 2026-10-25
 
-### 표현식 여부를 서버 항목 밖 배열로 옮긴다 (2026-11-07)
+→ [MCP 서버 표현식 여부 보존](CLE-EXEC-STATE-MCPEXPR.md#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다)
 
-→ [MCP 서버 표현식 여부 보존](CLE-EXEC-STATE-MCPEXPR.md#표현식-여부를-서버-항목-밖-배열로-옮긴다-2026-11-07)
+### 표현식 여부를 서버 항목 밖 배열로 옮긴다
 
-### AI 대화 재개 스냅샷도 대기로 정규화한다 (2026-11-12)
+결정일: 2026-11-07
 
-→ [입력 대기와 재개 상태](CLE-EXEC-STATE-RESUME.md#ai-대화-재개-스냅샷도-대기로-정규화한다-2026-11-12)
+→ [MCP 서버 표현식 여부 보존](CLE-EXEC-STATE-MCPEXPR.md#표현식-여부를-서버-항목-밖-배열로-옮긴다)
+
+### AI 대화 재개 스냅샷도 대기로 정규화한다
+
+결정일: 2026-11-12
+
+→ [입력 대기와 재개 상태](CLE-EXEC-STATE-RESUME.md#ai-대화-재개-스냅샷도-대기로-정규화한다)

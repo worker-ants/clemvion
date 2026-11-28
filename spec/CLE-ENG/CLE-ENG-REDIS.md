@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "bf32f3d13238d481a264a194eb91993bac4b70c5bd286a00cfa37efa00480ece"
+content_hash: "f7819549f1110638e7058126a76a31cbb39194c44d48bc141544b228b454d34e"
 read_as: "approved_fallback"
-task: "CLE-T-15DBHE"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "91b61ca691af0e1e0577ebca4ea9a1be42bad01057e528fa231290071c125726"
-etag: "sha256-e58dd3bb65a4937abd8f16a36245d30c78777391761fc1489c81edfa2810775f"
+mirror_sha256: "9bda45a0919ae6947b2bd7fe7ef0bd264712d59c6f95c0151e7c7c9473416572"
+etag: "sha256-4c5c531e816e5a413aff6988d4c01974be2b959d7e616e90f8c6bee0ced3f8dc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -177,7 +177,7 @@ IPv6 주소에는 콜론이 들어 있다. 그래서 `cc:sigfail:<triggerId>:<cl
 
 결정일: 2026-11-14
 
-NERV Task `CLE-T-GDR39Z`. Socket.IO Redis adapter 의 채널 이름 형식은 라이브러리가 정하고 우리가 바꿀 수 없다. 우리가 고르는 것은 접두뿐이다. 연결 상태는 Redis 에 두지 않는다는 2026-08-13 결정([비동기 큐와 Redis 키 목록 「지운 키 두 개」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개))은 그대로 두고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 인접 이름 표는 Socket.IO 채널을 «Redis 를 거치지 않는다» 고 적었다. adapter 를 건 뒤로는 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 안에 실려 Redis 를 지나므로 «Redis 키가 아니다» 로 고쳤다. 규칙 8 도 같은 이유로 고쳤다. adapter 를 걸기로 한 결정과 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다. `bull:<queue>:*` 는 Redis 키인데도 인접 이름 표(Redis 키가 아닌 이름)에 있었다. 라이브러리가 이름을 정하는 이름을 한 절로 모으면서 그 행을 새 절로 옮겼다. 규칙 6 의 예외는 라이브러리가 형식을 정하는 채널 접두 하나로 좁혔다. 접두를 고를 수 있는 우리 키에까지 예외를 넓히면 규칙 6 이 막으려던 접두 늘리기가 다시 열린다.
+NERV Task `CLE-T-GDR39Z`. Socket.IO Redis adapter 의 채널 이름 형식은 라이브러리가 정하고 우리가 바꿀 수 없다. 우리가 고르는 것은 접두뿐이다. 연결 상태는 Redis 에 두지 않는다는 2026-08-13 결정([비동기 큐와 Redis 키 목록 「지운 키 두 개」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개))은 그대로 두고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 인접 이름 표는 Socket.IO 채널을 «Redis 를 거치지 않는다» 고 적었다. adapter 를 건 뒤로는 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 안에 실려 Redis 를 지나므로 «Redis 키가 아니다» 로 고쳤다. 규칙 8 도 같은 이유로 고쳤다. adapter 를 걸기로 한 결정과 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유) 에 있다. `bull:<queue>:*` 는 Redis 키인데도 인접 이름 표(Redis 키가 아닌 이름)에 있었다. 라이브러리가 이름을 정하는 이름을 한 절로 모으면서 그 행을 새 절로 옮겼다. 규칙 6 의 예외는 라이브러리가 형식을 정하는 채널 접두 하나로 좁혔다. 접두를 고를 수 있는 우리 키에까지 예외를 넓히면 규칙 6 이 막으려던 접두 늘리기가 다시 열린다.
 
 ### 요청 빈도 제한 키의 접두 `throttle` 은 규칙 6 에 어긋나지 않는다
 

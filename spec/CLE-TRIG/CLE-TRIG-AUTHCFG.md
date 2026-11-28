@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG"
 title: "외부 호출 인증 설정"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025", "REQ-AUTHCFG-026", "REQ-AUTHCFG-027", "REQ-AUTHCFG-028", "REQ-AUTHCFG-029", "REQ-AUTHCFG-030", "REQ-AUTHCFG-031", "REQ-AUTHCFG-032", "REQ-AUTHCFG-033", "REQ-AUTHCFG-034"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "ac505b1e4272a52a24d73c743bb419c8149dec8793b4ef6e3b911d646c14ed1b"
+content_hash: "808b7fdda381106a7c66f47aa8188acb63ea63f1e506da68582d7bbe70e8252f"
 read_as: "approved_fallback"
-task: "CLE-T-289XDB"
+task: "CLE-T-N0K4SE"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "bb72458ef91b023f90de2a786b19ff3c6073e666de2a00fc729e183747b13dd7"
-etag: "sha256-e91f06a2d50eb35325d2675b086e59f286646fd36e7e0a09a21ea405cbcf3fe4"
+mirror_sha256: "de0be6b8cb53450a68f50d39a7597a151c19bffe46b4d83960ab8c7597417a4a"
+etag: "sha256-be9f4ac252856c050ced7b3c39744f1ccba2b8a81b09e669684f82980ba3b463"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-e91f06a2d50eb35325d2675b086e59f286646fd36e7e0a09a21ea405cbcf3fe4"
 
 인증 설정(AuthConfig, `auth_config`)은 외부 시스템이 이 제품의 트리거를 부를 때 쓰는 워크스페이스 단위 인증 자격 증명이다. 워크플로우를 편집할 때마다 자격 증명을 입력하는 대신, 여기서 한 번 만든 인증 설정을 여러 웹훅 트리거가 연결해 쓴다. 현재 인증 설정이 연결되는 곳은 웹훅 수신 인증이다. 로그인 인증이나 통합 자격 증명과는 다른 개념이다.
 
-인증 설정 화면은 사이드바 최상위 메뉴 "Authentication"(경로 `/authentication`)이다. 모델 설정 화면과 "설정(Config)" 으로 묶는 것은 분류용이고 실제 메뉴는 둘 다 최상위에 있다. 두 메뉴를 나중에 Config 그룹으로 다시 묶을 수는 있다.
+인증 설정 화면은 사이드바 최상위 메뉴 "인증"(경로 `/authentication`)이다. 모델 설정 화면과 "설정(Config)" 으로 묶는 것은 분류용이고 실제 메뉴는 둘 다 최상위에 있다. 두 메뉴를 나중에 Config 그룹으로 다시 묶을 수는 있다.
 
 이 문서는 인증 설정 목록 화면, 인증 방식(인증 설정 유형, `AuthConfig.type`)별 입력 항목, 편집, 재생성, 사용 내역(usage), 필드 마스킹(`***<last4>`)과 평문 보기(Reveal), 권한, 인증 설정 API 를 정한다. 입력 항목 · 편집 · 재생성과 마스킹 · 평문 보기는 [하위 문서](#하위-문서)가 맡는다.
 
@@ -82,7 +82,7 @@ etag: "sha256-e91f06a2d50eb35325d2675b086e59f286646fd36e7e0a09a21ea405cbcf3fe4"
 
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 |------|------|---------------|------|
-| 헤더 | 맨 위 | 제목 "Authentication", "+ Add Auth Method" 버튼 | 버튼은 관리자 이상에게만 보인다. 누르면 생성 폼이 열린다 |
+| 헤더 | 맨 위 | 제목 "인증", "+ Add Auth Method" 버튼 | 버튼은 관리자 이상에게만 보인다. 누르면 생성 폼이 열린다 |
 | 인증 설정 목록 | 본문 | 행마다 이름, 유형, 활성 상태, 최근 사용 시각, 더보기(⋮). 복호화 불가 표식으로 읽히는 행에는 «읽을 수 없음» 표시 | 행을 누르면 [사용 내역](#사용-내역) 드로어가 열린다(모든 역할). ⋮ 메뉴의 변경 액션은 관리자 이상에게만 보인다. Basic Auth 행에는 Regenerate 가 없다 |
 
 목록 행 예시는 다음과 같다.
@@ -193,10 +193,14 @@ etag: "sha256-e91f06a2d50eb35325d2675b086e59f286646fd36e7e0a09a21ea405cbcf3fe4"
 - 기간별 호출 수는 롤링 윈도(24h·7d·30d)와 막대 차트로 한다. 사용 내역 화면의 목적은 최근 활동량 파악이고 캘린더 버킷의 경계 정렬(시간대, 주 시작 요일) 모호성도 피한다. `Execution.started_at` 을 한 쿼리에서 조건부 집계(`COUNT(*) FILTER (WHERE started_at >= now()-window)`)해 왕복 한 번으로 세 값을 구한다.
 - 소스 IP 는 `hooks.service` 가 웹훅 진입 때 `extractClientIpFromHeaders` 로 뽑은 값을 인증 IP whitelist 검증과 호출 기록에 함께 쓴다. `CF-Connecting-IP` 를 신뢰하도록 설정했으면 그 값, 아니면 `X-Forwarded-For` 첫 IP 를 쓰고 헤더 기반이라 `req.ip` 폴백은 없다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 클라이언트 IP 항목). 뽑지 못하면 NULL 이다.
 
-### Basic Auth 재생성을 거부한다 (2026-11-05)
+### Basic Auth 재생성을 거부한다
 
-→ [입력 항목 · 편집 · 재생성 「Basic Auth 재생성을 거부한다」](CLE-TRIG-AUTHCFG-EDIT.md#basic-auth-재생성을-거부한다-2026-11-05)
+결정일: 2026-11-05
 
-### 복호화 불가 표식을 응답에 그대로 둔다 (2026-11-05)
+→ [입력 항목 · 편집 · 재생성 「Basic Auth 재생성을 거부한다」](CLE-TRIG-AUTHCFG-EDIT.md#basic-auth-재생성을-거부한다)
 
-→ [마스킹과 평문 보기 「복호화 불가 표식을 응답에 그대로 둔다」](CLE-TRIG-AUTHCFG-REVEAL.md#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05)
+### 복호화 불가 표식을 응답에 그대로 둔다
+
+결정일: 2026-11-05
+
+→ [마스킹과 평문 보기 「복호화 불가 표식을 응답에 그대로 둔다」](CLE-TRIG-AUTHCFG-REVEAL.md#복호화-불가-표식을-응답에-그대로-둔다)

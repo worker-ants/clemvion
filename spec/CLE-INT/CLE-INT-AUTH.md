@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "4ac0ccafe5bcf23e96e70440b0c78f3aab0b148f3e4f960cf654d2de5f17a0d8"
+content_hash: "de0ec4de8ed834dab9f0c3edb1d875ff09793bc6b69b54d70b183fc1b67ae002"
 read_as: "approved_fallback"
-task: "CLE-T-JDSC37"
+task: "CLE-T-GR5DFJ"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "43f0a0e964bb6ec847cc461cbd0047991e17d37fbec414312901bff43a6bc42a"
-etag: "sha256-da27d6ab37a3f3556262e855237451f83feb79ab563755507992149e35feb7a7"
+mirror_sha256: "a96f3105be49a7c11a41441bc51042a0273da6eda6e2aa8e0e71854e3331475f"
+etag: "sha256-ce4f2e5699419fe0b6e64fcd3dbf4dc52899d73ce78a3f4a90c11fc83f73dffb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -128,7 +128,7 @@ OAuth2 연결은 토큰 교환 뒤 `GET https://api.github.com/user` 응답에�
 | `username` | string | ✓ | × |
 | `password` | string | ✓ | 🔒 |
 
-연결 테스트: `base_url` 이 있으면 HTTP Request 노드와 같은 방식으로 자격 증명을 붙여 `GET base_url` 을 보낸다. 리다이렉트는 노드와 같이 최대 5홉까지 따라가며 홉마다 SSRF 를 다시 검사한다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)). 리다이렉트 뒤에서 인증을 거부하는 서비스도 잡기 위해서다. 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다. 대기 시간은 10초다. host 의 SSRF 가드는 노드와 같다. 요청 전 검사에 더해 연결할 때 푼 주소도 노드와 같은 대역으로 다시 판정한다([HTTP Request 노드 — 실행 로직](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#연결할-때-푼-주소를-다시-판정한다-2026-11-14)). `ALLOW_PRIVATE_HOST_TARGETS` 로 둘 다 끌 수 있다.
+연결 테스트: `base_url` 이 있으면 HTTP Request 노드와 같은 방식으로 자격 증명을 붙여 `GET base_url` 을 보낸다. 리다이렉트는 노드와 같이 최대 5홉까지 따라가며 홉마다 SSRF 를 다시 검사한다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)). 리다이렉트 뒤에서 인증을 거부하는 서비스도 잡기 위해서다. 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다. 대기 시간은 10초다. host 의 SSRF 가드는 노드와 같다. 요청 전 검사에 더해 연결할 때 푼 주소도 노드와 같은 대역으로 다시 판정한다([HTTP Request 노드 — 실행 로직](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#연결할-때-푼-주소를-다시-판정한다)). `ALLOW_PRIVATE_HOST_TARGETS` 로 둘 다 끌 수 있다.
 
 | 결과 | 코드 |
 | --- | --- |
@@ -262,7 +262,9 @@ MCP 서버는 OAuth refresh token 을 갖지 않으므로 `token_expires_at` 이
 
 Google `account_email` 과 GitHub `login` 은 저장의 필수 필드인데 두 제공자의 토큰 응답에는 이 값이 없다. 그래서 팝업 연결은 토큰 교환 뒤 받은 access token 으로 Google userinfo 와 GitHub `/user` 를 한 번 부른다(NERV Task `CLE-T-81270P`). Google 은 userinfo 에서 이메일을 받으려고 사용자가 고른 권한 범위에 `openid`·`email` 을 늘 더한다. 조회 실패 처리, 타임아웃, 토큰을 폐기하지 않는 이유는 [팝업 연결과 콜백 「계정 식별자는 토큰 교환 뒤 제공자에 묻는다」](CLE-INT-OAUTH-CALLBACK.md#계정-식별자는-토큰-교환-뒤-제공자에-묻는다) 가 정한다.
 
-### 연결 테스트: Database·HTTP 는 실제로 접속하고 Google·GitHub·Webhook 은 구조만 검증한다 (2026-09-19)
+### 연결 테스트: Database·HTTP 는 실제로 접속하고 Google·GitHub·Webhook 은 구조만 검증한다
+
+결정일: 2026-09-19
 
 통합 화면 정의는 다섯 서비스(Google·GitHub·HTTP·Database·Webhook)에 실제 연결 테스트(`tokeninfo`·`GET /user`·`GET base_url`·`SELECT 1`·`HEAD url`)를 약속했다. 그런데 `IntegrationsService.dispatchTest` 에는 그 테스터가 없었다. transport 테스터는 `mcp`·`email`, entity 테스터는 `cafe24`·`makeshop` 뿐이라 나머지는 구조만 맞으면 «Connection successful» 이었다. 틀린 비밀번호로도 연결 테스트가 성공했고, 테스트 성공을 조건으로 하는 자격 증명 교체도 통과했다. SMTP 가 같은 상태였다가 `verify()` 로 고친 선례와 같은 결함이다.
 
@@ -287,9 +289,9 @@ SMTP host 도 사설·loopback 주소를 가리킬 수 있어 SSRF 표면이 된
 
 채팅 채널 실패 분류표는 바꾸지 않는다. `EMAIL_HOST_BLOCKED` 는 노드 수준 `output.error.code`(또는 연결 테스트 `result.code`)로만 나온다. Send Email 실패가 워크플로우 종료로 올라가면 실행 수준 에러 코드는 이미 분류표의 INTERNAL 군에 있는 `ERROR_PORT_FALLBACK` 이 된다([채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)). 에러 enum 을 늘릴 때의 분류표 검토 의무([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md))를 따라 검토한 결과 행을 더할 필요가 없다.
 
-### 연결 테스트는 401 만 토큰 문제로 본다 (2026-11-06)
+### 연결 테스트는 401 만 토큰 문제로 본다
 
-→ [서비스별 인증 방식과 자격 증명 — Cafe24 · MakeShop](CLE-INT-AUTH-COMMERCE.md#연결-테스트는-401-만-토큰-문제로-본다-2026-11-06)
+→ [서비스별 인증 방식과 자격 증명 — Cafe24 · MakeShop](CLE-INT-AUTH-COMMERCE.md#연결-테스트는-401-만-토큰-문제로-본다)
 
 ### 연결 테스트도 가드 고장을 고정 문구로 알린다
 
@@ -313,3 +315,4 @@ NERV Task `CLE-T-691T4G`(Database) · `CLE-T-PTCRM4`(Email) 에서 두 연결 �
 
 - 기각한 안: `none` 을 없애거나 `none` 에서도 STARTTLS 를 강제하는 안. TLS 를 지원하지 않는 내부 릴레이를 쓰는 통합이 끊기고, 이미 저장된 통합의 값을 말없이 바꾸게 된다.
 - 받아들인 위험: `none` 을 고른 통합은 능동 중간자에게 자격 증명과 메일 본문이 드러날 수 있다. [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) REQ-NFR-010(전송 구간 TLS)의 예외다.
+

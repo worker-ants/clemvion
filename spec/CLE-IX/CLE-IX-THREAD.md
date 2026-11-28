@@ -2,19 +2,19 @@
 id: "CLE-IX-THREAD"
 title: "대화 스레드"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "2282692221877610ec4965ae39fbab1db6ce93fc56f77b121eb6444561e85ac1"
+content_hash: "2631f85dae2f50821cab98e236473ca87336937e123b2939401454b3a9b6abef"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-W50N35"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "0e5b082952fe10ac54a767d753c4dc22dd9a8d9d017ff131661b7a3227108edc"
-etag: "sha256-986763be1489f4b8ffbf2763f0c5727a935c610d332cdc5a445e133a26621d87"
+mirror_sha256: "17dfe3736ec4a8878d783a073a38103fedf2d673203ac6868acba3275cc176f0"
+etag: "sha256-c065a3c47f061a778f9833d7c8f0f18eef3b9f3b6a6ef58f0458afb503c95e0b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§1~§8, 1–467행. §9 미리보기 렌더 규칙과 §8.1·§8.2·§8.5 근거는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -79,7 +79,7 @@ etag: "sha256-986763be1489f4b8ffbf2763f0c5727a935c610d332cdc5a445e133a26621d87"
 
 `system_error` 는 프런트엔드 store 와 내역 화면 전용 출처다. 멀티턴 AI Agent 가 `output.error` 와 함께 끝나면 store 가 대화 끝에 인라인 `system_error` 항목을 붙인다. 실시간 경로는 WS `execution.node.failed` 나 `output.error` 가 설정된 `execution.node.completed` 를 받을 때 붙인다(`use-execution-events.ts`). 내역 화면은 영속된 대화 메시지(`output.result.messages`) 끝에 `output.error` 로 같은 항목을 합성한다(`parseHistoryMessages`).
 
-단일 턴 AI Agent 의 실패 출력에도 `output.error` 가 있지만 실시간 `system_error` 는 붙이지 않는다. 조건은 [대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건), 이유는 [대화 미리보기 §단일 턴 실패에는 `system_error` 를 붙이지 않는다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01) 에 있다. 단일 턴 실패 출력에는 `output.result.messages` 가 없어서 대화형 출력(`isConversationOutput`)으로 보지 않고 내역 화면도 이 항목을 합성하지 않는다(`parseHistoryMessages` 가 빈 목록을 돌려준다). 데이터 형태는 아래 [`system_error` 데이터](#system_error-데이터), 시각 규칙은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 정한다.
+단일 턴 AI Agent 의 실패 출력에도 `output.error` 가 있지만 실시간 `system_error` 는 붙이지 않는다. 조건은 [대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건), 이유는 [대화 미리보기 §단일 턴 실패에는 `system_error` 를 붙이지 않는다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#단일-턴-실패에는-system_error-를-붙이지-않는다) 에 있다. 단일 턴 실패 출력에는 `output.result.messages` 가 없어서 대화형 출력(`isConversationOutput`)으로 보지 않고 내역 화면도 이 항목을 합성하지 않는다(`parseHistoryMessages` 가 빈 목록을 돌려준다). 데이터 형태는 아래 [`system_error` 데이터](#system_error-데이터), 시각 규칙은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 정한다.
 
 #### `rag`
 
@@ -151,7 +151,7 @@ etag: "sha256-986763be1489f4b8ffbf2763f0c5727a935c610d332cdc5a445e133a26621d87"
 
 ## 미결 사항
 
-- **실패하거나 취소된 단일 턴이 남긴 항목**: AI 에이전트 단일 턴이 실패하거나 취소되면 응답 없는 `ai_user` 항목이 남는다. 도구 기록을 켰으면 도구 항목도 남는다([누적과 영속화 > AI Agent](CLE-IX-THREAD-STORE.md#ai-agent)). 이 항목을 지울지 실패 표시를 붙일지 정하지 않았다. 어느 쪽이든 [규칙](#규칙) 1(쌓인 항목은 바꾸지 않는다)에 예외를 두거나 별도 항목을 더해야 한다. 취소된 경우는 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#노드-취소는-error-포트로-보내지-않는다-2026-10-31) 의 결정과 맞출지도 함께 정한다. 정보 추출기는 취소되면 스레드에 아무것도 쌓지 않는다. 지금 영향이 보이는 곳은 다른 노드의 입력 대기 스냅샷([대화 미리보기 §단일 턴 실패에는 `system_error` 를 붙이지 않는다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01) 의 알려진 한계), 사용자 메시지를 말풍선으로 그리는 [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md), 뒤따르는 AI 노드가 받는 대화 맥락이다.
+- **실패하거나 취소된 단일 턴이 남긴 항목**: AI 에이전트 단일 턴이 실패하거나 취소되면 응답 없는 `ai_user` 항목이 남는다. 도구 기록을 켰으면 도구 항목도 남는다([누적과 영속화 > AI Agent](CLE-IX-THREAD-STORE.md#ai-agent)). 이 항목을 지울지 실패 표시를 붙일지 정하지 않았다. 어느 쪽이든 [규칙](#규칙) 1(쌓인 항목은 바꾸지 않는다)에 예외를 두거나 별도 항목을 더해야 한다. 취소된 경우는 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#노드-취소는-error-포트로-보내지-않는다) 의 결정과 맞출지도 함께 정한다. 정보 추출기는 취소되면 스레드에 아무것도 쌓지 않는다. 지금 영향이 보이는 곳은 다른 노드의 입력 대기 스냅샷([대화 미리보기 §단일 턴 실패에는 `system_error` 를 붙이지 않는다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#단일-턴-실패에는-system_error-를-붙이지-않는다) 의 알려진 한계), 사용자 메시지를 말풍선으로 그리는 [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md), 뒤따르는 AI 노드가 받는 대화 맥락이다.
 
 ## 구현 위치
 
