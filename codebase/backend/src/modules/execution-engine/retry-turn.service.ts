@@ -804,6 +804,15 @@ export class RetryTurnService {
    *   그래서 시그니처를 `{ persisted, live }` 같은 순수 반환형으로 바꾸는 처방은
    *   이 세 필드를 담지 못한다 — 바꾸려면 되쓰기 소비처까지 함께 설계해야 한다.
    *
+   * **멱등 분기가 driver 를 지나지 않는 이유(CLE-T-84YZDS)**: 상태가 이미 목표와 같으면
+   * `updateExecutionStatus` 를 쓸 수 없다. 상태머신이 자기 전이를 막는다. 또 그 SET 은
+   * `error` 를 늘 덮어쓰므로(`execution-engine.service.ts` `buildExecutionStatusUpdateSql` 의
+   * 쓰기 범위 계약) 취소 분기가 지나면 먼저 쓴 취소의 `error` 가 지워진다. 그래서 두 멱등
+   * 분기는 필요한 lifecycle 컬럼만 직접 UPDATE 한다. 취소 분기는 `error` 를 쓰지 않고 FAILED ·
+   * COMPLETED 분기는 이번 시도의 `error` 를 쓴다. 종결 메트릭
+   * (`emitTerminalExecutionMetrics`)도 내지 않는다. 상태를 terminal 로 옮긴 첫 전이가 이미
+   * 셌으므로 여기서 다시 세면 같은 종결이 두 번 잡힌다.
+   *
    * @returns `true` 면 전이가 영속됐다(호출부는 종결 이벤트를 emit 한다).
    *   `false` 는 (a) row 부재, (b) 정본 상태에서 목표로의 전이가 상태머신상 불가
    *   (= DB 가 이미 terminal — 동시 cancel 선점), (c) guarded UPDATE 0행 매칭.

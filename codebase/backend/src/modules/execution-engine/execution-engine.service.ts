@@ -716,6 +716,18 @@ export function isAbortError(err: unknown): err is Error {
  * 그래서 SQL 을 바꾸면 그 spec 도 함께 깨진다(CLE-T-G1JP5S). 제품 동작은 옛 인라인
  * SQL 과 같다.
  *
+ * **쓰기 범위 계약(CLE-T-84YZDS)**: SET 절은 상태와 관계없이 일곱 컬럼을 모두 쓴다. 특히
+ * `error` 는 모든 전이에서 in-memory `execution.error` 로 덮인다(없으면 `NULL`). 그래서
+ * 호출부는 전이 전에 `error` 를 "이 전이 뒤 DB 에 남아야 할 값" 으로 맞춰 둬야 한다.
+ * - FAILED 로 가는 호출부(`finalizeFailedExecution` · `failFirstSegmentSetup` ·
+ *   `executeSync` timeout)는 이번 실패의 `error` 를 먼저 채운다.
+ * - 재시도는 턴 시작 때 엔티티의 `error` 를 비우고 턴 끝 전이가 이 SET 으로 옛 값을
+ *   지우는 데 기댄다. SET 을 전이별로 좁히면 그 정리가 사라진다. CLE-EXEC-STATE-RETRY
+ *   「재시도 전에 실행 `failed` 를 두 번 확인한다」가 이 공유 SET 을 재시도 전용으로 바꾸지
+ *   않기로 정했고 이 계약은 그 결정을 따른다(사용자 결정 질문 18 A).
+ * - `error` 를 건드리지 않아야 하는 전이는 이 함수를 지나지 않는다. 예: retry-turn
+ *   `finalizeGuarded` 의 취소 멱등 분기는 직접 UPDATE 로 `error` 를 SET 에서 뺀다.
+ *
  * @param guardStatusesSql `status IN (…)` 안에 넣을 목록. `guardStatusesSql()` 가 만든
  *   따옴표 친 상태 목록(`'running', 'pending'`)만 넘긴다. 사용자 입력을 넣지 않는다.
  */
@@ -869,6 +881,8 @@ export class ExecutionEngineService
         return;
       }
       const errMessage = error instanceof Error ? error.message : String(error);
+      // `updateExecutionStatus` 는 `error` 를 늘 덮어쓴다. 전이 전에 이번 실패 값으로 맞춘다
+      // ({@link buildExecutionStatusUpdateSql} 쓰기 범위 계약).
       row.error = { message: errMessage };
       row.finishedAt = new Date();
       if (row.startedAt) {
