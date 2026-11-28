@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-ENTITY"
 title: "통합 데이터와 흐름 — 엔티티와 인덱스"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "523f45c9da4891a77f2bf311ffe37b02aecc812fadb4709151cd27e933ba0c7a"
+content_hash: "81c305b820f5f5d9400b778d024adcd4dc7783bf24cc39eeaf804e4d5ca50c9f"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-22PSME"
 source_paths: []
-mirror_sha256: "01f102f96141882cc061ed69634ed7ce9d65a8df82775c6d0e568f027698740a"
-etag: "sha256-2e5469325968553cb6784297eb6f04a780176f28eef6f0a32fff061a036d1113"
+mirror_sha256: "a84d5b201b0b1f1518eb4fc4c14753b419c072b8e4aba99a069fed7c373e73ed"
+etag: "sha256-b832ee48889bf9380c1bff94d9b454b4224db01a7578c78612bd8c8f9edf85ba"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-2e5469325968553cb6784297eb6f04a780176f28eef6f0a32fff061a036d1113"
 | install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 설치 토큰을 새로 발급할 때만 갱신한다. 설치 대기 행을 다시 써도 설치 토큰을 보존하면 그대로 두고 연결 성공 콜백에서도 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
 | mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. NULL 인 경우는 셋이다. V045 이전 행은 다음 저장(콜백·재인증)에서 채운다. MakeShop 설치 대기 행은 App URL 을 거쳐 `shop_uid` 를 받을 때 채운다. 설치 대기 행이 설치 기한을 넘겨 만료(`install_timeout`)되면 NULL 로 비운다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 이 규칙 전에 만료된 행은 V154 가 한 번 비웠다. 만료 행은 다시 채우지 않는다. 콜백, begin 의 행 재사용, App URL 은 설치 대기 행만 다룬다. NULL 이 세 뜻이라 같은 상점을 찾을 때 NULL 로 가르지 않는다(아래 상점 식별자 유일성의 조회 함수). Cafe24·MakeShop 행에서도 NOT NULL 로 강화하지 않는다. V045 |
 | status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [상태 모델 「상태 값과 상태 사유」](CLE-INT-STATUS-MODEL.md#상태-값과-상태-사유). 연결됨 행에도 `oauth_invalid_scope` 가 남을 수 있다([상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)). `VARCHAR(64)`, V008 |
-| consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 노드 취소 신호로 끝난 요청(`AbortError`)은 세지 않는다([통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 연속 전송 실패 요구사항). 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
+| consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 노드 취소 신호로 끝난 요청(`AbortError`)은 세지 않는다([통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 연속 전송 실패 요구사항). 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. health 판정의 내부 카운터라 통합 API 응답에는 싣지 않는다([통합 관리 API](CLE-INT-MANAGE-API.md)). NOT NULL DEFAULT 0. V049 |
 | token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
 | last_used_at | Timestamp? | 마지막으로 노드 실행에서 쓴 시각(캐시) |
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
@@ -81,7 +81,7 @@ etag: "sha256-2e5469325968553cb6784297eb6f04a780176f28eef6f0a32fff061a036d1113"
 
 #### 호출 API 식별 채우기 규칙
 
-활동 로그에 행을 쓰는 실행 경로는 `logUsage` 를 부를 때 `api` 식별 정보를 함께 넘긴다. 외부 MCP 서버의 도구 호출만 예외다(아래 적용 범위 3). 채우는 값은 통합마다 다르다. 이 표가 채우기 규칙의 단일 기준이고, 각 노드 문서의 «활동 로그» 절은 자기 행을 가리킨다. [통합 관리 「활동 탭」](CLE-INT-MANAGE.md#활동-탭) 은 세 값을 화면에 어떻게 보이는지만 정하고 채우기 규칙은 이 표를 가리킨다.
+활동 로그에 행을 쓰는 실행 경로는 `logUsage` 를 부를 때 `api` 식별 정보를 함께 넘긴다. 채우는 값은 통합마다 다르다. 이 표가 채우기 규칙의 단일 기준이고, 각 노드 문서의 «활동 로그» 절은 자기 행을 가리킨다. [통합 관리 「활동 탭」](CLE-INT-MANAGE.md#활동-탭) 은 세 값을 화면에 어떻게 보이는지만 정하고 채우기 규칙은 이 표를 가리킨다.
 
 | 통합 | `api_label` | `api_method` | `api_path` |
 | --- | --- | --- | --- |
@@ -90,13 +90,13 @@ etag: "sha256-2e5469325968553cb6784297eb6f04a780176f28eef6f0a32fff061a036d1113"
 | http-request ([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)) | NULL | HTTP 메서드 | host + path. query string 은 뺀다. baseUrl 이 없으면 path 만 |
 | database-query ([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)) | NULL | 평가된 SQL 의 첫 동사(`SELECT`/`INSERT`/`UPDATE`/`DELETE` 등). `queryType` 과 관계없이 앞 공백을 뺀 첫 영문 단어를 대문자로 쓰고, 첫 글자가 영문이 아니면(맨 앞 주석 포함) NULL 이다 | 드라이버(`postgres` / `mysql`) |
 | send-email ([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md)) | NULL | `SEND` | SMTP host 또는 NULL |
-| mcp (외부 MCP 서버, [MCP 클라이언트](CLE-INT-MCP.md)) | NULL | NULL | NULL. 도구 호출을 기록하지만 `api` 를 넘기지 않는다 |
+| mcp (외부 MCP 서버, [MCP 클라이언트](CLE-INT-MCP.md)) | 서버가 알린 원래 도구 이름(접두사를 붙이기 전 이름) | NULL | NULL. MCP 에는 HTTP 메서드 · 경로가 없다 |
 
-적용 범위는 세 경로다. 앞의 두 경로가 `api` 를 넘긴다. 세 경로 모두 dry-run 재실행의 모의 출력 · 모의 응답은 기록하지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
+적용 범위는 세 경로이고 모두 `api` 를 넘긴다. 세 경로 모두 dry-run 재실행의 모의 출력 · 모의 응답은 기록하지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
 
 1. 노드 핸들러 경로: cafe24·makeshop·http-request·database-query·send-email 노드는 `IntegrationHandlerBase.logUsage` 에 `api` 인자를 넘기고, 베이스 클래스가 `IntegrationsService.logUsage` 로 전달한다.
 2. 내부 MCP 브리지 경로: AI 에이전트 노드에 붙은 통합을 MCP 도구로 노출하는 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)는 노드 베이스 클래스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부른다. 도구 프로바이더는 도구 목록을 만들 때 얻은 통합을 들고 있다가 도구를 실행할 때 그 통합을 넘긴다. 이 경로도 노드 핸들러와 같은 카탈로그 키 형식으로 `api.label` 을 채운다. 이때 `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 기록하지 않는다.
-3. 외부 MCP 서버 경로: AI 에이전트 노드에 붙은 `mcp` 통합의 도구 호출(`McpToolProvider`)도 `IntegrationsService.logUsage` 를 직접 부른다. 이 경로는 `api` 를 넘기지 않아 세 컬럼이 NULL 이다.
+3. 외부 MCP 서버 경로: AI 에이전트 노드에 붙은 `mcp` 통합의 도구 호출(`McpToolProvider`)도 `IntegrationsService.logUsage` 를 직접 부른다. `api.label` 에 서버가 알린 원래 도구 이름을 넣고 `method` · `path` 는 NULL 로 넘긴다. 성공 · 도구 오류 결과 · 예외가 모두 같다.
 
 내부 MCP 브리지 경로는 노드 베이스 클래스를 거치지 않으므로 `api` 를 빠뜨려도 노드 핸들러 테스트는 통과한다. 새 노드 핸들러나 새 브리지 도구 프로바이더를 더할 때 `logUsage` 의 `api` 동반을 반드시 확인한다.
 
@@ -227,7 +227,7 @@ etag: "sha256-2e5469325968553cb6784297eb6f04a780176f28eef6f0a32fff061a036d1113"
 활동 탭이 시간·상태·소요 시간·에러만 보여 주면 Cafe24 처럼 한 통합이 수십 endpoint 를 다루는 서비스에서 실패 행의 원인 API 를 알 수 없다. 그래서 `api_label`·`api_method`·`api_path` 세 컬럼을 둔다. 채우는 값이 통합마다 비대칭이라 한 컬럼으로는 같게 표현할 수 없었다. Cafe24·MakeShop 은 카탈로그 라벨이 있고 나머지는 endpoint 만 있다. 한 `api` 컬럼으로 합치면 Cafe24·MakeShop 의 라벨과 endpoint 두 줄 표시가 깨지고, 나중에 메서드·경로별 인덱스와 필터를 더할 여지도 사라진다. 비정규화 비용은 행당 최대 392바이트(128+8+256)로, 행 평균 200~500바이트인 에러 메시지·코드에 비하면 작다.
 
 - **http-request 는 query string 을 뺀다.** 같은 endpoint 호출을 묶어 보려면 query 차이를 무시해야 한다. query 에는 `api_key`·`token` 같은 자격 증명이 섞이기 쉬운데 활동 로그는 평문으로 저장한다.
-- **database-query 는 드라이버 이름만 남긴다.** SQL 본문은 길이가 가변이라 `varchar(256)` 을 자주 넘고, 파라미터를 인라인하면 개인정보가 그대로 드러나며, 파싱과 정규화 비용도 생긴다. 드라이버 이름만으로도 «어느 DB 였는지» 라는 진단 신호는 충분하다.
+- **database-query 는 SQL 본문을 남기지 않는다.** `api_path` 에는 드라이버 이름, `api_method` 에는 SQL 의 첫 동사만 남긴다. SQL 본문은 길이가 가변이라 `varchar(256)` 을 자주 넘고, 파라미터를 인라인하면 개인정보가 그대로 드러나며, 파싱과 정규화 비용도 생긴다. 드라이버 이름과 첫 동사만으로도 «어느 DB 에 어떤 문장을 보냈는지» 라는 진단 신호는 충분하다.
 - **send-email 은 수신자를 저장하지 않는다.** 수신자 이메일은 개인정보다. SMTP host 만 남겨 «어느 메일 서버였는지» 만 보인다. 가린 수신자 정보는 노드 출력의 `output.error.details.to` 가 따로 준다.
 
 카탈로그 라벨을 사람이 읽는 문구로 바꾸는 책임을 프런트엔드에 두는 이유는 [통합 관리](CLE-INT-MANAGE.md) 의 Rationale 에 있다.
@@ -254,9 +254,15 @@ Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실�
 
 결정일: 2026-11-13
 
-`api_*` 채우기 표의 정본을 이 문서 한 곳으로 정했다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 실행 로직도 이 표를 가리킨다). 코드와 대조하니 외부 MCP 서버의 도구 호출(`McpToolProvider`)만 `api` 를 넘기지 않아서 지금 동작대로 `mcp` 행과 적용 범위 3 을 더했다.
+`api_*` 채우기 표의 정본을 이 문서 한 곳으로 정했다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 실행 로직도 이 표를 가리킨다). 코드와 대조하니 외부 MCP 서버의 도구 호출(`McpToolProvider`)만 `api` 를 넘기지 않아서 당시 동작대로 세 컬럼이 NULL 인 `mcp` 행과 적용 범위 3 을 더했다. `api_label` 은 2026-11-28 에 도구 이름으로 바꿨다(아래 절).
 
-- 고치지 않은 것: 외부 MCP 도구 호출의 `api_*` 를 채우는 일은 코드 변경이라 NERV Task `CLE-T-22PSME` 가 맡는다.
+### 외부 MCP 도구 호출은 `api_label` 에 도구 이름을 남긴다
+
+결정일: 2026-11-28
+
+외부 MCP 서버의 도구 호출은 세 `api_*` 컬럼을 모두 NULL 로 남겨서 활동 탭에서 어떤 도구를 불렀는지 알 수 없었다. NERV Task `CLE-T-22PSME` 에서 사람이 `api_label` 에 서버가 알린 원래 도구 이름을 남기는 안을 골랐다. 128자를 넘는 이름은 다른 경로와 같이 `logUsage` 가 자른다. MCP 에는 HTTP 메서드 · 경로가 없어 `api_method` · `api_path` 는 NULL 이다.
+
+- **기각한 안**: 세 컬럼을 모두 NULL 로 두는 이전 동작. 활동 로그만으로는 어떤 도구를 불렀는지 가를 수 없다.
 
 ### Database Query 의 `api_method` 는 실행한 SQL 의 첫 동사다
 
