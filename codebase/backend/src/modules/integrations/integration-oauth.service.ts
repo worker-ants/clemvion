@@ -394,7 +394,11 @@ function markCallbackConnected(
   }
 }
 
-function readErrorCode(err: unknown): string {
+/**
+ * 콜백 예외에서 `last_error.code` 로 남길 코드를 읽는다. NestJS 응답 객체의 `code` 가 없으면
+ * `OAUTH_CALLBACK_FAILED` 다. 콜백 팝업의 postMessage `code` 도 이 값을 쓴다(CLE-INT-OAUTH-CALLBACK 「에러 매핑」).
+ */
+export function readErrorCode(err: unknown): string {
   const code = (err as { response?: { code?: string } })?.response?.code;
   return typeof code === 'string' ? code : OAUTH_CALLBACK_FAILED;
 }
