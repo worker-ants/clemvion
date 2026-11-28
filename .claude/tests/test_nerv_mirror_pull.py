@@ -603,6 +603,11 @@ class CheckTest(_Fixture):
             with self.subTest(body=body):
                 self.assertEqual(pull.has_overview(body), ok)
 
+    def test_limitation_a_fenced_overview_line_counts_as_the_overview(self):
+        # 문서에 적은 한계: `has_overview` 는 줄 단위 정규식이라 코드 블록 안의 `## 개요` 도 개요로 센다.
+        # 공용 울타리 헬퍼(`_lib/md_lines.py`)를 쓰면 이 도구가 `.claude/hooks` 를 import 해야 한다(CI sparse checkout 범위).
+        self.assertTrue(pull.has_overview("```\n## 개요\n```\n"))
+
     def test_empty_mirror_fails(self):
         self.assertEqual(len(pull.check(self.spec)), 1)
 

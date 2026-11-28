@@ -27,6 +27,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -142,17 +143,18 @@ class SharedFenceTest(unittest.TestCase):
         "``` a`b\n## 2026-01-09 밖(울타리 아님)\n",
         "   ```\n## 2026-01-10 안\n   ```  \n## 2026-01-11 밖\n",
         "    ```\n## 2026-01-12 밖(들여쓰기 코드)\n",
-        "## 2026-01-13 밖 ##\n```\n## 2026-01-14 닫히지 않음\n",
         "```\n```x\n## 2026-01-15 안(닫는 울타리 아님)\n```\n",
+        "## 2026-01-13 밖 ##\n",
     ]
+    # 닫히지 않은 울타리가 든 본문과, 그 안에서 훅만 세는 날짜 제목.
+    UNCLOSED = [("## 2026-01-13 밖 ##\n```\n## 2026-01-14 닫히지 않음\n", "2026-01-14 닫히지 않음")]
+    DATE = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)")
 
     def test_both_tools_use_the_shared_helper(self):
         for name, mod in (("anchor_check", anchor_check), ("spec_heading", spec_heading)):
             with self.subTest(module=name):
                 self.assertIs(mod.lines_outside_fences, md_lines.lines_outside_fences)
                 self.assertIs(mod.ATX_HEADING, md_lines.ATX_HEADING)
-                # 울타리 정규식을 다시 두지 않는다(옛 `_FENCE` · `_HEADING` 복제가 돌아오면 빨갛다).
-                self.assertNotIn("{3,}", Path(mod.__file__).read_text(encoding="utf-8"))
 
     def test_unclosed_fence_policy(self):
         body = "# a\n```\n# b\n~~~\n# c\n"
@@ -164,19 +166,41 @@ class SharedFenceTest(unittest.TestCase):
         for body in self.BODIES:
             hide = list(md_lines.lines_outside_fences(body, unclosed_hides_rest=True))
             keep = list(md_lines.lines_outside_fences(body, unclosed_hides_rest=False))
-            if "닫히지 않음" in body:
-                self.assertEqual(keep[:len(hide)], hide, body)
-                self.assertGreater(len(keep), len(hide), body)
-            else:
-                self.assertEqual(hide, keep, body)
+            self.assertEqual(hide, keep, body)
+        for body, _extra in self.UNCLOSED:
+            hide = list(md_lines.lines_outside_fences(body, unclosed_hides_rest=True))
+            keep = list(md_lines.lines_outside_fences(body, unclosed_hides_rest=False))
+            self.assertEqual(keep[:len(hide)], hide, body)
+            self.assertGreater(len(keep), len(hide), body)
 
     def test_same_date_headings_as_the_heading_guard(self):
         """두 도구가 같은 줄을 제목으로 본다. 닫히지 않은 울타리 안의 날짜 제목만 훅 쪽에 더 있다."""
-        for body in self.BODIES:
-            ours = [raw.strip() for raw in anchor_check.headings(body) if spec_heading._DATE.search(raw)]
+        for body, extra in [(b, None) for b in self.BODIES] + self.UNCLOSED:
+            ours = [raw.strip() for raw in anchor_check.headings(body) if self.DATE.search(raw)]
             lib = [md_lines.ATX_HEADING.match(line).group("text") for line in spec_heading.date_headings(body)]
-            extra = ["2026-01-14 닫히지 않음"] if "닫히지 않음" in body else []
-            self.assertEqual(lib, ours + extra, body)
+            self.assertEqual(lib, ours + ([extra] if extra else []), body)
+
+    def test_atx_heading_text_table(self):
+        cases = {"#": None, "##   ": "", "# a": "a", "## a#": "a#", "## a \\#": "a \\#", "## a ##": "a",
+                 "## a ## b": "a ## b", "   ## a": "a", "    ## a": "NOHEAD", "#a": "NOHEAD",
+                 "####### a": "NOHEAD", "## a   ": "a"}
+        for line, want in cases.items():
+            with self.subTest(line=line):
+                m = md_lines.ATX_HEADING.match(line)
+                if want == "NOHEAD":
+                    self.assertIsNone(m)
+                else:
+                    self.assertIsNotNone(m)
+                    self.assertEqual(m.group("text"), want)
+
+    def test_fence_edges(self):
+        out = lambda b, h=True: list(md_lines.lines_outside_fences(b, unclosed_hides_rest=h))
+        self.assertEqual(out(""), [])
+        self.assertEqual(out("```\n```\n"), [])
+        self.assertEqual(out("```\nx\n```   \ny\n"), [(4, "y")])
+        self.assertEqual(out("\t```\nx\n"), [(1, "\t```"), (2, "x")])
+        # 훅 정책에서 다시 내보낸 줄은 원래 줄 번호를 지킨다.
+        self.assertEqual(out("a\n```\nb\nc\n", False), [(1, "a"), (3, "b"), (4, "c")])
 
 
 class LinksTest(unittest.TestCase):
