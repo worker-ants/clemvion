@@ -142,6 +142,7 @@ import {
   NodeEventType,
 } from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
+import { cancellationReasonFromError } from './events/cancellation-reason';
 import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { ConfigService } from '@nestjs/config';
@@ -245,6 +246,7 @@ import {
   TERMINAL_FINISHED_AT_PARAM,
   toFiniteNumber,
 } from '../../shared/utils/terminal-duration';
+import { buildExecutionStatusUpdateSql } from './execution-status-update-sql';
 
 /** RUNNING 을 벗어나며 닫은 구간. 두 값 모두 이 인스턴스의 `Date.now()`(ms) 다. */
 interface ClosedRunningSegment {
@@ -840,6 +842,8 @@ export class ExecutionEngineService
         return;
       }
       const errMessage = error instanceof Error ? error.message : String(error);
+      // `updateExecutionStatus` 는 `error` 를 늘 덮어쓴다. 전이 전에 이번 실패 값으로 맞춘다
+      // ({@link buildExecutionStatusUpdateSql} 쓰기 범위 계약).
       row.error = { message: errMessage };
       row.finishedAt = new Date();
       if (row.startedAt) {
@@ -1148,21 +1152,11 @@ export class ExecutionEngineService
   }
 
   /**
-   * 다중 인스턴스 환경에서 사용자 입력 (form / button / ai-message / cancel)
-   * 은 어느 인스턴스로도 들어올 수 있다. ContinuationBusService 가 모든
-   * 인스턴스로 메시지를 fan-out 하고, 로컬 `pendingContinuations` Map 에
-   * 키가 있는 인스턴스만 실제 resolve 를 수행한다 (호스팅 인스턴스).
-   *
-   * Map 에 키가 없는 인스턴스는 silent skip — 같은 메시지를 두 곳에서
-   * 처리하지 않도록 보장한다.
-   */
-  /**
    * Phase 2 — BullMQ Worker (continuation-execution.processor.ts) 가 호출하는
    * dispatch entry. spec/5-system/4-execution-engine.md §7.5.
    *
-   * Fast path: 로컬 `pendingContinuations` Map 에 키가 있으면 즉시 resolve.
-   * Slow path: 키 miss + WAITING_FOR_INPUT 상태 유효 시 §7.5 rehydration
-   *   경로 진입 (rehydrateAndResume).
+   * 재개 경로는 §7.5 rehydration(`rehydrateAndResume`) 하나뿐이다. park 가 늘
+   * 코루틴을 해제하므로 어느 인스턴스에도 깨울 in-memory resolver 가 없다.
    *
    * sentinel wrap (spec §10.9 — 'continue' 의 `{type:'form_submitted',formData}`)
    * 은 caller (continueExecution) 가 wrap 한 채로 전달되므로 본 메서드는
@@ -1227,9 +1221,8 @@ export class ExecutionEngineService
    * `execution_id + status = WAITING_FOR_INPUT` 을 키로 단일 UPDATE — 해당 row 가
    * 없으면(이미 CANCELLED / resume 으로 COMPLETED) 멱등 no-op.
    *
-   * PR-B1 범위: form/button top-level park 전용. 멀티턴 AI in-memory 코루틴은
-   * `applyCancellation` 이 `rejectPending` 경로로 별도 처리하므로 본 함수에 도달하지
-   * 않는다. `finalizeRehydrationCleanup` 에 live AI contextService 가 없어 경합 없음.
+   * park 가 코루틴을 늘 해제하므로 멀티턴 AI 대기도 이 함수로 마감한다(깨울
+   * in-memory 코루틴이 없다).
    *
    * @remarks DB 오류는 내부 흡수 — 호출자에 예외 전파 없음 (best-effort cancel).
    *
@@ -1540,20 +1533,17 @@ export class ExecutionEngineService
   }
 
   /**
-   * §7.5 Resume after Restart (rehydration) — slow path 본체.
+   * §7.5 Resume after Restart (rehydration) — 단일 재개 경로의 본체.
    *
-   * Phase 2.3a — 진짜 재개 로직. BullMQ Worker 가 user input 을 받은 시점에
-   * 로컬 `pendingContinuations` 에 키가 없다면 (instance restart 또는 다른
-   * 인스턴스가 publisher 였던 경우) 본 메서드가:
+   * BullMQ Worker 가 사용자 입력을 받으면 어느 인스턴스에서든 본 메서드가:
    *   1. Execution / NodeExecution / Node 정의의 invariant 검증
    *   2. `rehydrateContext` — execution_node_log 의 완료 노드 순서와
    *      NodeExecution.outputData 로 ExecutionContext (nodeOutputCache /
    *      executedNodes / variables) 재구성
-   *   3. `resumeFromCheckpoint` — 그래프 순회 재개. 적절한 waitForX 메서드를
-   *      직접 호출 (executeNode 우회 — 기존 NodeExecution row 가 이미
-   *      WAITING_FOR_INPUT). setImmediate 로 등록된 pending resolver 를
-   *      payload 와 함께 즉시 fire 해 waitForX 의 await 가 풀린다. 이후
-   *      그래프 traversal 을 평소대로 진행.
+   *   3. `resumeFromCheckpoint` — 그래프 순회 재개. executeNode 를 거치지 않고
+   *      (기존 NodeExecution row 가 이미 WAITING_FOR_INPUT) 도착 payload 를
+   *      `dispatchResumeTurn` 으로 노드 타입별 resume 처리기에 넘긴 뒤 그래프
+   *      traversal 을 평소대로 진행.
    *
    * **알려진 한계** (spec §7.5 의 RESUME_INCOMPATIBLE_STATE 사례):
    * - Multi-turn AI 노드의 `_resumeState` 는 보안상 DB 에 저장되지 않으므로
@@ -1567,7 +1557,7 @@ export class ExecutionEngineService
    * - `RESUME_FAILED` — 일반 런타임 실패. BullMQ attempts 소진 dead-letter.
    *
    * @param payload — sentinel/format wrapped 사용자 입력 (form_submitted,
-   *                  button_click, ai_message 등). waitForX 가 unwrap.
+   *                  button_click, ai_message 등). resume 처리기가 unwrap.
    */
   private async rehydrateAndResume(
     executionId: string,
@@ -2160,15 +2150,14 @@ export class ExecutionEngineService
   }
 
   /**
-   * Phase 2.3a — §7.5 resume body. 재구성된 context 로 waitForX 직접 invoke 후
-   * 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
+   * Phase 2.3a — §7.5 resume body. 재구성된 context 로 대기 노드의 resume 처리기를
+   * 부른 뒤 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
    * 구조와 동일 — 차이점:
    *   - graph state 를 새로 build (재시작 후 in-memory 자료 소실)
    *   - reachability 와 executedNodes 를 rehydrated state 로 seed
    *   - executeNode 우회: 기존 NodeExecution row 가 이미 WAITING_FOR_INPUT
-   *     이므로 새 row 를 만들지 않고 waitForX 만 호출
-   *   - setImmediate polling (최대 50회) 으로 pendingContinuations resolver
-   *     등록을 대기 후 payload fire (waitForX 등록 완료 tick 에 실행)
+   *     이므로 새 row 를 만들지 않고 `driveResumeAwaited` 가 payload 를
+   *     `dispatchResumeTurn` 으로 바로 넘긴다
    */
   private async resumeFromCheckpoint(
     savedExecution: Execution,
@@ -4099,7 +4088,7 @@ export class ExecutionEngineService
 
     // Workspace 격리: target workflow 가 호출자와 다른 workspace 면 차단 (W-6).
     // context.variables.__workspaceId 는 runExecution 이 부모 workflow.workspaceId
-    // 로 주입한다 (line 1238 참고).
+    // 로 주입한다 (`runExecution` 의 initialVariables 참고).
     const callerWorkspaceId =
       (context.variables?.__workspaceId as string | undefined) || undefined;
     const targetWorkflow = await this.workflowRepository.findOneBy({
@@ -5136,6 +5125,9 @@ export class ExecutionEngineService
       savedExecution,
       ExecutionStatus.CANCELLED,
     );
+    // 취소 사유는 DB 행의 `error.code` 로 정한다(CLE-T-NP5VPK). 이 함수가 CANCELLED 를
+    // 썼으면 방금 쓴 `savedExecution.error` 가, 0행이면 재조회한 `live.error` 가 DB 값이다.
+    let dbError = savedExecution.error;
     if (!persisted) {
       // **0행은 두 가지를 뜻한다.** 자매 `finalizeFailedExecution` 처럼 무조건 skip 하면
       // 안 된다 — 그쪽은 "FAILED 로 덮어쓰지 말라" 가 목적이라 극성이 반대다.
@@ -5182,9 +5174,12 @@ export class ExecutionEngineService
       // (a) — DB 가 cancelled 다. 값은 DB 정본으로 맞춰 wire 와 일치시킨다.
       savedExecution.durationMs = live.durationMs ?? savedExecution.durationMs;
       savedExecution.finishedAt = live.finishedAt ?? savedExecution.finishedAt;
+      // 다른 취소 경로(재개 실패 `RESUME_*` · 큐 대기 · 웹채팅 유휴 회수)가 먼저 썼으면
+      // 그 `error.code` 가 사유다. `'user'` 로 고정하면 사유와 `error` 부재가 함께 틀린다.
+      dbError = live.error;
     }
     await this.emitCancellationEvent(savedExecution.id, {
-      cancelledBy: 'user',
+      ...cancellationReasonFromError(dbError),
       durationMs: resolveTerminalDurationMs(savedExecution),
       logContext,
     });
@@ -7791,7 +7786,7 @@ export class ExecutionEngineService
       parentNodeExecution?.outputData,
     );
 
-    // workspaceId 는 `context.variables.__workspaceId` 에 저장된다 (line 1210
+    // workspaceId 는 `context.variables.__workspaceId` 에 저장된다 (`runExecution`
     // 의 initialVariables). 옛 코드가 `context.expressionContext.workspaceId`
     // 를 읽었지만 이 경로에는 아무도 쓰지 않아 항상 빈 문자열이 되었고,
     // 결과적으로 dispatchFailureNotification 의 `if (!data.workspaceId) return;`
@@ -9464,17 +9459,7 @@ export class ExecutionEngineService
     await this.dataSource.transaction(async (manager) => {
       // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
       const updated: unknown = await manager.query(
-        `UPDATE execution
-            SET status = $2,
-                active_running_ms = $3,
-                finished_at = $4,
-                duration_ms = $5,
-                output_data = $6::jsonb,
-                resume_call_stack = $7::jsonb,
-                error = $8::jsonb
-          WHERE id = $1
-            AND status IN (${elseStatusesSql})
-          RETURNING id`,
+        buildExecutionStatusUpdateSql(elseStatusesSql),
         [
           execution.id,
           newStatus,
