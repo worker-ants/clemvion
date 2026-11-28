@@ -113,8 +113,9 @@ describe('Change password — 세션 회전 + 감사 (e2e)', () => {
     expect(res.body.error.code).toBe('PASSWORD_REQUIRED');
     // 불일치 분기와 **다른** 코드여야 한다(대조군).
     expect(res.body.error.code).not.toBe('PASSWORD_INVALID');
-    // 안내 문구가 비밀번호 추가 경로를 가리킨다 — FE 가 서버 message 를 그대로 노출한다.
-    expect(res.body.error.message).toContain('재설정');
+    // 서버 message 는 영문 디버깅 문구이고 비밀번호 추가 경로(재설정)를 가리킨다.
+    // 화면 문구는 FE 가 code 로 고른다(CLE-UI-I18N-BACKEND 규칙 5).
+    expect(res.body.error.message).toContain('password reset');
 
     const audit = await db.query(
       `SELECT 1 FROM audit_log WHERE user_id = $1 AND action = 'user.password_changed'`,

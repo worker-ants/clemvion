@@ -25,6 +25,7 @@ import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { TotpService } from './totp.service';
 import { PasswordRecheckFailureLimiterService } from './password-recheck-failure-limiter.service';
+import { AUTH_ERROR_BODIES } from './auth-error-bodies';
 
 function sha256(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -679,10 +680,7 @@ describe('AuthService', () => {
       const err = await loginError();
 
       expect(err).toBeInstanceOf(UnauthorizedException);
-      expect(errorBody(err)).toEqual({
-        code: 'LOGIN_FAILED',
-        message: 'Invalid email or password',
-      });
+      expect(errorBody(err)).toEqual({ ...AUTH_ERROR_BODIES.loginFailed });
       expect(lastFailureReason()).toBe('USER_NOT_FOUND');
     });
 
@@ -710,10 +708,7 @@ describe('AuthService', () => {
 
       const err = await loginError();
 
-      expect(errorBody(err)).toEqual({
-        code: 'LOGIN_FAILED',
-        message: 'Invalid email or password',
-      });
+      expect(errorBody(err)).toEqual({ ...AUTH_ERROR_BODIES.loginFailed });
       expect(lastFailureReason()).toBe('PASSWORD_NOT_SET');
     });
 
@@ -726,10 +721,7 @@ describe('AuthService', () => {
 
       const err = await loginError('Wrong123!@#');
 
-      expect(errorBody(err)).toEqual({
-        code: 'LOGIN_FAILED',
-        message: 'Invalid email or password',
-      });
+      expect(errorBody(err)).toEqual({ ...AUTH_ERROR_BODIES.loginFailed });
       expect(lastFailureReason()).toBe('INVALID_PASSWORD');
       expect(usersService.incrementLoginAttempts).toHaveBeenCalledWith(
         mockUser.id,
@@ -1183,10 +1175,7 @@ describe('AuthService', () => {
     it('비밀번호가 맞아도 코드가 틀리면 401 TOTP_INVALID 이고 2FA 는 켜진 채로 남는다', async () => {
       await withPasswordUser();
       totpService.verifyForDisable.mockRejectedValue(
-        new UnauthorizedException({
-          code: 'TOTP_INVALID',
-          message: 'The verification code is incorrect.',
-        }),
+        new UnauthorizedException({ ...AUTH_ERROR_BODIES.totpInvalid }),
       );
 
       await expect(

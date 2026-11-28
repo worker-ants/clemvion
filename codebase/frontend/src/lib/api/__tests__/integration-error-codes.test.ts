@@ -121,6 +121,15 @@ describe("formatIntegrationErrorToast", () => {
     ).toBe("이름이 비었습니다");
   });
 
+  it.each(["constructor", "toString", "hasOwnProperty"])(
+    "프로토타입 이름 %s 은 두 표 어디에서도 코드로 보지 않는다(CLE-T-7QQPK7)",
+    (code) => {
+      expect(
+        formatIntegrationErrorToast(wrapped(code, "Raw text."), t, FALLBACK),
+      ).toBe("Raw text.");
+    },
+  );
+
   it("응답 본문이 없으면 오류 메시지, 그것도 없으면 대체 문구다", () => {
     expect(
       formatIntegrationErrorToast(new Error("Network Error"), t, FALLBACK),

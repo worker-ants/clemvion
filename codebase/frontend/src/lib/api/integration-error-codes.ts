@@ -7,7 +7,11 @@ import {
   extractApiMessage,
   type ApiErrorBody,
 } from "./errors";
-import { SERVER_ERROR_CODE_TO_I18N } from "./server-error-messages";
+import {
+  SERVER_ERROR_CODE_TO_I18N,
+  resolveServerError,
+  type ServerErrorKeyTable,
+} from "./server-error-messages";
 
 /**
  * Backend integration 에러 코드 중 frontend 가 도메인-aware 메시지로 remap 하는
@@ -75,27 +79,6 @@ export const INTEGRATION_ERROR_CODE_TO_I18N: Readonly<
 };
 
 /**
- * Backend 에러 응답에서 `code` 를 꺼내 매핑된 i18n 키를 반환.
- * 매핑 없는 코드면 `null` 반환 — 호출자는 fallback 처리.
- */
-export function getIntegrationErrorI18nKey(
-  errorCode: string | null | undefined,
-): TranslationKey | null {
-  if (!errorCode) return null;
-  if (
-    Object.prototype.hasOwnProperty.call(
-      INTEGRATION_ERROR_CODE_TO_I18N,
-      errorCode,
-    )
-  ) {
-    return INTEGRATION_ERROR_CODE_TO_I18N[
-      errorCode as IntegrationLocalizedErrorCode
-    ];
-  }
-  return null;
-}
-
-/**
  * 오류 응답에서 코드 · 메시지 · details 를 꺼낸다. 응답 본문을 읽는 규칙(전역 예외 필터의 `{error:{code,message,details}}`
  * 래핑과 평탄한 `{code,message}`)은 `lib/api/errors.ts` 의 `extract*` 헬퍼가 갖는다.
  * `serverMessage` 는 응답 본문의 문구, `errorMessage` 는 axios 같은 오류 객체 자체의 문구다.
@@ -133,31 +116,31 @@ function pendingInstallExpiresAt(details: unknown): string | null {
 }
 
 /**
- * 통합 API 오류를 토스트 문구로 바꾼다. 매핑에 있는 코드는 번역 문구를 앞에 두고 서버 문구를 괄호에 둔다.
- * 설치 대기 409 는 설치 기한을 화면 시각으로 붙인다. 매핑에 없는 코드는 공용 코드 매핑
- * (`SERVER_ERROR_CODE_TO_I18N`)의 사전 문구, 서버 문구, 오류 객체의 문구, `fallbackKey` 순으로 고른다.
- * 공용 매핑을 먼저 보는 것은 가드 거부(`NOT_A_MEMBER` 등)처럼 영문 서버 문구가 한국어 화면에 그대로 보이지 않게
- * 하려는 것이다(NERV CLE-UI-I18N-BACKEND 규칙 5, Task CLE-T-CHP94Z).
+ * 통합 API 오류를 토스트 문구로 바꾼다. 코드는 공용 해석 함수 `resolveServerError` 에 이 모듈의 표
+ * (`INTEGRATION_ERROR_CODE_TO_I18N`)를 `overrides` 로 넘겨 고른다(NERV CLE-UI-I18N-BACKEND 규칙 5, Task CLE-T-7QQPK7).
+ * 통합 표에 있는 코드는 번역 문구를 앞에 두고 서버 문구를 괄호에 둔다. 설치 대기 409 는 설치 기한을 화면 시각으로
+ * 붙인다. 통합 표에 없으면 공용 표의 사전 문구, 서버 문구, 오류 객체의 문구, `fallbackKey` 순으로 고른다.
+ * 공용 표를 보는 것은 가드 거부(`NOT_A_MEMBER` 등)처럼 영문 서버 문구가 한국어 화면에 그대로 보이지 않게 하려는
+ * 것이다(Task CLE-T-CHP94Z).
  */
 export function formatIntegrationErrorToast(
   err: unknown,
   t: TFunction,
   fallbackKey: TranslationKey,
 ): string {
-  const { code, serverMessage, errorMessage, details } =
-    readIntegrationError(err);
-  const mappedKey = getIntegrationErrorI18nKey(code);
-  if (!mappedKey) {
-    const sharedKey = code ? SERVER_ERROR_CODE_TO_I18N[code] : undefined;
-    if (sharedKey) return t(sharedKey);
-    return serverMessage ?? errorMessage ?? t(fallbackKey);
-  }
+  const { key, source } = resolveServerError(
+    err,
+    INTEGRATION_ERROR_CODE_TO_I18N,
+  );
+  const { serverMessage, errorMessage, details } = readIntegrationError(err);
+  if (!key) return serverMessage ?? errorMessage ?? t(fallbackKey);
+  if (source === "shared") return t(key);
   const expiresAt = pendingInstallExpiresAt(details);
   const primary = expiresAt
-    ? `${t(mappedKey)} ${t("integrations.retryAfterPendingInstallExpiry", {
+    ? `${t(key)} ${t("integrations.retryAfterPendingInstallExpiry", {
         expiresAt: formatDate(expiresAt, "datetime"),
       })}`
-    : t(mappedKey);
+    : t(key);
   return serverMessage ? `${primary} (${serverMessage})` : primary;
 }
 
@@ -192,12 +175,12 @@ export function formatOAuthCallbackError(
 ): string {
   const code = payload.code ?? undefined;
   if (code) {
-    const key = Object.prototype.hasOwnProperty.call(
+    const tables: readonly ServerErrorKeyTable[] = [
       OAUTH_CALLBACK_CODE_TO_I18N,
-      code,
-    )
-      ? OAUTH_CALLBACK_CODE_TO_I18N[code]
-      : (getIntegrationErrorI18nKey(code) ?? SERVER_ERROR_CODE_TO_I18N[code]);
+      INTEGRATION_ERROR_CODE_TO_I18N,
+      SERVER_ERROR_CODE_TO_I18N,
+    ];
+    const key = tables.find((table) => Object.hasOwn(table, code))?.[code];
     if (key) return t(key);
   }
   return payload.error || t("integrations.oauthFailedShort");

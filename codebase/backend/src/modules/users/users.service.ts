@@ -10,6 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { S3Service } from '../../common/services/s3.service';
+import { AUTH_ERROR_BODIES } from '../auth/auth-error-bodies';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { User } from './entities/user.entity';
 import {
@@ -326,15 +327,14 @@ export class UsersService {
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.REQUIRED,
         message:
-          '비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요.',
+          'This account has no password. Set one with password reset first.',
       });
     }
 
     const matches = await comparePassword(currentPassword, user.passwordHash);
     if (!matches) {
       throw new UnauthorizedException({
-        code: PASSWORD_VERIFY_CODES.INVALID,
-        message: '현재 비밀번호가 일치하지 않아요.',
+        ...AUTH_ERROR_BODIES.passwordInvalid,
       });
     }
 

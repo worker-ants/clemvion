@@ -208,6 +208,62 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     expect(mockAccept).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["invitation_expired", "errors.codes.invitationExpired"],
+    ["invitation_email_mismatch", "errors.codes.invitationEmailMismatch"],
+  ])(
+    "picks the dictionary wording for code %s instead of the English server message (CLE-T-MBMPX5)",
+    async (code, key) => {
+      mockUser = { email: "invitee@example.com" };
+      mockGetByToken.mockRejectedValue(
+        new AxiosError("gone", "410", undefined, undefined, {
+          status: 410,
+          data: { error: { code, message: "English server text." } },
+        } as never),
+      );
+      render(<AcceptInvitationContent />);
+      await waitFor(() => expect(screen.getByText(key)).toBeInTheDocument());
+      expect(
+        screen.queryByText("English server text."),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("picks the dictionary wording when accepting fails with a known code (CLE-T-MBMPX5)", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockResolvedValue(META);
+    mockAccept.mockRejectedValue(
+      new AxiosError("gone", "410", undefined, undefined, {
+        status: 410,
+        data: {
+          error: {
+            code: "invitation_already_used",
+            message: "This invitation has already been used.",
+          },
+        },
+      } as never),
+    );
+    render(<AcceptInvitationContent />);
+    await userEvent.click(await screen.findByText("invitations.accept.accept"));
+    await waitFor(() =>
+      expect(
+        screen.getByText("errors.codes.invitationAlreadyUsed"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("falls back to the default failure wording when no response arrives", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockRejectedValue(new AxiosError("Network Error"));
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(
+        screen.getByText("invitations.accept.acceptFailedDefault"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Network Error")).not.toBeInTheDocument();
+  });
+
   it("shows missing state when token query param is absent", () => {
     mockSearch = "";
     render(<AcceptInvitationContent />);

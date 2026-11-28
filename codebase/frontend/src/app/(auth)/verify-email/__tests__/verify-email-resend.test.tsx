@@ -118,9 +118,9 @@ describe("VerifyEmailContent — 자동 로그인", () => {
 });
 
 /**
- * NERV Task `CLE-T-MFWBE1` 항목 2 — 인증 링크 확인이 실패하면 에러 봉투
- * `{ error: { code, message } }` 의 `error.message` 를 보인다. 예전 화면은 `data.message` 를 읽어
- * 늘 기본 문구만 보였다.
+ * NERV Task `CLE-T-MFWBE1` 항목 2 · `CLE-T-7QQPK7` — 인증 링크 확인 실패는 에러 봉투
+ * `{ error: { code, message } }` 의 코드로 문구를 고른다. 서버 문구는 영문이라 `VALIDATION_ERROR` 는 링크 무효 · 만료
+ * 안내를 보인다.
  */
 describe("VerifyEmailContent — 인증 실패 안내", () => {
   beforeEach(() => {
@@ -128,7 +128,7 @@ describe("VerifyEmailContent — 인증 실패 안내", () => {
     mockVerifyEmail.mockReset();
   });
 
-  it("에러 봉투의 error.message 를 보여 준다", async () => {
+  it("VALIDATION_ERROR 는 서버 영문 문구 대신 링크 무효 · 만료 안내를 보인다(CLE-T-7QQPK7)", async () => {
     searchParams = new URLSearchParams({ token: "bad-token" });
     mockVerifyEmail.mockRejectedValue(
       Object.assign(new Error("Invalid verification token"), {
@@ -144,6 +144,24 @@ describe("VerifyEmailContent — 인증 실패 안내", () => {
 
     render(<VerifyEmailContent />);
 
-    expect(await screen.findByText("Invalid verification token")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "인증 링크가 유효하지 않거나 만료됐어요. 인증 메일을 다시 받아 주세요.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Invalid verification token")).not.toBeInTheDocument();
+  });
+
+  it("응답 본문이 없으면(네트워크 오류) 기본 문구를 보여 준다", async () => {
+    searchParams = new URLSearchParams({ token: "bad-token" });
+    mockVerifyEmail.mockRejectedValue(
+      Object.assign(new Error("Network Error"), { isAxiosError: true }),
+    );
+
+    render(<VerifyEmailContent />);
+
+    expect(
+      await screen.findByText("인증에 실패했어요. 다시 시도해 주세요."),
+    ).toBeInTheDocument();
   });
 });
