@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-SYNC"
 title: "에디터 실행과 디버깅 — 실시간 수신·내역·Background"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "05ca6695bf48695dc70024833aaef4c2617ff4c8ccb8dcc3d270e6311b8247eb"
+content_hash: "81aa20a691941634f88fb9573b6250ca7c0bb38f872a3c0ceae3a125aefc701d"
 read_as: "approved_fallback"
-task: "CLE-T-B87H23"
+task: "CLE-T-7CX8FM"
 source_paths: []
-mirror_sha256: "8f714d701a7d6682ae056c718718e123efc1a41dd6b96529acebcc6db473c305"
-etag: "sha256-08065159b8f5321b41b4e321e95969581a20aaed91992dd6822135df1b057ec0"
+mirror_sha256: "aa918d97a12cc8cd923c644f56c628eedaac475088878b7a8b629c0aeda51001"
+etag: "sha256-cb103f7debdde703bff42be7cea035dd6df3e913c959eadf9bea2cadaf617abb"
 ---
 ## 개요
 
@@ -30,7 +30,7 @@ etag: "sha256-08065159b8f5321b41b4e321e95969581a20aaed91992dd6822135df1b057ec0"
 | --- | --- |
 | 바로 켜는 경우 | 연결이나 구독 요청이 실패할 때, 또는 이 실행 채널(`execution:<id>`)의 `subscribed` 실패 응답(`success: false`)을 받을 때. 실패 응답의 `channel` 이 다른 채널이면 무시한다. `channel` 이 없는 실패 응답(옛 서버)은 이 실행의 `execution.snapshot` 이나 실행 이벤트가 아직 오지 않은 동안이면 이 실행의 실패로 본다. 이 실행의 데이터를 이미 받았으면 어느 실패 응답으로도 폴링을 켜지 않는다. 게이트웨이가 `subscribed` 응답 없이 `exception` 으로 끝나는 경우는 10초 경로가 잡는다 |
 | 10초 뒤 켜는 경우 | 구독 뒤 10초 안에 이 실행의 `execution.snapshot` 이나 실행 이벤트가 하나도 오지 않을 때 |
-| 지연 토스트 | "실시간 업데이트 연결이 지연되고 있어요. 폴링으로 진행됩니다." 는 10초 시점에만 띄운다. 바로 켜는 경우에도 토스트는 10초를 기다린다 |
+| 지연 토스트 | "실시간 업데이트 연결이 지연되고 있어요. 폴링으로 진행해요." 는 10초 시점에만 띄운다. 바로 켜는 경우에도 토스트는 10초를 기다린다 |
 | 요청 | 켜지면 `GET /api/executions/:id` 를 바로 한 번 받는다. 응답을 받고 2초 뒤에 다음 요청을 예약하므로 요청이 겹치지 않는다 |
 | 요청이 실패할 때 | 400·401·403·404 는 다시 보내도 결과가 같으므로 폴링을 멈춘다. 401 은 공용 HTTP 클라이언트가 토큰 갱신을 한 번 시도해 다시 보낸 뒤에도 남은 401 이다. 429·5xx·네트워크 에러는 2초에서 시작해 두 배씩 늘려 30초에서 멈추는 간격으로 다시 받는다. 응답에 `Retry-After`(초)가 있고 브라우저가 읽을 수 있으면 그 값을 2초~60초 범위로 잘라 따른다([미결 사항](CLE-EXEC-RUN.md#미결-사항) 참조). 성공하면 간격을 2초로 되돌린다. 화면 뒤에서 도는 요청이라 실패해도 토스트를 띄우지 않는다. 400 을 필드별로 표시하고 401 갱신 실패 뒤 로그인 화면으로 보내고 429 · 404 에 토스트나 404 페이지를 띄우는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) §4.1 과 다르다(Rationale 「요청 빈도」). 공용 HTTP 클라이언트(`client.ts`)는 토큰 갱신에 실패해도 로그인 화면으로 보내지 않으므로 401 로 멈춘 뒤에도 화면은 그대로다 |
 | store 채우기 | 응답은 실행 스냅샷 이벤트(`execution.snapshot`)와 같은 진입점(`applyExecutionSnapshot`)으로 같은 store 자리에 넣는다. 노드 출력 필드를 복원하는 규칙은 [실행 화면 복원 규약](CLE-EXEC-HYDRATION.md) 을 따른다. 내역 보기 경로(`loadHistoricalExecution`)는 쓰지 않으므로 라이브 대화 상태가 비지 않는다 |
