@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "02302cf9b2e24fe0e8f54ed027adf5f9761130a34aa4351f7f800bcd2b66c573"
+content_hash: "ed82cecf59e2a6f0340c8c660c5b9980e2e69518551f38e661ed2b75ca41f4cb"
 read_as: "approved_fallback"
-task: "CLE-T-DC5Y0P"
+task: "CLE-T-W50N35"
 source_paths: []
-mirror_sha256: "0deb515193234f65be8d2802d86aee3608df35ea237dc64f78e4f0336163dada"
-etag: "sha256-811dbed3beeb9538473f5c2ba7b644bba0a17ff68af56b0ac040832d5c764889"
+mirror_sha256: "071b968f75a66bae4cae7c1d84249b6dc76c49471796e1d736a99d4173af83ce"
+etag: "sha256-1add409364d7acc8641747861d0a8bf3254b6793dec8201a1ae02f393533dd81"
 ---
 ## 개요
 
@@ -112,7 +112,7 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 
 전에는 HTTP Request 노드의 리다이렉트 홉에서 난 고장이 `HTTP_TRANSPORT_FAILED` 로 나가 preflight 와 코드가 달랐다. 2026-11-20 NERV Task `CLE-T-E991S1` 에서 두 시점을 `INTEGRATION_CALL_FAILED` 로 맞췄다. 같은 Task 에서 고장 메시지를 고정 문구 `The outbound address check failed.` 로 바꿨다. 고장 원문에는 해석기가 낸 호스트나 IP 가 들어갈 수 있어서 차단 판정의 메시지와 같은 규칙(CWE-209)을 따른다. Database Query 노드와 HTTP · Database 연결 테스트도 같은 문구를 쓴다. 같은 날 NERV Task `CLE-T-PTCRM4` 에서 Send Email 노드와 Email 연결 테스트도 같은 문구로 맞췄다. 두 경로의 코드(`EMAIL_SEND_FAILED` · `EMAIL_CONNECT_FAILED`)는 그대로 두었다.
 
-HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고, 2026-11-14 에 NERV Task `CLE-T-43KCNP` 에서 사람이 전용 코드를 만들지 않고 받아들인 예외로 두기로 정했다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) Rationale 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에는 NERV Task `CLE-T-6G3084` 가 이 예외를 적었다.
+HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고, 2026-11-14 에 NERV Task `CLE-T-43KCNP` 에서 사람이 전용 코드를 만들지 않고 받아들인 예외로 두기로 정했다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다) Rationale 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에는 NERV Task `CLE-T-6G3084` 가 이 예외를 적었다.
 
 ### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다
 
@@ -120,7 +120,7 @@ HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다.
 
 > 2026-11-20 NERV Task `CLE-T-753725` 에서 네 가드의 대역표를 공용 표(`common/utils/ssrf/ip-classifier.ts`) 하나로 합쳤다. 우회 플래그는 지금도 경로마다 다르다. 같은 날 NERV Task `CLE-T-PT5YB5` 가 LLM 호출에도 같은 헬퍼로 연결 시점 판정을 넣었다. NERV Task `CLE-T-691T4G` · `CLE-T-PTCRM4` 는 Database Query · Send Email 에 넣었다. 아래는 결정 당시 기록이다.
 
-NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. 그 결정 뒤 2026-11-20 에 대역표는 공용 판정(`codebase/backend/src/common/utils/ssrf/ip-classifier.ts`)으로 합쳤다(NERV Task `CLE-T-753725` · `CLE-T-63RSH6`). 우회 플래그는 합치지 않았다. 근거는 [대역표를 SSRF 가드 넷이 함께 쓴다 (2026-11-20)](../CLE-INT/CLE-INT-MCP-CONN.md#대역표를-ssrf-가드-넷이-함께-쓴다-2026-11-20) 에 있다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
+NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. 그 결정 뒤 2026-11-20 에 대역표는 공용 판정(`codebase/backend/src/common/utils/ssrf/ip-classifier.ts`)으로 합쳤다(NERV Task `CLE-T-753725` · `CLE-T-63RSH6`). 우회 플래그는 합치지 않았다. 근거는 [대역표를 SSRF 가드 넷이 함께 쓴다](../CLE-INT/CLE-INT-MCP-CONN.md#대역표를-ssrf-가드-넷이-함께-쓴다) 에 있다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
 
 ### Database Query · Send Email 에는 연결 시점 판정을 아직 넣지 않는다
 
@@ -175,7 +175,7 @@ NERV Task `CLE-T-691T4G`(Database Query) · `CLE-T-PTCRM4`(Send Email) 에서 �
 
 NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸면서 자격 증명을 읽지 못한 통합을 어느 쪽으로 볼지 정했다. `getForExecution` 은 통합을 찾은 뒤 복호화에 실패하면 통합을 돌려주지 않고 `IntegrationCredentialsUnreadableError` 를 던진다. 이 경우를 얻지 못한 통합으로 본다. 핸들러에 넘길 통합이 없으므로 활동 로그를 남기지 않고 `last_used_at`·`last_error` 도 바꾸지 않는다.
 
-- «얻은 통합» 의 기준을 `getForExecution` 이 돌려준 통합 하나로 둔다. 예외에 엔티티를 실어 기록하게 하면 복호화에 실패한 엔티티가 핸들러의 catch 와 로그 경로로 흘러간다. 예외에 통합을 싣지 않는 이유는 [「통합을 얻는 단계와 검증하는 단계를 나눈다」](CLE-NODE-INT-COMMON-HANDLER.md#통합을-얻는-단계와-검증하는-단계를-나눈다-2026-10-25) 와 같다.
+- «얻은 통합» 의 기준을 `getForExecution` 이 돌려준 통합 하나로 둔다. 예외에 엔티티를 실어 기록하게 하면 복호화에 실패한 엔티티가 핸들러의 catch 와 로그 경로로 흘러간다. 예외에 통합을 싣지 않는 이유는 [「통합을 얻는 단계와 검증하는 단계를 나눈다」](CLE-NODE-INT-COMMON-HANDLER.md#통합을-얻는-단계와-검증하는-단계를-나눈다) 와 같다.
 - 이 경우만 통합 ID 로 기록하면 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «얻은 통합에만 기록한다» 요구사항이 없앤 ID 기록 경로가 다시 생긴다. `logUsage` 가 다시 ID 를 받아야 하므로 얻은 통합에만 기록한다는 규칙을 서명으로 지킬 수 없다.
 - 이 상태는 활동 로그가 없어도 드러난다. 통합 응답(`IntegrationsService.toPublic`)에서 자격 증명을 읽지 못한 통합은 `status: 'error'`·`statusReason: 'credentials_unreadable'`·`credentialsStatus: 'needs_reauth'` 로 나간다. 사용자는 이 표시를 보고 통합을 다시 연결한다([통합 데이터와 흐름 「이미 저장된 값」](../CLE-INT/CLE-INT-DATA.md#이미-저장된-값)).
 - 기각: 예외에 통합을 실어 기록하는 안. 위 첫째 이유로 뺐다.

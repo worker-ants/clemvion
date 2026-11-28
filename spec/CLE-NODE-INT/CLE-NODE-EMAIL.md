@@ -2,19 +2,19 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026", "REQ-EMAIL-027", "REQ-EMAIL-028", "REQ-EMAIL-029", "REQ-EMAIL-030", "REQ-EMAIL-031"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "d50113b842eec04184a5e41187def56c0f407b9f61c7ebd9217577eca58bdf02"
+content_hash: "d1193b9a964b01356757f4d0a8c9adb5405a2dc96cf73cfdc57dac1c53ba47b6"
 read_as: "approved_fallback"
-task: "CLE-T-DC5Y0P"
+task: "CLE-T-W50N35"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "b25d08a2460a20df67212e56c9c633853b27bcaa081fd51b11ed3ed5670ea2bb"
-etag: "sha256-a2a7d9aec85764bc75b3b04c78b7a53cfe41d4b65ae04682a294f5780838948b"
+mirror_sha256: "a486c02d4c24a918158da37f3c7ecb65af2d22015dd4d7295cdc6d14b8e0116a"
+etag: "sha256-b0a5767e8c5d7558f8caf9597b69f867d2f38ed0ab641591234bdbea2d201b67"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -213,7 +213,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 결정일: 2026-10-24
 
-규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다. 그래서 REQ-EMAIL-024 의 범위를 «통합을 얻은 뒤 실행이 끝나면» 으로 좁혔다.
+규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다) Rationale 에 있다. 그래서 REQ-EMAIL-024 의 범위를 «통합을 얻은 뒤 실행이 끝나면» 으로 좁혔다.
 
 ### 빈 수신자를 에러 포트로 보낸다
 

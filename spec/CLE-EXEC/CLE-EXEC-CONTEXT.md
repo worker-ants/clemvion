@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "9d45e65f3adda43c9b0e0cb3d07f64a87be0a900235329e6561760c95cb23721"
+content_hash: "cd57b8aee7fc91a014c27a93a499ed7609c77c769f8cdba2d5d2248f216cb020"
 read_as: "approved_fallback"
-task: "CLE-T-TV4VA8"
+task: "CLE-T-B87H23"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "ffd2ac91fad26fed0cdc584b1e5e50477bc7cab3f467acc5f9af3dc03f17df6d"
-etag: "sha256-c3d54496c569ea377f592a709d72d17272fd232f5aebe9f90d13db0cbcee9d43"
+mirror_sha256: "add6232619eaac0a37c10159d624decb5de14d03ea72ad56bdd0a4f42b226dc5"
+etag: "sha256-09e5e4a65dc620e9375a93cece24c07592f15da9c237f8d9d5f909ed21a6d869"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -177,9 +177,11 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 
 ## Rationale
 
-### 실행을 시작하는 워크스페이스를 진입 API 의 필수 옵션으로 둔다 (2026-10-05)
+### 실행을 시작하는 워크스페이스를 진입 API 의 필수 옵션으로 둔다
 
-→ [실행 컨텍스트 — 트리거 입력과 진입 API](CLE-EXEC-CONTEXT-TRIGGER.md#실행을-시작하는-워크스페이스를-진입-api-의-필수-옵션으로-둔다-2026-10-05)
+결정일: 2026-10-05
+
+→ [실행 컨텍스트 — 트리거 입력과 진입 API](CLE-EXEC-CONTEXT-TRIGGER.md#실행을-시작하는-워크스페이스를-진입-api-의-필수-옵션으로-둔다)
 
 ### `parentParallelConcurrency` 를 `ParallelBranchContext` 로 나눈다
 
@@ -205,7 +207,9 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 
 이 기각의 대상은 핸들러에 넣는 `ExecutionContext` 필드 묶음이다. `ExecutionContextService.createContext()` 의 인자를 옵션 객체(`options?: { initialVariables?, recursionDepth?, contextKey?, conversationThread?, ... }`)로 받는 것은 핸들러가 보는 표면과 무관해 이 기각 범위 밖이다.
 
-### `variables.__*` 예약을 세 층으로 강제한다 (2026-07-11)
+### `variables.__*` 예약을 세 층으로 강제한다
+
+결정일: 2026-07-11
 
 규칙 5 는 원래 약속일 뿐 강제가 없었다. 강제를 들이며 한 지점만으로는 모자란다는 것이 설계의 핵심이었다. `handler.validate`(사전 검증)는 실행 때만 돌아 잘못된 저장이 실행 직전까지 조용히 지나간다. 두 변수 노드의 이름 필드는 `{{ }}` 표현식 대상이라(`EXPRESSION_EXCLUSIONS` 에 없음) 사전 검증은 **평가 전 원본**만 본다. `name: "{{ $input.x }}"` 가 런타임에 `__workspaceId` 로 평가되면 원본 검사를 피한다. 그래서 저장 시점(L0, 바로 400), 사전 검증(L1, 안전망), 런타임 평가 뒤(L2, 실질 강제)의 세 층을 둔다. L2 가 없으면 강제가 성립하지 않는다.
 
@@ -217,6 +221,8 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 
 Code 노드는 `$vars` 를 통째로 바꿔 넣으므로 사용자 코드가 `$vars.__workspaceId` 를 쓰면 예약 키를 덮어쓴다. 그러나 임의 코드 실행 노드에 변수 이름 허용 목록을 강제하려면 사용자 JS 출력 전체를 살펴 거부해야 해 두 선언형 노드의 필드 검증과 성격이 다르다. 그것은 Code 노드의 격리와 계약을 따로 정해야 하는 문제다. 그래서 이 강제는 사용자가 **폼으로 이름을 직접 적는** 두 노드로 한정하고 Code 노드 경로는 남은 위험으로 그대로 적어 둔다.
 
-### `nodeId` 를 필드 표에 적는다 (2026-10-25)
+### `nodeId` 를 필드 표에 적는다
+
+결정일: 2026-10-25
 
 `nodeId` 는 코드에 이미 있는 선택 필드(`node-handler.interface.ts`)인데 이 표에 없었다. NERV Task `CLE-T-MG0EQZ` 에서 개인 통합 사용 판정에 쓸 워크플로우 작성자를 이 값으로 구하기로 했다. 통합 서비스가 노드 행에서 그 노드가 속한 워크플로우를 찾는다. 그래서 표에 행을 더하고 쓰임을 적었다. 새 필드가 아니므로 규칙 3 과 「새 필드 추가 결정」 표를 다시 거치지 않는다. 분류는 규칙 1 의 식별 필드와 같다. 엔진이 모든 노드에 넣는 값이고 특정 기능이나 컨테이너에만 뜻이 있는 값이 아니다. 타입은 `nodeId?` 선택 필드다. 같은 Task 의 2026-10-24 승인본은 워크플로우 작성자를 새 선택 필드 `workflowAuthorId` 로 넣고 규칙 3 의 예외로 두려 했다. 그 안을 버린 이유는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) Rationale 에 있다.

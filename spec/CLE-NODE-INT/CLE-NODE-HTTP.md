@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033", "REQ-HTTP-034", "REQ-HTTP-035", "REQ-HTTP-036", "REQ-HTTP-037"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "2196a0bb868f8ea84d50fb2b9a62de04a917e133b75a39a04e25037261f3dc5b"
+content_hash: "a45fd1ad07c676a30c29cd58fd9f3318a007facc71ca074e860fd67a12f4c541"
 read_as: "approved_fallback"
-task: "CLE-T-PT5YB5"
+task: "CLE-T-W50N35"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "95b12311c20b0a67d7a0211d9d72eb408d7a48874691b054487f9effaafcdc5d"
-etag: "sha256-bb8bc9b878db5c5a17bf0a2ccfcf0cfd862f9a38b4cdddf3ab3cb75b27e57155"
+mirror_sha256: "39050244040ee60e17f54234937d6ca06321c35993511e3353e10f3e05edf77d"
+etag: "sha256-b4170ed386cbab4abb1b81687902098a5da7da3448207a0f38c446323a7763fb"
 ---
 > 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -151,7 +151,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지는 경우를 가드의 고장이라 한다(예: DNS 해석기가 낸 예기치 않은 예외). 전에는 고장이 난 시점에 따라 코드와 문구가 달랐다. NERV Task `CLE-T-E991S1` 에서 둘을 맞췄다.
 
 - **코드가 시점마다 달랐다.** preflight 의 고장은 `INTEGRATION_CALL_FAILED` 로 나갔다. 리다이렉트 홉의 고장은 전송 catch 로 떨어져 `HTTP_TRANSPORT_FAILED` 로 나갔다. 그래서 내부 가드의 고장이 DNS 실패 · 연결 거부 같은 전송 오류와 섞였다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)은 `HTTP_TRANSPORT_FAILED` 를 `executionFailedThirdParty`(«외부 서비스 응답을 받지 못했습니다»)로 안내하므로 우리 쪽 고장이 외부 서비스 탓으로 전달됐다.
-- **고장 문구에 호스트 · IP 가 실렸다.** 고장 메시지는 가드 원문에서 자격 증명 패턴만 가린 값이었다. 원문에는 호스트 이름이나 IP 가 들어 있을 수 있다. 이 메시지는 `output.error.message` 와 활동 로그로 워크스페이스 사용자에게 나간다. [「사설망 차단 메시지 일반화」](#사설망-차단-메시지-일반화-2026-07-05)가 차단 판정에서 막은 정찰 통로가 고장 경로에는 남아 있었다.
+- **고장 문구에 호스트 · IP 가 실렸다.** 고장 메시지는 가드 원문에서 자격 증명 패턴만 가린 값이었다. 원문에는 호스트 이름이나 IP 가 들어 있을 수 있다. 이 메시지는 `output.error.message` 와 활동 로그로 워크스페이스 사용자에게 나간다. [「사설망 차단 메시지 일반화」](#사설망-차단-메시지-일반화)가 차단 판정에서 막은 정찰 통로가 고장 경로에는 남아 있었다.
 
 이제 두 시점 모두 `INTEGRATION_CALL_FAILED` 와 고정 문구 `The outbound address check failed.` 로 낸다. 원문은 서버 경고 로그(`logger.warn`)에만 남긴다. 근거는 [통합 노드 공통 — 에러](CLE-NODE-INT-COMMON-ERROR.md#차단-코드를-판정에만-쓰는-이유)의 원칙 «차단 코드는 판정에만, 고장은 분류되지 않은 실패» 다. 홉의 고장도 판정이 아니므로 preflight 와 같은 분류되지 않은 실패 코드로 낸다. 채팅 채널은 `INTEGRATION_CALL_FAILED` 를 따로 분류하지 않아 내부 실패(`executionFailedInternal`)로 안내한다. 같은 고정 문구를 Database Query 노드와 HTTP · Database 연결 테스트도 쓴다.
 
@@ -177,7 +177,9 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 
 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) REQ-RERUN-053 이 정한 예외(모의 출력은 활동 로그를 남기지 않는다)를 REQ-HTTP-029 에도 적었다(NERV Task `CLE-T-M6W7RE`). 동작은 바뀌지 않았다. 요구사항만 읽는 사람이 예외를 놓치지 않게 적었다.
 
-### 사설망 차단 메시지 일반화 (2026-07-05)
+### 사설망 차단 메시지 일반화
+
+결정일: 2026-07-05
 
 사설망 차단 가드(`codebase/backend/src/common/utils/ssrf/outbound-guard.ts`)가 던지는 원본 메시지(`SSRF_BLOCKED: hostname "…" resolves to a restricted network range` 등)에는 차단된 호스트 이름·IP 가 들어 있다. 이를 `output.error.message` 로 클라이언트에 보이면 내부망 구조를 정찰하는 통로(CWE-209)가 된다. Database Query(`DB_HOST_BLOCKED`)와 Send Email(`EMAIL_HOST_BLOCKED`)은 이미 일반화 문구를 쓰고 있었고 HTTP Request 만 원본을 보이는 비대칭 상태였다.
 
@@ -190,6 +192,8 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 
 운영 영향(breaking): 이 변경 뒤로 `none`·`custom` 인증으로 사설·loopback·link-local·CGNAT 대상을 부르던 기존 셀프 호스팅 워크플로우는 `ALLOW_PRIVATE_HOST_TARGETS=true`(외부 egress 방화벽 전제)를 켜기 전까지 `HTTP_BLOCKED` 로 실패한다. 이전 방법은 환경 변수 하나를 설정하는 것이다.
 
-### 실패를 에러 포트로 통일 (2026-05-17)
+### 실패를 에러 포트로 통일
+
+결정일: 2026-05-17
 
 이 결정 전에는 `IntegrationError`·`Error` throw 로 노드 실행이 실패하는 경로가 여러 개 있었다. 이 결정 뒤로는 `handler.validate()` 실패만 throw 로 남고, `execute()` 안의 통합 해소·사설망 차단·인증 실패는 모두 에러 포트로 간다. 코드 이름은 기존 `HTTP_BLOCKED` 를 유지했다. 공통 배경은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) Rationale 「핸들러 실패를 에러 포트로 통일」 에 있다.
