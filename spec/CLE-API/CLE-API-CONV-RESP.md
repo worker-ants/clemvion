@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RESP"
 title: "HTTP API 규약 — 응답 형식과 상태 코드"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "4cc997d888c9d52483585f167e4916c97f5b3bfe48598ad548940afd649c4b50"
+content_hash: "82c3ccc0a5409f03f1aeb27658d1978313dfbb1eef6cf3f54436cb14029b735b"
 read_as: "approved_fallback"
-task: "CLE-T-82ZBZQ"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "66bb689afa61586b20802f86841e5dfd23da1cd3d66b63b29d25e9d1da17f023"
-etag: "sha256-3ac17c3df2043c00e2455273450d84ab0f3999f79c6197ade7dc50b87ef13fbc"
+mirror_sha256: "bf26792cf1f642e258abe54edd1b14ded62edf9d745ecdfd24e893b409c78be7"
+etag: "sha256-edd84702c8cd0b6f5df18295365124196d82313fd67f7a5b1eba891ec2118e7e"
 ---
 ## 개요
 
@@ -111,7 +111,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | `swagger-dto-contract-guard.ts` (repo-guard) | **선언과 선언**: `@ApiProperty` 데코레이터와 TS 타입 | 정적 (AST) | 선언이 양쪽 다 틀린 경우. 실제 응답 값 |
 | `response-contract.ts` (testing) | **값과 선언**: 실제 HTTP 응답과 생성된 OpenAPI 스키마 | 런타임 (e2e) | 배선되지 않은 엔드포인트 |
 | `user-entity-exposure-guard.ts` (repo-guard) | **구조**: `User` 엔티티를 투영 없이 관계로 싣는 자리를 센다 | 정적 (AST) | 엔티티를 거치지 않고 손으로 조립한 유출 |
-| `user-secret-absence.ts` (testing) | **이름**: 응답 바디 어디에도 `User` 민감 컬럼 이름이 없다(응답 노출 금지 민감 컬럼 목록은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)) | 런타임 (e2e) | 이름이 다른 새 비밀 컬럼. 목록(`USER_SECRET_KEYS`)에 넣어야 걸린다 |
+| `user-secret-absence.ts` (testing) | **이름**: 응답 바디 어디에도 `User` 민감 컬럼 이름이 없다(응답 노출 금지 민감 컬럼 목록은 [사용자 · 인증 엔티티 「응답에 싣지 않는 민감 컬럼 7개」](../CLE-ACCT/CLE-ACCT-DATA-MODEL.md#응답에-싣지-않는-민감-컬럼-7개)) | 런타임 (e2e) | 이름이 다른 새 비밀 컬럼. 목록(`USER_SECRET_KEYS`)에 넣어야 걸린다 |
 
 - **개수를 세지 않는다.** 축이 늘 때마다 숫자가 낡는다. 문장은 나열을 가리키고 인벤토리는 위 표에 둔다.
 - **두 축이 서로 다른 규칙을 시행한다.** `response-contract.ts` 의 판정 중 required/nullable 축은 이 절을 시행하고 "스키마에 선언하지 않은 키가 응답에 있다" 축은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 응답 DTO 위치 절(엔티티를 그대로 노출하지 않는다)을 시행한다. 그래서 그 검증자는 두 문서의 구현 위치에 모두 등재한다. 한쪽에만 등재하면 다른 축의 변경이 재검토를 부르지 못한다.
