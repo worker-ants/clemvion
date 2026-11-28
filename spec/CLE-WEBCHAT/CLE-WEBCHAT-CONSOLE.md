@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-CONSOLE"
 title: "웹채팅 운영 콘솔"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-WCCON-001", "REQ-WCCON-002", "REQ-WCCON-003", "REQ-WCCON-004", "REQ-WCCON-005", "REQ-WCCON-006", "REQ-WCCON-007", "REQ-WCCON-008", "REQ-WCCON-009", "REQ-WCCON-010", "REQ-WCCON-011", "REQ-WCCON-012", "REQ-WCCON-013", "REQ-WCCON-014", "REQ-WCCON-015", "REQ-WCCON-016", "REQ-WCCON-017", "REQ-WCCON-018", "REQ-WCCON-019", "REQ-WCCON-020", "REQ-WCCON-021", "REQ-WCCON-022", "REQ-WCCON-023", "REQ-WCCON-024", "REQ-WCCON-025", "REQ-WCCON-026", "REQ-WCCON-027", "REQ-WCCON-028", "REQ-WCCON-029", "REQ-WCCON-030", "REQ-WCCON-031", "REQ-WCCON-032", "REQ-WCCON-033", "REQ-WCCON-034", "REQ-WCCON-035", "REQ-WCCON-036", "REQ-WCCON-037"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "fecec98018e05352adf0f6dbfc7c1d3d1c78ce733ab9564fd663c90c8c5e8b10"
+content_hash: "40d38235a51a712a62c9adfe06fad5ef9c6ba33a6c38c67ab322b515120abc50"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-18C572"
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "3398b9a2356d2a8ee786e9c786705bd83d48a8aba7e38c30fdf8a9f8bb02d4b4"
-etag: "sha256-7ac8cc23e96b1b9a675d2a3f884e2b8e593abec82852a060297fb830986eab1f"
+mirror_sha256: "dc86b2011a693f211c81f3b4008cea0e8bdd40e0a84d6731211d4f0e957bd12a"
+etag: "sha256-c18d934ac425e21869aea4474acd82b2724c0a63a1ef95249082ba3d4ff9a60c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/5-admin-console.md`, `spec/2-navigation/_product-overview.md` (§3.14 NAV-WC-01..06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -204,7 +204,9 @@ etag: "sha256-7ac8cc23e96b1b9a675d2a3f884e2b8e593abec82852a060297fb830986eab1f"
 
 웹채팅은 본질적으로 웹훅 트리거 + EIA 인터랙션이다. 새 엔티티·테이블·엔드포인트를 만들면 같은 개념이 두 곳에 있게 되고 동기화 부담이 생긴다. 콘솔은 표현 층에서만 추상화해 백엔드 변경을 줄이고(env 와 선택적 목록 필터), EIA 클라이언트 소비자 원칙([웹채팅 구조](CLE-WEBCHAT-ARCH.md))과 단일 이벤트 출구 정책을 지킨다.
 
-### 외형을 웹채팅 인스턴스 단위로 서버에 저장한다 (결정 2026-06-24, 예전 "저장하지 않음" 결정의 부분 번복)
+### 외형을 웹채팅 인스턴스 단위로 서버에 저장한다 (예전 "저장하지 않음" 결정의 부분 번복)
+
+결정일: 2026-06-24
 
 처음 v1 은 외형을 부팅 옵션으로 내보내기만 하고 백엔드에 저장하지 않았다. 별도 외형 관리 시스템을 만들지 않는다는 복잡도 회피가 핵심 근거였다. 운영자 입장에서 localStorage 에만 두면 브라우저·기기·운영자가 바뀔 때 외형이 사라지는 한계가 분명했다. 그래서 2026-06-24 결정으로 웹채팅 인스턴스 단위 외형의 서버 저장을 v1 에 넣었다.
 
@@ -220,11 +222,15 @@ etag: "sha256-7ac8cc23e96b1b9a675d2a3f884e2b8e593abec82852a060297fb830986eab1f"
 
 "대화까지" 미리보기에 필요한 EIA 대화 배선은 위젯 자체 `eia-client.ts` 로 이미 되어 있어 전제 조건이 아니다. 실제 전제 조건은 위젯 동봉 배포 하나다([웹채팅 구조](CLE-WEBCHAT-ARCH.md)).
 
-### 미리보기는 same-origin 동봉 iframe 이다 (React 컴포넌트 직접 마운트 기각, 결정 2026-06-23)
+### 미리보기는 same-origin 동봉 iframe 이다 (React 컴포넌트 직접 마운트 기각)
+
+결정일: 2026-06-23
 
 위젯을 제품과 동봉 배포해 버전을 배포 단위로 잠그는 결정은 [웹채팅 구조](CLE-WEBCHAT-ARCH.md)에 있다. 미리보기는 그렇게 동봉 배포한 웹채팅 위젯을 same-origin iframe 으로 불러온다. iframe 없이 위젯 React 컴포넌트를 직접 마운트하는 방식은 위젯 app → lib 재구조화 부담이 있고 미리보기가 실제 고객 iframe 임베드와 다른 경로가 되어 충실도가 떨어져 기각했다. same-origin iframe 은 위젯을 그대로(`output:export`) 두고 격리를 유지하면서 버전 일치와 외부 의존 0 을 얻는다. cross-origin 격리 예외의 근거는 [웹채팅 구조](CLE-WEBCHAT-ARCH.md)에 있다.
 
-### 미리보기는 `xl` 이상에서만 두 열로 놓는다 (결정 2026-06-25)
+### 미리보기는 `xl` 이상에서만 두 열로 놓는다
+
+결정일: 2026-06-25
 
 미리보기가 상세 패널 세로 쌓기의 맨 아래에 있으면 외형을 바꾼 효과를 보려고 페이지 끝까지 스크롤해야 한다. "라이브" 미리보기의 즉시성이 사라진다. 외형 변경이 `wc:boot` 재전송으로 미리보기에 바로 반영되므로 변경과 결과를 한 화면에 두려고 외형(왼쪽)과 미리보기(오른쪽, sticky)를 두 열로 놓는다. [화면 구조](#화면-구조)의 본래 의도와 같다.
 

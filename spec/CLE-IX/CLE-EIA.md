@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "b01047a2afb066c5c576edebeeecab44e96d1845cb41a0632b94bc47ca3eeec6"
+content_hash: "63febaa3fe5144d8776a162639cfdab4a78eeecb02d7de0a9397f1d8bf83cd5c"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-18C572"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "fbd9c102ceaf436f483b2fa4b27e6c73a0684ba9d063ea749eda5257af468e3b"
-etag: "sha256-2325137fa940b935baa5ac7905e62d3ca29348d917cadc007aa8c3d58f0f43b3"
+mirror_sha256: "fffd71ae80abac7fcc59e6344f6634565cf13256198c5638fa95a8f14060a3cb"
+etag: "sha256-1034a8726be5b518741cad0221169d449bd0b299b989a9ff642a1b45e536626f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -245,16 +245,16 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 
 결정일: 2026-10-17
 
-→ [생성과 PATCH 응답에 싣는 일회성 비밀](CLE-EIA-TOKEN.md#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17)
+→ [생성과 PATCH 응답에 싣는 일회성 비밀](CLE-EIA-TOKEN.md#생성과-patch-응답에-싣는-일회성-비밀)
 
 ### 운영 환경 가드 목록은 링크로 둔다
 
 결정일: 2026-10-31
 
-→ [운영 환경 가드 목록은 링크로 둔다](CLE-EIA-TOKEN.md#운영-환경-가드-목록은-링크로-둔다-2026-10-31)
+→ [운영 환경 가드 목록은 링크로 둔다](CLE-EIA-TOKEN.md#운영-환경-가드-목록은-링크로-둔다)
 
 ### 인터랙션 서명 비밀도 운영 환경 가드가 검사한다
 
 결정일: 2026-11-06
 
-→ [인터랙션 서명 비밀도 운영 환경 가드가 검사한다](CLE-EIA-TOKEN.md#인터랙션-서명-비밀도-운영-환경-가드가-검사한다-2026-11-06)
+→ [인터랙션 서명 비밀도 운영 환경 가드가 검사한다](CLE-EIA-TOKEN.md#인터랙션-서명-비밀도-운영-환경-가드가-검사한다)

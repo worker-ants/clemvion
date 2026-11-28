@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT"
 title: "웹채팅"
 type: "area"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "6f68d8f26c548e00612efe33146223842e8b5958c3c54934dd0b39bbb0bdda7c"
+content_hash: "c6f435b947d581ed814d40d486bce917dbd4afa6271af7ad87aa354c83f496a4"
 read_as: "approved_fallback"
-task: "CLE-T-JNXZWY"
+task: "CLE-T-18C572"
 source_paths: ["spec/7-channel-web-chat/_product-overview.md"]
-mirror_sha256: "4efeb2b2ba859e94e175c94c53a9796568739b44994bc0948430dec436fffcd0"
-etag: "sha256-60c52d68bbbde241c391bf2f3045d9c83a029b38343482c586115628700bb30c"
+mirror_sha256: "b0645321d77109589b507a448dbd01bf83d58d4957a750ad9df9f1d8ab4a10fa"
+etag: "sha256-445f934337d7c3e63f0eeb84059742222cff63504e937a4d882bfda142f94c3a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -87,6 +87,8 @@ etag: "sha256-60c52d68bbbde241c391bf2f3045d9c83a029b38343482c586115628700bb30c"
 
 클라이언트 SDK 와 위젯은 제품 표면이 서버 기술 명세와 분명히 달라 따로 최상위 영역으로 둔다. 서버 기술 명세에 넣으면 클라이언트 산출물(SDK·npm·iframe)과 서버 명세가 섞인다.
 
-### 운영 콘솔의 외형 저장과 비목표의 경계 (결정 2026-06-24)
+### 운영 콘솔의 외형 저장과 비목표의 경계
+
+결정일: 2026-06-24
 
 비목표가 겨냥한 것은 워크스페이스 단위 외형을 관리하는 별도 테마·브랜딩 콘솔(워크스페이스 외형 JSON 서빙·테마 라이브러리)이다. 운영 콘솔의 웹채팅 인스턴스 단위 외형 저장(웹채팅 = 트리거 단위, `config.interaction.appearance`, 새 엔티티 없이 기존 트리거 설정 재사용)은 2026-06-24 결정으로 v1 범위다. 운영자가 브라우저를 바꿔도 같은 미리보기와 설치 스크립트가 나오도록 localStorage 에만 두던 한계를 없앤다. 워크스페이스 단위 테마 관리 콘솔은 여전히 백로그다. 예전 "저장하지 않음" 결정과의 관계는 [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)에 있다.

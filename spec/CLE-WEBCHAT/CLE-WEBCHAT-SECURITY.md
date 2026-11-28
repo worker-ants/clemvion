@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SECURITY"
 title: "웹채팅 보안"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-WCSEC-001", "REQ-WCSEC-002", "REQ-WCSEC-003", "REQ-WCSEC-004", "REQ-WCSEC-005", "REQ-WCSEC-006", "REQ-WCSEC-007", "REQ-WCSEC-008", "REQ-WCSEC-009", "REQ-WCSEC-010", "REQ-WCSEC-011", "REQ-WCSEC-012", "REQ-WCSEC-013", "REQ-WCSEC-014", "REQ-WCSEC-015", "REQ-WCSEC-016", "REQ-WCSEC-017", "REQ-WCSEC-018", "REQ-WCSEC-019", "REQ-WCSEC-020", "REQ-WCSEC-021", "REQ-WCSEC-022", "REQ-WCSEC-023", "REQ-WCSEC-024", "REQ-WCSEC-025", "REQ-WCSEC-026", "REQ-WCSEC-027", "REQ-WCSEC-028", "REQ-WCSEC-029", "REQ-WCSEC-030", "REQ-WCSEC-031"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "57df3634c28b5ac22d621faa133a72d9cc3d61977386898936fa546542c683af"
+content_hash: "0e9bf4b5bfbb6470f540c8117cccdd5d87123af5eb9bbc9d27cd234a3dd3fcfb"
 read_as: "approved_fallback"
-task: "CLE-T-JNXZWY"
+task: "CLE-T-18C572"
 source_paths: ["spec/7-channel-web-chat/4-security.md"]
-mirror_sha256: "afa3e489f6ba561c68f722ec0c0ed531a589302f02ca1f68db119adc06269df8"
-etag: "sha256-be64bf832bb1b081e16535064ad6225b6a63bce164719886220adfc0f3a8cde1"
+mirror_sha256: "7425226eea2686a55a33c5631caec165d768d8680d0a2076b114b4f40dd208bb"
+etag: "sha256-a2b661196dab1e6ce6de4669a1af902964cfda409d43ef9c15bf87f39b8a9371"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/4-security.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -104,7 +104,7 @@ AI 메시지와 표시물을 마크다운·HTML 로 그리는 표면은 위젯�
 
 **v1 기본 적용**
 
-- IP 단위 대화 시작 한도(분당 10/IP). `PublicWebhookThrottleGuard` + `PublicWebhookQuotaService`. 헤더(`X-Forwarded-For`, 신뢰할 때 `CF-Connecting-IP`)로 IP 를 알 수 없으면 식별하지 못한 요청 전체를 공유 버킷 하나에 묶어 같은 fixed-window 한도를 건다(근거는 [Rationale](#공개-웹훅에서-ip-를-알-수-없으면-공유-버킷-하나로-완화-한도를-건다-결정-2026-06-28)). `req.ip`·`req.socket.remoteAddress` 로 대신하지 않는다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md)의 클라이언트 IP 추출 규칙).
+- IP 단위 대화 시작 한도(분당 10/IP). `PublicWebhookThrottleGuard` + `PublicWebhookQuotaService`. 헤더(`X-Forwarded-For`, 신뢰할 때 `CF-Connecting-IP`)로 IP 를 알 수 없으면 식별하지 못한 요청 전체를 공유 버킷 하나에 묶어 같은 fixed-window 한도를 건다(근거는 [Rationale](#공개-웹훅에서-ip-를-알-수-없으면-공유-버킷-하나로-완화-한도를-건다)). `req.ip`·`req.socket.remoteAddress` 로 대신하지 않는다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md)의 클라이언트 IP 추출 규칙).
 - 익명 세션과 IP 조합의 대화 상한(동시 ≤3, 시간당 신규 ≤20).
   - 누적 신규(시간당 ≤20/IP)는 v1 에 구현됐다.
   - 동시 ≤3 은 현 시점 비목표다. 대화 종료 신호(`conversationEnded`)를 백엔드와 연동해야 하는데 구현되지 않았고 누적 신규 상한만으로 best-effort 방어가 충분해 뺐다. 필요해지면 별도 계획으로 시작한다.
@@ -176,7 +176,9 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 - (c) same-origin 동봉 경로에서는 같은 origin 의 악성 스크립트가 sandbox 를 벗어날 수 있다. 웹채팅 위젯은 제품과 같은 릴리스로 나가므로(버전 잠금) iframe 문서의 출처가 제품 자신이라는 공급망 무결성이 전제돼 남는 위험을 받아들인다. 외부 CDN(`NEXT_PUBLIC_WIDGET_CDN_BASE`) 환경은 (a) 모델로 돌아가 위협이 사라진다.
 - (d) 운영 콘솔 미리보기의 same-origin 동봉 iframe 도 같은 전제(우리 앱이 우리 위젯을, 버전 일치·외부 의존 0)에 서며 근거가 같다.
 
-### 공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다 (결정 2026-06-28)
+### 공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다
+
+결정일: 2026-06-28
 
 헤더에서 IP 를 알 수 없는 경우(`X-Forwarded-For`·신뢰할 때 `CF-Connecting-IP` 부재, 공격자가 일부러 지울 수 있음)를 무제한 통과에서 공유 버킷 완화 한도로 바꿔 우회를 유한 상한으로 좁혔다.
 
@@ -189,7 +191,9 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 
 > **인증 웹훅의 IP 허용 목록(`ip_whitelist`)과 비교**: 같은 헤더 기반 추출을 쓰지만 IP 를 알 수 없으면 `ip_whitelist` 검증은 거부(fail-closed)다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)). 호출 수 제한은 가용성 보호(best-effort)이고 `ip_whitelist` 는 명시적인 인증 게이트라 식별 못 할 때 보수적으로 닫는다.
 
-### `apiBase` 스킴 검증은 두 입력 경로 모두에 건다 (결정 2026-08-11)
+### `apiBase` 스킴 검증은 두 입력 경로 모두에 건다
+
+결정일: 2026-08-11
 
 예전에는 "쿼리는 외부가 통제하는 입력, `wc:boot` 은 호스트 SDK 계약이라 신뢰 경계 안" 이라는 근거로 쿼리 폴백에만 걸었다. 그 비대칭이 강화를 무력하게 만들었다.
 

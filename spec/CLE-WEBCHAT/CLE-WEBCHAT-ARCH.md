@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-ARCH"
 title: "웹채팅 구조"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "57a13c15630052a7f8185547cba1ea865f7d18d6960b75a8dbaa0bbdf06ffd96"
+content_hash: "1efcda29a0bfec0f4dc03e41ae208d9a49f19901be67428d8046d3ae56677e4d"
 read_as: "approved_fallback"
-task: "CLE-T-JNXZWY"
+task: "CLE-T-18C572"
 source_paths: ["spec/7-channel-web-chat/0-architecture.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "d9f58e4bec3110c61f352fa0b1ec0c5ce3b77607dbc6ad13bfa2d9b5ebea7afc"
-etag: "sha256-6989526cfa9806f85650a772304dcf20ad3305ee76b76c01ffd82c70421e2140"
+mirror_sha256: "420eae725dada2f112179994c85f429de1de3d5ead6a4a6e9a22f5507d2158e7"
+etag: "sha256-2da03eafb850ddf5d451d51f2f87f045519f67a366320304bdea85a2f9c17435"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/0-architecture.md`, `spec/7-channel-web-chat/5-admin-console.md` (R4·R6 의 배포 결정 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -188,7 +188,9 @@ v1 은 구현 단순성을 먼저 봐 (A)를 쓴다. 초기 로드 무게가 측
 
 **예외: 운영 콘솔 미리보기의 same-origin iframe.** 위 기각은 호스트 페이지 임베드(외부 origin 에서 위젯을 호스트와 격리)에 대한 것이다. 운영 콘솔의 라이브 미리보기는 사정이 다르다. 우리 앱이 우리 위젯을 미리 보는 것이라 cross-origin 격리가 목적이 아니다. 셀프호스팅과 여러 버전이 섞이는 환경에서 버전을 맞추고 외부 의존을 없애는 것이 목적이다. 그래서 미리보기는 제품과 함께 배포한 웹채팅 위젯을 same-origin 실제 `src` iframe 으로 불러온다(`srcdoc` 아님). 위젯 CSS·JS 격리는 iframe 으로 유지하고 외부 CDN 요청은 없으며 그 배포 버전과 항상 맞는다. 고객 임베드 경로(로더 + cross-origin iframe)는 그대로다. 미리보기 쪽 결정은 [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)에 있다.
 
-### 위젯을 제품과 동봉 배포한다 (외부 CDN fetch 기각, 결정 2026-06-23)
+### 위젯을 제품과 동봉 배포한다 (외부 CDN fetch 기각)
+
+결정일: 2026-06-23
 
 셀프호스팅이 가능하고 배포마다 버전이 다르다. 위젯을 외부(SaaS) CDN 에서 받아 오면 그 배포의 백엔드·EIA 버전과 어긋나고 셀프호스터가 따로 CDN 을 운영해야 한다. 그래서 위젯을 제품과 같은 릴리스로 동봉 배포해(프론트엔드 workspace 의존 + `/_widget/web-chat/v1/` 서빙) 버전을 배포 단위로 잠근다. 동봉하면 위젯 배포 주소의 기본값이 배포 자신의 origin 이 되어 외부 호스팅이 선행 조건에서 빠지고 고객 설치 스크립트도 셀프호스터 자신의 버전을 가리킨다. 외부 CDN fetch 는 버전 불일치와 셀프호스트 CDN 운영 부담 때문에 기각했다.
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-TOKEN"
 title: "채팅 채널 데이터와 흐름 — 봇 토큰 라이프사이클"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "93f779275c6b9a3464971d85df7c27e5b93125fb9ca166fd0416b70d41af3c44"
+content_hash: "1c397e93af56364b18d4e2f7803c68a2e8653161d012aeedaa53d52bce7324e1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "d3ef13787493f3dd6329aaeb82bcd4f5df7ee036459d03267bbd534d011226f3"
-etag: "sha256-a76912c4eafd97abc4d533a1d09b8b4b3e94462005680527811a6f96a2936a2c"
+mirror_sha256: "7da0afac1db1ea724e7580158e579ac3d76981430fda09e1727e7f32d91af308"
+etag: "sha256-afa719d164827c14a980250ec30c3fa59a645913cc8d2ae59f2dc13b666b939c"
 ---
 ## 개요
 
@@ -83,7 +83,7 @@ stateDiagram-v2
 - 재발급이 ②~⑥ 가운데 어디서 실패해 v2 를 처음 토큰으로 되돌리면 폐기하지 않는다. 그 토큰은 유예 중인 옛 토큰으로 돌아오고 유예가 끝나면 정리가 폐기한다. ⑥ 에서 트리거 행이 지워져 404 로 끝날 때도 폐기하지 않는다.
 - revoke API 가 있는 프로바이더는 Slack(`auth.revoke`)뿐이다. Telegram · Discord 에서는 전과 같이 처음 토큰이 시크릿 저장소에서 사라지기만 한다.
 
-근거는 [Rationale](#rationale) 의 「유예 중 재교체로 덮이는 봇 토큰은 재발급이 끝난 뒤 폐기한다 (2026-11-13)」 에 있다.
+근거는 [Rationale](#rationale) 의 「유예 중 재교체로 덮이는 봇 토큰은 재발급이 끝난 뒤 폐기한다」 에 있다.
 
 [EIA 데이터와 흐름 「알림 서명 시크릿」](../CLE-IX/CLE-EIA-DATA.md#알림-서명-시크릿) 도 유예 중 재호출 때 앞의 v2 를 덮고 24시간 유예를 다시 시작한다. v2 에 담는 값의 차이(새 시크릿 대 옛 토큰 백업)와 두 컬럼 이름을 같은 패턴으로 둔 근거는 [Rationale](#rationale) 의 「R-K chat_channel_token_v2 이름을 notification_secret_v2 와 같은 패턴으로 둔다」 에 있다.
 
@@ -107,13 +107,17 @@ stateDiagram-v2
 
 요구사항([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안))과 현재 구현(`rotateBotToken`)은 v2 에 옛 토큰을 24시간 백업하고 승격 단계를 두지 않는다. 이 항목의 옛 표현 «유예 기간의 신규 token» 은 그쪽에 맞춰 고쳤다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 도 같은 규칙을 적는다. 이름 패턴은 같아도 두 v2 의 뜻은 반대다. `notification_secret_v2` 는 유예 기간의 새 서명 시크릿이고 승격 때 기준 참조를 바꾼다. `chat_channel_token_v2` 는 옛 봇 토큰 백업이고 유예가 끝나면 지운다.
 
-### 유예 중 봇 토큰 재발급은 현재 코드 동작을 적은 것이다 (2026-10-17)
+### 유예 중 봇 토큰 재발급은 현재 코드 동작을 적은 것이다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-EMB0YG` 의 승인본 동기화다. [봇 토큰 라이프사이클](#봇-토큰-라이프사이클) 상태도의 `Grace --> Grace` 와 그 아래 문단은 유예 중 재발급 때 지금 `rotateBotToken` 이 하는 일을 그대로 적었다. 이 동작을 골라 정한 기록은 없다.
 
-유예 중 재발급을 `409` 로 거부할지와 v2 가 덮일 때 처음 토큰을 revoke 할지는 2026-11-13 에 정했다. 근거는 아래 「유예 중 재교체로 덮이는 봇 토큰은 재발급이 끝난 뒤 폐기한다 (2026-11-13)」 에 있다. v2 에 백업한 직전 토큰의 revoke 시점(유예 종료 정리)은 NERV Task `CLE-T-D41BY6` 에서 정했다(위 표의 「유예 종료 정리」).
+유예 중 재발급을 `409` 로 거부할지와 v2 가 덮일 때 처음 토큰을 revoke 할지는 2026-11-13 에 정했다. 근거는 아래 「유예 중 재교체로 덮이는 봇 토큰은 재발급이 끝난 뒤 폐기한다」 에 있다. v2 에 백업한 직전 토큰의 revoke 시점(유예 종료 정리)은 NERV Task `CLE-T-D41BY6` 에서 정했다(위 표의 「유예 종료 정리」).
 
-### 재발급이 실패하면 그 요청이 쓴 시크릿을 되돌린다 (2026-11-12)
+### 재발급이 실패하면 그 요청이 쓴 시크릿을 되돌린다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-Q353Y4` 의 결정이다. 앞 판은 재발급이 실패한 단계 앞의 쓰기를 되돌리지 않는다고 적고 그것을 결함으로 올렸다. 되돌리지 않으면 세 가지가 남았다.
 
@@ -127,7 +131,9 @@ NERV Task `CLE-T-Q353Y4` 의 결정이다. 앞 판은 재발급이 실패한 단
 
 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 «⑤ 에서 거부되면 `bot-token.v2` 백업 행이 남아 유예 정리 대상이 되지 않는다» 는 서술은 이 판과 맞지 않는다. 그 문서의 정정은 후속으로 남긴다.
 
-### 유예 중 재교체로 덮이는 봇 토큰은 재발급이 끝난 뒤 폐기한다 (2026-11-13)
+### 유예 중 재교체로 덮이는 봇 토큰은 재발급이 끝난 뒤 폐기한다
+
+결정일: 2026-11-13
 
 NERV Task `CLE-T-6ZTPZ8` 의 결정이다. 사람이 질문 `01a1d2f3-e056-744a-a58f-76fe3a46c612` 에 답해 정했다. 2026-10-17 판은 유예 중 재발급에서 v2 가 덮일 때 처음 토큰을 revoke 하지 않는 동작을 적고 결정을 미뤘다. 덮인 토큰은 시크릿 저장소에도 트리거 컬럼에도 남지 않는다. 그래서 유예 종료 정리가 그 토큰을 찾지 못하고, Slack 에서는 쓰지 않는 토큰이 프로바이더 쪽에서 계속 유효하다.
 
