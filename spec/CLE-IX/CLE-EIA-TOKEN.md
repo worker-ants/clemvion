@@ -2,19 +2,19 @@
 id: "CLE-EIA-TOKEN"
 title: "External Interaction API — 트리거 설정과 인터랙션 토큰"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "c1e0b71df59d01defdca79e533d5bf3ad2585d4e2706679a408ed0a50c50a99e"
+content_hash: "0671bbbbf424d3c5985642d3b35d2969ca77d37a6ff5e07c79a80b21a1424d66"
 read_as: "approved_fallback"
-task: "CLE-T-PK8EKG"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "04ec3071db716098a754775cad7cac0e1373c42a3832bfec524527d4540f4f37"
-etag: "sha256-bef41d2be852e5de2c98039c0405ca9b551f81277a129a688a469b161a384c03"
+mirror_sha256: "da7a83023c9ce88f60ae5b19ac73eaa27250b9b4aeca0e8d87f69e426b9e83ce"
+etag: "sha256-7eb733baef4425e5a9f5c86090ff149acc1246ef8e03bab72235f834df4d055c"
 ---
 ## 개요
 
@@ -234,7 +234,9 @@ type InteractionRequestContext =
 
 트리거 단위 토큰이 편한 경우도 있다. 여러 실행을 동시에 다루는 봇(Telegram 봇 등)은 실행마다 토큰을 주고받는 비용을 피할 수 있다. 다만 이 경우는 사용자가 변환층을 직접 만드는 경우에 한한다. 서버 어댑터([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md))를 쓰면 내부 신뢰 호출로 토큰 사이클 자체가 없다. 모든 실행의 토큰을 따로 보관해야 하는 클라이언트도 트리거 단위가 편하다. 그래서 기본은 안전한 쪽, 선택지로 편한 쪽을 둔다.
 
-### 생성과 PATCH 응답에 싣는 일회성 비밀 (2026-10-17)
+### 생성과 PATCH 응답에 싣는 일회성 비밀
+
+결정일: 2026-10-17
 
 생성과 PATCH 응답의 `data` 는 트리거 리소스다. 서버가 그 요청에서 새로 만든 비밀의 평문은 리소스 필드와 섞이지 않게 `data.secrets` 아래에 둔다. 재발급과 교체의 응답은 그 동작만의 응답이라 평문을 `data.token` · `data.secret` 에 바로 둔다([트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api)).
 
@@ -253,12 +255,16 @@ type InteractionRequestContext =
 - 인터랙션을 켤 때마다 새로 발급하는 안: 인터랙션을 꺼도 토큰 값을 남긴다는 결정(2026-10-09 사용자 결정)과 어긋난다. 호출자가 쓰던 토큰도 알림 없이 바뀐다.
 - 전략을 `per_trigger` 로 되돌릴 때 재발급(`revoke-token`)으로 새 토큰을 받는 규칙(2026-10-09, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 「서버가 만든 EIA 값의 발급 · 보존 · 교체 잠금」): 이제 그 PATCH 가 새 토큰을 발급한다. 옛 규칙의 목적은 지운 옛 토큰이 다시 살아나지 않게 하는 것이었고, PATCH 가 발급하는 토큰도 새 값이므로 그 목적은 지켜진다. 바꾼 이유는 생성 때 발급하는 것과 같다. 되돌린 트리거도 재발급을 따로 부르지 않고 바로 쓸 수 있어야 한다.
 
-### 운영 환경 가드 목록은 링크로 둔다 (2026-10-31)
+### 운영 환경 가드 목록은 링크로 둔다
+
+결정일: 2026-10-31
 
 「인터랙션 토큰」 절에는 `assertProductionConfig` 의 가드를 나열하지 않고 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 링크만 둔다. 이전 본문의 사본에는 `INTEGRATION_ENCRYPTION_KEY` · `MCP_ALLOW_INSECURE_URL` 가드가 빠져 있었다. 가드가 늘 때마다 사본은 낡으므로 목록은 한 곳에만 둔다.
 
-### 인터랙션 서명 비밀도 운영 환경 가드가 검사한다 (2026-11-06)
+### 인터랙션 서명 비밀도 운영 환경 가드가 검사한다
+
+결정일: 2026-11-06
 
 - 예전 가드는 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없을 때만 부팅을 막았다. `INTERACTION_JWT_SECRET` 을 설정했으면 값이 `.env.example` 의 예시 값이든 공백뿐이든 짧든 그 값으로 `iext_*` 에 서명했다. 알려진 값으로 서명하면 누구나 실행 단위 토큰을 위조해 남의 실행에 입력을 보내거나 실행을 취소할 수 있다. 같은 위험의 `JWT_SECRET` 은 이미 예시 값 · 공백 · 32자 하한을 막고 있었다.
-- 예전 본문은 이 가드가 모듈 안 컨텍스트가 필요해 생성자에 남는다고 적었다. 실제 판정에는 환경 변수 둘이면 충분하다. 그래서 `assertProductionConfig` 로 옮겨 `JWT_SECRET` 과 같은 규칙을 쓴다. 위치를 정한 이유와 기각한 대안은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「`INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다 (2026-11-06)」 에 있다. [운영 환경 가드 목록은 링크로 둔다](#운영-환경-가드-목록은-링크로-둔다-2026-10-31) 결정을 따라 이 문서에는 막는 값을 옮겨 적지 않는다.
+- 예전 본문은 이 가드가 모듈 안 컨텍스트가 필요해 생성자에 남는다고 적었다. 실제 판정에는 환경 변수 둘이면 충분하다. 그래서 `assertProductionConfig` 로 옮겨 `JWT_SECRET` 과 같은 규칙을 쓴다. 위치를 정한 이유와 기각한 대안은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「`INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다 (2026-11-06)」 에 있다. [운영 환경 가드 목록은 링크로 둔다](#운영-환경-가드-목록은-링크로-둔다) 결정을 따라 이 문서에는 막는 값을 옮겨 적지 않는다.
 - 서명 방식(HS256)과 대체 순서(`INTERACTION_JWT_SECRET`, 없으면 `JWT_SECRET`)는 바꾸지 않았다. 빈 문자열을 `JWT_SECRET` 으로 대신하게 바꾸는 안은 대체 순서를 바꾸는 일이라 택하지 않았다. 빈 값은 지금처럼 운영 부팅을 막는다.

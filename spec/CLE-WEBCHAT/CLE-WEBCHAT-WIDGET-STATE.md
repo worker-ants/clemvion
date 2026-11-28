@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-WIDGET-STATE"
 title: "웹채팅 위젯 — 대화 상태"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT-WIDGET"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT", "CLE-WEBCHAT-WIDGET"]
 area: "CLE-WEBCHAT"
-content_hash: "e0f3f28407e084743cf9cb3e1c6a30c1d3954af1fae94e519a7d53c04ed9b013"
+content_hash: "81897d15a5aff91405d87c09feb56d3ce411bc97b9b8b6298814754e46e2f484"
 read_as: "approved_fallback"
-task: "CLE-T-JNXZWY"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "1005fb5a455708ab56998c6575298ad62ffd7ef3e0b3be0c2833635271c78011"
-etag: "sha256-44d462d833b01971e2c47779d7e9fe2a083a587219848120a76686d1825b1de3"
+mirror_sha256: "27e3c06bef0fd4a48d64dd46154145a43867620f716752ea652f48779c57c440"
+etag: "sha256-dc462aa1b07b771fcc7e4cf350b075edbd2b143e725bcdf1f705254699a4b719"
 ---
 ## 개요
 
@@ -126,7 +126,9 @@ iframe 이 일시 중지되거나 네트워크가 잠깐 끊겨 SSE 가 끊기�
 
 런처 가시성(`show`·`hide`)과 패널 펼침(`open`·`close`)을 독립인 두 축으로 둔 것은 [웹채팅 SDK](CLE-WEBCHAT-SDK.md)에서 합의한 결정을 위젯 쪽에 반영한 것이다. 호스트가 "위젯을 페이지에서 완전히 숨김" 과 "런처는 두고 패널만 접음" 을 따로 제어해야 하기 때문이다. `updateProfile` 을 다음 시작에만 반영하고 진행 중 실행에 소급하지 않는 것은 웹훅 페이로드가 시작 때 한 번이라는 EIA 표면 제약을 따른 것이다. 진행 중 실행의 profile 을 고치려면 EIA 표면을 넓혀야 해서 이 영역 밖으로 뺐다. `blocked` 는 두 축과 무관한 복구 불가 상태로 따로 두어 호스트 제어(`hidden`)와 섞이지 않게 했다.
 
-### 패널을 열 때 워크플로우를 시작한다 (첫 입력 때 시작 기각, 결정 2026-06-06)
+### 패널을 열 때 워크플로우를 시작한다 (첫 입력 때 시작 기각)
+
+결정일: 2026-06-06
 
 **처음 결정(기각)**: 패널을 열기만 해서는 시작하지 않고 첫 사용자 텍스트 입력 때 시작하며 웹훅에 `firstMessage` 를 함께 싣는 방식이었다. 빈 패널만 열고 떠나는 사용자 때문에 실행이 낭비되는 것을 피하려 했다. 이 방식은 AI 텍스트가 먼저인 워크플로우만 가정했고 두 결함이 드러났다.
 

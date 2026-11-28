@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-OUTBOUND"
 title: "Slack 어댑터 — Web API 와 노드 UI 매핑"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "90d948f426d2a5f25167f63c041cd61f1f06e17b55f933d0201657c3b9b5bfa9"
+content_hash: "a742abf2cd7c61c187f35df1cbbc90852c4d84420d94013c905ca572a01dd417"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "d8123a3aea25414ce49ccec8962f30785891c7a0d69ab339c9677c7f11739193"
-etag: "sha256-728404158ca9cce3257f66d5ce922b07b0f0686429a3422c55b271ddcbb90054"
+mirror_sha256: "c5e480358c99a0c0fc07c43e5435bd93692ec040349acf905e0ae5f30e0863d3"
+etag: "sha256-dd18d39f4c4e138fcb79f85546b19f46c041dde9881cc7f6d2f5a0dc6499a3c2"
 ---
 ## 개요
 
@@ -105,7 +105,7 @@ Authorization: Bearer {botToken}
 
 워크플로우 작성자가 템플릿에 일부러 넣은 멘션과 링크 문법도 글자로 보인다. 링크가 필요하면 URL 을 꺾쇠 없이 쓴다.
 
-3500자 분할은 escape 한 뒤에 한다. 3500자 조각 경계가 `&amp;` · `&lt;` · `&gt;` 의 가운데를 지나면 그 엔티티 앞에서 자른다. 채팅 채널 공통 의무는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「멘션 무력화」](CLE-CHAT-ADAPTER-RENDER.md#멘션-무력화) 가 정하고 근거는 [Rationale](#template-본문과-ai-응답을-escape-해-멘션을-막는다-2026-11-14) 에 있다.
+3500자 분할은 escape 한 뒤에 한다. 3500자 조각 경계가 `&amp;` · `&lt;` · `&gt;` 의 가운데를 지나면 그 엔티티 앞에서 자른다. 채팅 채널 공통 의무는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「멘션 무력화」](CLE-CHAT-ADAPTER-RENDER.md#멘션-무력화) 가 정하고 근거는 [Rationale](#template-본문과-ai-응답을-escape-해-멘션을-막는다) 에 있다.
 
 ### 멀티턴 AI
 
@@ -207,7 +207,9 @@ Slack `views.open` 모달을 네이티브 폼으로 택했다. [채팅 채널 �
 
 2026-11-06 결정이다(NERV Task `CLE-T-D41BY6`). 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 에 있다. 이 결정으로 미결 «이전 봇 토큰 revoke 시점» 을 닫았다.
 
-### Template 본문과 AI 응답을 escape 해 멘션을 막는다 (2026-11-14)
+### Template 본문과 AI 응답을 escape 해 멘션을 막는다
+
+결정일: 2026-11-14
 
 **배경**: Template 노드는 `{{ }}` 표현식으로 웹훅 본문, 폼 입력, 앞 노드 출력 같은 외부 값을 본문에 넣는다. 그 값에 `<!channel>` · `<!here>` 가 들어 있으면 채널 전체 멘션이 되어 알림이 울리고 `<@U…>` 는 사용자 멘션이 된다. 그런데 렌더러는 Template 본문을 그대로 보냈다. AI 응답의 `<` · `>` · `&` escape 는 이미 [Slack 어댑터](CLE-CHAT-SLACK.md) 의 요구사항이었지만 코드는 escape 하지 않았다(NERV Task `CLE-T-FQTQ7K`).
 
@@ -225,6 +227,8 @@ escape 하면 본문이 길어지므로 3500자 분할은 escape 한 뒤에 한�
 - **`{{ }}` 치환값만 escape 하고 작성자가 쓴 글자는 그대로 둔다**: 렌더러가 받는 값은 완성된 `output.rendered` 라 어느 글자가 치환값인지 알 수 없다. Template 노드나 표현식 해석기가 치환할 때 escape 하거나 치환 경계를 출력에 실어 넘겨야 한다. 이것은 백엔드와 표현식 해석기가 본문을 escape 하지 않고 소비처가 처리한다는 2026-11-12 결정([Presentation 노드 공통 — 표시 표면 「Template 본문은 그리는 쪽이 정화한다 (2026-11-12)」](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다), NERV Task `CLE-T-MBGDA4`)과 겹친다. AI 응답에는 치환 경계가 아예 없다.
 - **`mrkdwn: false` 로 서식 해석을 끈다**: 위에 적은 대로 서식까지 사라져 AI 응답의 표현이 바뀐다.
 
-### 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)
+### 나누는 경계를 줄바꿈 · 공백 경계로 적는다
+
+결정일: 2026-11-19
 
 「멀티턴 AI」 의 「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 요구사항 문장을 그대로 두고 뜻만 정했던 결정을 뒤집었고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.

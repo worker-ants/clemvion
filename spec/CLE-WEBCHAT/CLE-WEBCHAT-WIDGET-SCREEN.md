@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-WIDGET-SCREEN"
 title: "웹채팅 위젯 — 화면과 문구 다국어"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT-WIDGET"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT", "CLE-WEBCHAT-WIDGET"]
 area: "CLE-WEBCHAT"
-content_hash: "33a74bb5d9e2f809b546cb42b31b6664b03acadcc5fd6d4d6e4ad5a39f97445d"
+content_hash: "dd8e8d36ffcfe98a3f9e4f82a657024fa3591eac87aaf43340451f13b35628af"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "af33be694297fe388d155263bc85979d9380202f3bd9e3a0bea7b24ffc67c509"
-etag: "sha256-144e0f98f557897dc5c90dffaf427f59dbae67aeb583cfa5a5f93ea889fc2602"
+mirror_sha256: "0dd9d803b701b4acef5d6fb4be4eee90fed950634027977b3120efae0c5f9941"
+etag: "sha256-26bb8fd8fddbe4697d0fff2dcf8dc25e927484dc537e2b4e7147c7bfab58b6cc"
 ---
 ## 개요
 
@@ -103,7 +103,9 @@ etag: "sha256-144e0f98f557897dc5c90dffaf427f59dbae67aeb583cfa5a5f93ea889fc2602"
 
 렌더러가 복원 표시물을 무시한다는 제약은 없다(2026-07-10 실측). 없는 제약을 적어 두면 이미 있는 변환기를 다시 만들게 되고 진짜 제약이 가려진다. 진짜 복원 제약은 표시 전용 Presentation 노드의 표시물이 대화 스레드에 저장되지 않기 때문이다([표시물 렌더](#표시물-렌더)의 복원 범위 제약). 이것을 대화 스레드에 실으려면 백엔드 항목 출처 enum 이나 대화 기록 항목 필드를 넓혀야 해서 v2 검토 사안이며 [웹채팅](CLE-WEBCHAT.md)의 비목표에 올렸다.
 
-### `locale` 을 켜서 위젯 고유 문구만 다국어로 낸다 (결정 2026-07-12)
+### `locale` 을 켜서 위젯 고유 문구만 다국어로 낸다
+
+결정일: 2026-07-12
 
 v1 위젯은 한국어 전용이라 `locale` 을 예약 필드로만 두었다([웹채팅 SDK](CLE-WEBCHAT-SDK.md)). 영어 지원 착수는 코드 변경이 없는 범위라는 이유로 미뤄 두었고(내용상 기각 아님), 2026-07-12 사용자가 코드 작업을 승인해 예약한 활성화를 실행했다. 명시적으로 예약한 경로라 결정 번복이 아니다.
 

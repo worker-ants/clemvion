@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-GATE"
 title: "채팅 채널 — 인바운드 관문"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "48ea5877121543bffe9a867acd03ada0c39dd2d1b24f2a92ad75b706318d6589"
+content_hash: "72619646ed9e93f4fa2a9c243ef78efec4051243c984ac727b5e8d1ee676c52d"
 read_as: "approved_fallback"
-task: "CLE-T-8A055H"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "d106f38605708723fc296c6085ccd9e2b627fac6874cb22d92bbdbadb367e90d"
-etag: "sha256-3278f0f1b85ad92b89173a6c6d1c3c47f6864fc322d2d2fc8d7840c985746f68"
+mirror_sha256: "f0d0c6a02149bf15cd604f37bded69e5d0d0fa03a89cdd1e72afcf6a36592b5f"
+etag: "sha256-f44c5c3570dcd95bf02406075fa8461708f225612e170164739916ac566d6e8d"
 ---
 ## 개요
 
@@ -193,7 +193,7 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 
 남은 한계는 운영 조건이다. 프록시가 두 단계인데 CF 신뢰 설정을 켜지 않은 배포에서는 `req.ip` 가 앞 프록시의 IP 가 된다. 그러면 한 트리거의 실패가 버킷 하나에 모인다. 이때 위조 요청을 20번 보내면 그 트리거의 정상 update 가 출처와 상관없이 최대 60초 동안 `401` 을 받는다. 전에는 위조 요청으로 막을 수 있는 범위가 공격자가 고른 (트리거, IP) 쌍 하나였다. 이 배포에서는 그 범위가 트리거 전체로 넓어진다. 그래도 이 방식을 고른 것은 설정이 맞는 배포(프록시 한 단계, 또는 Cloudflare 뒤에서 신뢰 설정을 켠 배포)에서 위조 경로를 아예 닫기 위해서다(NERV 질문 `01a1d828-baff-74d0-a2db-d789f3144b95` 의 답 A). 전역 요청 빈도 제한(`UserThrottlerGuard`)도 `req.ip` 로 세므로 같은 설정 오류에서는 이미 프록시 IP 하나로 센다. `main.ts` 의 프록시 한 단계 전제(`trust proxy 1`)와 같은 조건이다. Cloudflare 뒤 배포는 `TRUST_CF_CONNECTING_IP=true` 를 켠다. 창이 끝난 뒤 프로바이더가 다시 보낸 update 는 처리된다.
 
-**공개 웹훅 IP 한도와 규칙이 다른 이유.** [웹채팅 보안 「공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다 (결정 2026-06-28)」](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅에서-ip-를-알-수-없으면-공유-버킷-하나로-완화-한도를-건다-결정-2026-06-28) 는 `req.ip` 폴백을 기각했다. cloudflared · LB 뒤에서는 모든 트래픽이 프록시 IP 버킷 하나로 모여 정상 사용자가 거짓 `429` 를 받기 때문이다. 서명 실패 한도는 서명이 틀린 요청만 센다. 정상 프로바이더 요청은 한 버킷에 모여도 세지 않으므로 공격이 없으면 버킷이 차지 않는다. 그래서 공격이 없는 동안에는 그 함정이 이 한도에서 정상 요청의 거짓 차단으로 이어지지 않는다. 공개 웹훅 IP 한도와 `ip_whitelist` 는 그대로 `X-Forwarded-For` 첫 값 규칙을 쓴다.
+**공개 웹훅 IP 한도와 규칙이 다른 이유.** [웹채팅 보안 「공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다」](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅에서-ip-를-알-수-없으면-공유-버킷-하나로-완화-한도를-건다) 는 `req.ip` 폴백을 기각했다. cloudflared · LB 뒤에서는 모든 트래픽이 프록시 IP 버킷 하나로 모여 정상 사용자가 거짓 `429` 를 받기 때문이다. 서명 실패 한도는 서명이 틀린 요청만 센다. 정상 프로바이더 요청은 한 버킷에 모여도 세지 않으므로 공격이 없으면 버킷이 차지 않는다. 그래서 공격이 없는 동안에는 그 함정이 이 한도에서 정상 요청의 거짓 차단으로 이어지지 않는다. 공개 웹훅 IP 한도와 `ip_whitelist` 는 그대로 `X-Forwarded-For` 첫 값 규칙을 쓴다.
 
 **기각한 대안.**
 

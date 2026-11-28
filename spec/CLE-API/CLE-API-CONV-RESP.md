@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RESP"
 title: "HTTP API 규약 — 응답 형식과 상태 코드"
 type: "convention"
-version: 5
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "49db4c9bbe0a068fa5aa9caba667b152e6ae5528cda65081a6bbbd3437e0da8c"
+content_hash: "82c3ccc0a5409f03f1aeb27658d1978313dfbb1eef6cf3f54436cb14029b735b"
 read_as: "approved_fallback"
-task: "CLE-T-VWC60Z"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "78ef527461c591dc59608156f92bbe162b72e385e85e5cdef1ad2876ebe63d8f"
-etag: "sha256-fe37f5f52fa766d824cdcfa7f2513e45540aeae2a925abeefb9e8d4e5f64c191"
+mirror_sha256: "bf26792cf1f642e258abe54edd1b14ded62edf9d745ecdfd24e893b409c78be7"
+etag: "sha256-edd84702c8cd0b6f5df18295365124196d82313fd67f7a5b1eba891ec2118e7e"
 ---
 ## 개요
 
@@ -111,7 +111,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | `swagger-dto-contract-guard.ts` (repo-guard) | **선언과 선언**: `@ApiProperty` 데코레이터와 TS 타입 | 정적 (AST) | 선언이 양쪽 다 틀린 경우. 실제 응답 값 |
 | `response-contract.ts` (testing) | **값과 선언**: 실제 HTTP 응답과 생성된 OpenAPI 스키마 | 런타임 (e2e) | 배선되지 않은 엔드포인트 |
 | `user-entity-exposure-guard.ts` (repo-guard) | **구조**: `User` 엔티티를 투영 없이 관계로 싣는 자리를 센다 | 정적 (AST) | 엔티티를 거치지 않고 손으로 조립한 유출 |
-| `user-secret-absence.ts` (testing) | **이름**: 응답 바디 어디에도 `User` 민감 컬럼 이름이 없다(응답 노출 금지 민감 컬럼 목록은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)) | 런타임 (e2e) | 이름이 다른 새 비밀 컬럼. 목록(`USER_SECRET_KEYS`)에 넣어야 걸린다 |
+| `user-secret-absence.ts` (testing) | **이름**: 응답 바디 어디에도 `User` 민감 컬럼 이름이 없다(응답 노출 금지 민감 컬럼 목록은 [사용자 · 인증 엔티티 「응답에 싣지 않는 민감 컬럼 7개」](../CLE-ACCT/CLE-ACCT-DATA-MODEL.md#응답에-싣지-않는-민감-컬럼-7개)) | 런타임 (e2e) | 이름이 다른 새 비밀 컬럼. 목록(`USER_SECRET_KEYS`)에 넣어야 걸린다 |
 
 - **개수를 세지 않는다.** 축이 늘 때마다 숫자가 낡는다. 문장은 나열을 가리키고 인벤토리는 위 표에 둔다.
 - **두 축이 서로 다른 규칙을 시행한다.** `response-contract.ts` 의 판정 중 required/nullable 축은 이 절을 시행하고 "스키마에 선언하지 않은 키가 응답에 있다" 축은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 응답 DTO 위치 절(엔티티를 그대로 노출하지 않는다)을 시행한다. 그래서 그 검증자는 두 문서의 구현 위치에 모두 등재한다. 한쪽에만 등재하면 다른 축의 변경이 재검토를 부르지 못한다.
@@ -124,7 +124,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 |------|------|-----------|
 | 200 | OK | 조회, 수정 성공 |
 | 201 | Created | 생성 성공 |
-| 202 | Accepted | **비동기 수락.** 큐에 넣고 바로 돌아오며 결과는 별도 채널(실행 상세·WebSocket·SSE)로 전한다. 웹훅 수신([§11](CLE-API-CONV-HOOK.md#11-웹훅-수신-엔드포인트))·실행 트리거·재임베딩 같은 긴 작업에 쓴다. no-content 가 아니다. `{ data: { executionId, ... } }` ack 본문을 싣는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) |
+| 202 | Accepted | **비동기 수락.** 큐에 넣고 바로 돌아오며 결과는 별도 채널(실행 상세·WebSocket·SSE)로 전한다. 웹훅 수신([§11](CLE-API-CONV-HOOK.md#11-웹훅-수신-엔드포인트))·실행 트리거·재임베딩 같은 긴 작업에 쓴다. no-content 가 아니다. `{ data: { executionId, ... } }` ack 본문을 싣는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)). 채팅 채널 수신이 실행을 시작하지 않고 버린 update 도 `202`·`executionId: 'ignored'` 다. 큐에 넣지 않는 예외이고 인터랙션은 `200` 기본 응답이다([채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#인바운드-관문-순서)) |
 | 204 | No Content | 삭제 성공 |
 | 400 | Bad Request | 잘못된 요청 (유효성 검증 실패) |
 | 401 | Unauthorized | 인증 필요 또는 토큰 만료. EIA 트리거 단위 토큰 경로에서 실행이 없을 때도 `401`(`EXECUTION_NOT_FOUND`)이다(`404` 행) |
@@ -275,4 +275,4 @@ NERV Task `CLE-T-VJQZSW` 다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.
 
 결정일: 2026-11-20
 
-§5.5 는 요청 PATCH 삼중 상태만 적었다. 저장소는 `null` 을 400 으로 거부하는 필드(`@IsOptionalNonNull`)도 쓴다. 리뷰어가 그 근거를 규약에서 찾지 못해 CLE-T-9Q304H 의 정합 검토에서 경고가 났다(CLE-T-WT4MBY). 기준은 [워크스페이스 공간 「설정 키의 null 은 지울 다른 방법이 없을 때만 받는다」](../CLE-ACCT/CLE-ACCT-WS-SPACE.md#설정-키의-null-은-지울-다른-방법이-없을-때만-받는다) 의 결정을 옮겼다. 트리거 타입 필드는 [트리거 관리 API](../CLE-TRIG/CLE-TRIG-MANAGE-API.md#타입-필드-notification--interaction-의-null-은-해제다-2026-11-20) 에서 해제로 정했다.
+§5.5 는 요청 PATCH 삼중 상태만 적었다. 저장소는 `null` 을 400 으로 거부하는 필드(`@IsOptionalNonNull`)도 쓴다. 리뷰어가 그 근거를 규약에서 찾지 못해 CLE-T-9Q304H 의 정합 검토에서 경고가 났다(CLE-T-WT4MBY). 기준은 [워크스페이스 공간 「설정 키의 null 은 지울 다른 방법이 없을 때만 받는다」](../CLE-ACCT/CLE-ACCT-WS-SPACE.md#설정-키의-null-은-지울-다른-방법이-없을-때만-받는다) 의 결정을 옮겼다. 트리거 타입 필드는 [트리거 관리 API](../CLE-TRIG/CLE-TRIG-MANAGE-API.md#타입-필드-notification--interaction-의-null-은-해제다) 에서 해제로 정했다.
