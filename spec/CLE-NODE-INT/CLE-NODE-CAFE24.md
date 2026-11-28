@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "816fc5f90fbcb4f511dd4c51f32afb91b2aab8a12622ae6158c07ceeaab93c4e"
+content_hash: "a6a9a9b5cc5e4ee9768cce61c5b1498b16e29305befa5a1f0683723950feec94"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-WG6EGS"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "605a2dcf0a2708755b0a6b3e384cdf037afe4e079a7c111661a66f4cf474569f"
-etag: "sha256-7a374fd120e63ae955152e0fc273d14e076b192f72858df902c2174e324e9068"
+mirror_sha256: "03422539dabb4eeafe295e5f29dfc68d587f0b36a98d2fc8780b67f59fe37f93"
+etag: "sha256-713ca1d330d0fb230ddd0c505944f78e28dee584542e63f66d796553dca91a87"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -62,10 +62,10 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 - REQ-CAFENODE-023 WHILE 같은 프로세스 인스턴스에서 한 통합의 호출이 429 로 기다리는 동안 THE SYSTEM SHALL 그 통합의 다른 호출(노드와 MCP 도구)도 기다리게 한다.
 - REQ-CAFENODE-024 WHEN 401 응답을 받으면 THE SYSTEM SHALL 리프레시 토큰으로 액세스 토큰을 한 번 갱신하고 같은 요청을 한 번 재시도한다.
 - REQ-CAFENODE-025 IF 재시도 응답도 401 이면 THE SYSTEM SHALL `CAFE24_AUTH_FAILED` 로 에러 포트에 보내고 통합 상태를 격하한다.
-- REQ-CAFENODE-026 WHEN 403 응답을 받으면 THE SYSTEM SHALL 토큰 갱신 없이 즉시 통합 상태를 격하하고 에러 포트에 보낸다.
+- REQ-CAFENODE-026 WHEN 403 응답을 받으면 THE SYSTEM SHALL 토큰 갱신 없이 즉시 통합 상태를 격하하고 `CAFE24_AUTH_FAILED` 로 에러 포트에 보낸다. 통합 상태 사유는 403 응답에 권한 범위 부족 신호가 있으면 `insufficient_scope`, 그 밖은 `auth_failed` 다. 401 로 격하할 때(REQ-CAFENODE-025)의 사유는 언제나 `auth_failed` 다.
 - REQ-CAFENODE-027 WHEN 응답을 받으면 THE SYSTEM SHALL 본문을 `output.response` 에 그대로 두고 호출 제한 헤더 값을 `meta` 에 담는다.
-- REQ-CAFENODE-028 WHEN 응답이 4xx·5xx 면 THE SYSTEM SHALL 상태별 코드(`CAFE24_404`·`CAFE24_422`·`CAFE24_4XX`·`CAFE24_5XX`)로 에러 포트에 보낸다.
-- REQ-CAFENODE-029 IF 요청이 reject 되면 THE SYSTEM SHALL `CAFE24_TRANSPORT_FAILED` 와 `meta.statusCode = 0` 으로 에러 포트에 보낸다.
+- REQ-CAFENODE-028 WHEN 응답이 3xx·4xx·5xx 면 THE SYSTEM SHALL 상태별 코드(`CAFE24_404`·`CAFE24_422`·`CAFE24_4XX`·`CAFE24_5XX`)로 에러 포트에 보낸다. 리다이렉트를 따라간 뒤에도 남은 3xx 는 `CAFE24_4XX` 다.
+- REQ-CAFENODE-029 IF 요청이 reject 되면 THE SYSTEM SHALL `CAFE24_TRANSPORT_FAILED` 와 `meta.statusCode = 0` 으로 에러 포트에 보낸다. 토큰 갱신이 401·403 밖의 상태로 실패해도 같은 코드로 보낸다. 분류되지 않은 예외를 대체할 때와 같은 코드다. 이 갱신 실패는 [연속 전송 실패 카운터](../CLE-INT/CLE-INT-STATUS.md)에 세지 않는다. 토큰 갱신 경로에서는 갱신 요청 자체가 reject 될 때만 센다.
 - REQ-CAFENODE-030 WHEN 설정을 에코하면 THE SYSTEM SHALL `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 명시적으로 열거하고 자격 증명은 싣지 않는다.
 - REQ-CAFENODE-031 WHEN 통합을 얻은 뒤 외부 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다. 실행 취소로 끝난 호출은 남기지 않는다([통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)).
 - REQ-CAFENODE-032 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 `cafe24.<resource>.<operation>`, `api_method` 를 operation method, `api_path` 를 치환 전 path 템플릿으로 채운다.
@@ -91,7 +91,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 
 | 문서 | 맡는 내용 | 요구사항 |
 |------|-----------|----------|
-| [Cafe24 노드 — 설정과 출력](CLE-NODE-CAFE24-CONFIG.md) | 설정 필드, 리소스 표, 설정 화면, 포트, 캔버스 요약, 출력 구조, 에러 코드, 401·403 인증 실패 처리 | REQ-CAFENODE-003, 004, 006, 007, 008, 009, 010, 011, 012, 015, 024, 025, 026, 027, 028, 029, 030 |
+| [Cafe24 노드 — 설정과 출력](CLE-NODE-CAFE24-CONFIG.md) | 설정 필드, 리소스 표, 설정 화면, 포트, 캔버스 요약, 출력 구조, 에러 코드와 2xx 밖 응답 판정(`isHttpFailureStatus`), 401·403 인증 실패 처리, 토큰 갱신 실패 | REQ-CAFENODE-003, 004, 006, 007, 008, 009, 010, 011, 012, 015, 024, 025, 026, 027, 028, 029, 030 |
 | [Cafe24 노드 — 실행 로직](CLE-NODE-CAFE24-EXEC.md) | 실행 12단계, dry-run, 호출 제한, 시간대 | REQ-CAFENODE-001, 002, 013, 014, 016, 017, 018, 019, 020, 021, 022, 023, 031, 032, 033, 034, 035 |
 | [Cafe24 노드 — AI 에이전트 노출](CLE-NODE-CAFE24-AGENT.md) | 내부 MCP 브리지 도구 이름·capability·노출 도구 목록·활동 로그·만료된 통합 처리 | REQ-CAFENODE-005, 036, 037, 038, 039, 040, 041, 042 |
 | [Cafe24 노드 — 앱 설치 엔드포인트](CLE-NODE-CAFE24-INSTALL.md) | Private 앱 App URL 의 Redis 키·HMAC 검증·재전송 방지·실패 제한·식별 전략·상수, OAuth 권한 범위 구분자 | REQ-CAFENODE-043, 044, 045, 046, 047, 048, 049 |
@@ -138,7 +138,6 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 
 ## 미결 사항
 
-- **403(권한 범위 부족) 때 노드 출력 에러 코드**: 이 노드 원문은 403 을 `output.error.code = CAFE24_AUTH_FAILED` 로 내보내고 통합 상태를 `error(auth_failed)` 또는 `error(insufficient_scope)` 로 바꾼다고 적는다. 통합 화면 쪽 원문과 [Cafe24 별도 승인 scope](CLE-C24-SCOPES)는 노드 실행 중 403 이 `INSUFFICIENT_SCOPE` 코드와 `details.missingScopes`·`requiresCafe24Approval` 을 낸다고 적는다. 이 노드 원문의 별도 승인 Rationale 은 `details.requiresCafe24Approval` 만 전제한다. 현재 구현은 API 클라이언트에 `CAFE24_INSUFFICIENT_SCOPE` 코드가 있고 `requiresCafe24Approval` 을 통합의 `last_error.details` 에 싣는 것으로 보이나, 노드 출력으로 어떤 코드가 나가는지는 확인되지 않았다. 워크플로우 작성자가 분기할 코드와 `requiresCafe24Approval` 이 실리는 자리를 정해야 한다(관련: [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)). 같은 충돌이 [통합 관리 미결 사항](../CLE-INT/CLE-INT-MANAGE.md#미결-사항)에 올라 있다.
 - **만료된 통합의 도구 목록 자가 회복**: 이 노드 원문은 `buildTools()` 가 `expired` 행에 큐 경유 토큰 갱신을 걸면 갱신 worker 가 통합을 `connected` 로 되돌려 정상 도구 목록을 받는다고 적는다. [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md) 원문은 갱신 worker 가 source 와 무관하게 `status !== 'connected'` 행을 건너뛴다고 적고(현재 구현 `cafe24-token-refresh.processor.ts` 의 상태 가드와 같음), 같은 문서의 상태도에는 MCP 브리지 자가 회복으로 `expired → connected` 가 된다고 적어 자기모순이다. 만료된 통합이 AI 에이전트에서 되살아나는지가 여기에 달려 있다. 자가 회복 서술을 지울지, worker 가드에 예외를 설계할지 결정 필요(관련: [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md), [MakeShop 노드](CLE-NODE-MAKESHOP.md)도 같은 정책을 따른다). 같은 충돌이 [통합 상태와 만료 알림 미결 사항](../CLE-INT/CLE-INT-STATUS.md#미결-사항)에 올라 있다.
 
 ## 구현 위치
@@ -149,6 +148,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.component.ts`
 - `codebase/backend/src/nodes/integration/cafe24/metadata/index.ts` (operation 메타데이터, dry-run 판정 함수 `isCafe24DryRunMocked`, 상태를 바꾸는 GET 예외 목록 `CAFE24_STATE_CHANGING_GET_OPERATION_IDS`)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` (호출 제한·요청 봉투·401 재시도)
+- `codebase/backend/src/nodes/integration/_base/http-failure-status.util.ts` (2xx 밖 응답 판정 `isHttpFailureStatus`. 노드 핸들러와 내부 MCP 브리지가 함께 쓴다)
 - `codebase/backend/src/nodes/integration/_base/abort-cascade.util.ts` (노드 취소 신호 연쇄 `linkUpstreamAbort`, 노드 취소 판정 `isUpstreamAbort`)
 - `codebase/backend/src/nodes/core/abort-error.util.ts` (이름으로 `AbortError` 를 가리는 공용 판정 `isAbortErrorLike`)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.ts` (토큰 갱신 worker)
@@ -172,15 +172,36 @@ operation 규모는 초기 추정치("총 약 180개")와 달리 2026-07-17 실�
 
 메타데이터 **형식**은 [Cafe24 operation 메타데이터](CLE-C24-META)가 정하고 실제 행은 백엔드 메타데이터 모듈(`codebase/backend/src/nodes/integration/cafe24/metadata/*.ts`)에 있다. operation 목록(구현됨·예정·폐기)은 [Cafe24 API 카탈로그](CLE-C24-CATALOG)에 리소스 단위로 나눠 둔다. 카탈로그와 백엔드 메타데이터는 카탈로그 동기 검사(`catalog-sync.spec.ts`)가 양방향으로 지킨다. 새 operation 을 더하려면 카탈로그 행 갱신과 메타데이터 행 추가가 같은 PR 에 있어야 CI 를 통과한다. 이 문서는 operation 목록을 본문에 되풀이하지 않는다. 어긋남을 막기 위해서다.
 
-### 요구사항 변경 (2026-10-23 · 2026-10-24)
+### 요구사항 변경
+
+결정일: 2026-10-23
 
 근거는 [실행 로직 Rationale](CLE-NODE-CAFE24-EXEC.md#dry-run-모의-출력에-활동-로그를-남기지-않는다)에 있다.
 
 - 2026-10-23: REQ-CAFENODE-035 는 «dry-run 으로 mock 결과를 돌려주면 활동 로그를 1건 남긴다» 에서 «남기지 않는다» 로 바꿨다. REQ-CAFENODE-033 · REQ-CAFENODE-034 는 상태를 바꾸는 GET 예외 목록을 판정에 더했다. REQ-CAFENODE-039 는 실제로 부른 호출로, REQ-CAFENODE-031 은 외부 호출로 범위를 좁혔다.
-- 2026-10-24: REQ-CAFENODE-031 은 «외부 호출이 끝나면» 에서 «통합을 얻은 뒤 외부 호출이 끝나면» 으로 범위를 좁혔다. 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale(REQ-INTMGMT-053)이다.
+- 2026-10-24: REQ-CAFENODE-031 은 «외부 호출이 끝나면» 에서 «통합을 얻은 뒤 외부 호출이 끝나면» 으로 범위를 좁혔다. 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다) Rationale(REQ-INTMGMT-053)이다.
+- 2026-11-28: REQ-CAFENODE-026 에 출력 코드 `CAFE24_AUTH_FAILED` 와 통합 상태 사유를 적었다. 근거는 [403 은 `CAFE24_AUTH_FAILED` 와 사유 `insufficient_scope` 로 낸다](#403-은-cafe24_auth_failed-와-사유-insufficient_scope-로-낸다)다. REQ-CAFENODE-028 은 «4xx·5xx» 를 «3xx·4xx·5xx» 로 넓혔다. REQ-CAFENODE-029 에는 토큰 갱신 실패의 코드와 카운터 규칙을 더했다. 두 변경의 근거는 [3xx 와 토큰 갱신 실패의 노드 출력 코드](#3xx-와-토큰-갱신-실패의-노드-출력-코드)다.
 
 ### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
 
 결정일: 2026-11-19
 
 2026-11-19 에 활동 로그 요구사항(REQ-CAFENODE-031)에 실행 취소 예외를 더했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 동작은 바꾸지 않았다. 핸들러는 이미 노드 취소로 생긴 `AbortError` 를 활동 로그 전에 다시 던지고 있었다. [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)은 이 동작을 정했지만 요구사항 줄은 «성공·실패와 관계없이 1건» 이라고만 적어 서로 달랐다. 취소된 호출은 끝난 호출이 아니어서 성공에도 실패에도 들지 않는다. 활동 로그 `status` 에 `cancelled` 값을 새로 두지 않는다. HTTP Request · MakeShop · Database Query 노드와 같은 규칙이고 [통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙)이 공통 규칙을 정한다.
+
+### 403 은 `CAFE24_AUTH_FAILED` 와 사유 `insufficient_scope` 로 낸다
+
+결정일: 2026-11-28
+
+403 의 노드 출력 코드는 `CAFE24_AUTH_FAILED` 다. AI 에이전트 도구도 같은 코드를 쓴다. 403 응답에 권한 범위 부족 신호가 있으면 통합 상태 사유를 `insufficient_scope` 로 두고 별도 승인 단서를 `last_error.details.requiresCafe24Approval` 에 적는다([인증 실패 처리](CLE-NODE-CAFE24-CONFIG.md#인증-실패-처리), [Cafe24 별도 승인 scope](CLE-C24-SCOPES)). 그 밖의 403 과 401 의 사유는 `auth_failed` 다. 2026-11-28 에 사용자가 이 구현을 기준으로 정했다(NERV Task `CLE-T-WG6EGS`, 질문 27 · 28 의 답 A). 이 결정으로 이 문서와 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#노드-실행-중-cafe24-403-의-출력-코드는-cafe24_auth_failed-다)의 미결 항목을 닫았다.
+
+노드 출력(`output.error.code`)에 `CAFE24_INSUFFICIENT_SCOPE` 를 내는 안은 기각했다. 코드 수가 늘고 403 을 다루는 분기 지점이 갈린다. 사용자는 통합 상태 사유로 권한 범위 부족을 알아본다. 이 기각은 노드 출력에만 해당한다. `CAFE24_INSUFFICIENT_SCOPE` 는 연결 테스트(`pingConnection`) 결과 코드로 남는다([에러 코드 카탈로그 — 통합 노드 · MCP](../CLE-API/CLE-API-ERRCODES-INTNODE.md), [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md#cafe24)). 통합 상태 사유 `insufficient_scope`(소문자)와는 다른 값이다.
+
+### 3xx 와 토큰 갱신 실패의 노드 출력 코드
+
+결정일: 2026-11-28
+
+노드는 2xx 만 성공으로 본다. API 클라이언트의 `fetch` 는 리다이렉트를 따라가므로 그 뒤에도 남은 3xx 는 요청한 자원의 응답이 아니다. 그래서 남은 3xx 는 `CAFE24_4XX` 로 에러 포트에 보낸다(NERV Task `CLE-T-8SCV17`, 질문 29 의 답 A). `CAFE24_4XX` 는 따로 이름이 없는 2xx 밖 응답을 받는 코드라 3xx 를 넣어도 워크플로우 분기는 바뀌지 않는다. 노드 핸들러와 내부 MCP 브리지는 같은 판정 함수 `isHttpFailureStatus` 를 쓴다. 3xx 를 성공으로 보는 안은 요청하지 않은 본문이 `success` 포트로 가서 기각했다. `CAFE24_3XX` 를 새로 두는 안은 출력 코드와 분기가 늘어 기각했다.
+
+토큰 갱신이 401·403 밖의 상태로 실패하면 노드 출력은 지금처럼 `CAFE24_TRANSPORT_FAILED` 다(NERV Task `CLE-T-DJGSBR`). 분류되지 않은 예외를 대체하는 코드와 같다. 출력 코드를 바꾸면 이 코드로 분기하던 워크플로우가 깨진다. 갱신 실패 코드는 경로마다 다르다. 연결 테스트(`mapPingError`)는 받은 상태를 보여 주려고 `CAFE24_API_ERROR` 를 돌려준다. AI 에이전트 도구(`classifyError`)는 `CAFE24_CALL_FAILED` 를 돌려주고 큐를 거친 갱신(`refreshViaQueue`)이면 `CAFE24_TRANSPORT_FAILED` 를 돌려준다. 노드도 `CAFE24_API_ERROR` 를 내는 안은 노드 출력 코드 집합이 바뀌어 기각했다.
+
+이 갱신 실패는 연속 전송 실패 카운터에 세지 않는다. 토큰 엔드포인트가 응답했으므로 연결이 끊긴 신호가 아니다. 갱신 요청 자체가 reject 될 때만 센다. 경로별 표는 [설정과 출력 「토큰 갱신 실패」](CLE-NODE-CAFE24-CONFIG.md#토큰-갱신-실패)에 있다. `invalid_grant` 처리는 후속 Task `CLE-T-S0BJBV` 에서 정한다.
