@@ -16,23 +16,28 @@ import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-e
  * SoT: dict/{ko,en}/{cafe24,makeshop}Catalog.ts,
  *      spec/conventions/makeshop-api-metadata.md §2 · cafe24-api-metadata.md §7.5.
  */
+/** 카탈로그 dict 가 있는 provider 표. 접두와 라벨 조회 함수를 한곳에 둔다. provider 를 더할 때 여기만 고친다. */
+const CATALOG_PROVIDERS: ReadonlyArray<{
+  prefix: string;
+  resolve: (locale: Locale, key: string) => string;
+}> = [
+  { prefix: "makeshop.", resolve: resolveMakeshopOperationLabel },
+  { prefix: "cafe24.", resolve: resolveCafe24OperationLabel },
+];
+
+function findCatalogProvider(key: string) {
+  return CATALOG_PROVIDERS.find((p) => key.startsWith(p.prefix));
+}
+
 export function tryTranslateLabel(
   catalogKey: string,
   locale: Locale,
 ): string | null {
-  if (catalogKey.startsWith("makeshop.")) {
-    const label = resolveMakeshopOperationLabel(locale, catalogKey);
-    return label === catalogKey ? null : label;
-  }
-  if (catalogKey.startsWith("cafe24.")) {
-    const label = resolveCafe24OperationLabel(locale, catalogKey);
-    return label === catalogKey ? null : label;
-  }
-  return null;
+  const provider = findCatalogProvider(catalogKey);
+  if (!provider) return null;
+  const label = provider.resolve(locale, catalogKey);
+  return label === catalogKey ? null : label;
 }
-
-/** 카탈로그 dict 가 있는 provider 의 키 접두. */
-const CATALOG_KEY_PREFIXES = ["cafe24.", "makeshop."] as const;
 
 /**
  * 활동 탭 API 칸에 굵게 보일 라벨 글자.
@@ -45,7 +50,7 @@ export function resolveActivityApiLabel(
   labelKey: string,
   locale: Locale,
 ): string | null {
-  if (CATALOG_KEY_PREFIXES.some((prefix) => labelKey.startsWith(prefix))) {
+  if (findCatalogProvider(labelKey)) {
     return tryTranslateLabel(labelKey, locale);
   }
   return labelKey;
