@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "122500b93850e289abbe65250d7e3c7462ed26faeeed95076cfbcaf378730bad"
+content_hash: "f51553d2eb86f6e47944d96051e4a4e7c9c16e964ca5d2e9559ed2fc7df600d5"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "53ba66b3e288a4758acb735a2b868becf709487d87c499b2202675fbd5fdc0d7"
-etag: "sha256-bb9573301d54bc0d54723060922a0c399300652899d6b88f667b87b67c1d8926"
+mirror_sha256: "d52099ae15da305c6f2d160ae42d4750c6cb60d4de556f57d3eb671022e38ec3"
+etag: "sha256-e06722947d130191222d5a33e2ad07fcbbcdee4b05fa50878914f9913d5f1883"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -348,7 +348,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 비슷한 안은 전에도 기각했다.
 
-- 2026-06-03 에 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-2026-06-03-c2c3) 을 고치면서 공통 규약에 타임아웃 정책을 들이는 안을 기각하고 `buttonConfig` 예시에서 타임아웃을 지웠다. 현 구현과 다른 문서가 모두 무제한 대기였다.
+- 2026-06-03 에 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-c2c3) 을 고치면서 공통 규약에 타임아웃 정책을 들이는 안을 기각하고 `buttonConfig` 예시에서 타임아웃을 지웠다. 현 구현과 다른 문서가 모두 무제한 대기였다.
 - [External Interaction API](../CLE-IX/CLE-EIA-FLOW.md#웹채팅-위젯-회수-신호는-토큰-만료다) 는 인증 설정이 없는 웹채팅 위젯의 실행 회수에 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있어서다. 노드별 기한이 아니라 서버 전체의 정리 규칙에 관한 결정이다.
 
 ### 파일 필드는 메타데이터만 보낸다

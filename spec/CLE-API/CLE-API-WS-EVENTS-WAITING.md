@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-WAITING"
 title: "WebSocket 이벤트와 명령 — 입력 대기 이벤트"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "f524364b15b980cc070a3e452d655d85264f57111ea2fc27ebc20c62d41a3c11"
+content_hash: "18fe7361111be7f6215fa7b722a0ea7f26a2adbd2ab8658f179166b2df106ae2"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "fe502c8ed46cf321d8e08453251979da2ede3600880ae308eb45e51588649f21"
-etag: "sha256-ff3cdf6f07647b46de17bc4ec47eda533f5cadf53bd6455a25ae0c167c65faf0"
+mirror_sha256: "2ba619180c1897d8cb60724b4da1525ef4681d5ab839f28522b3042a34bcc117"
+etag: "sha256-750953f6cd88ea7ac310c6c856cd3b30d44b0d93d6ebaa5df0eda2c65343a22a"
 ---
 > 구현 상태: 구현됨 · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -168,7 +168,9 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 
 ## Rationale
 
-### `buttonConfig` 예시 정정: 타임아웃 제거와 `nodeOutput` 판별자 폐지 (2026-06-03, C2·C3)
+### `buttonConfig` 예시 정정: 타임아웃 제거와 `nodeOutput` 판별자 폐지 (C2·C3)
+
+결정일: 2026-06-03
 
 초기 §4 `buttonConfig` 예시는 `timeout: 300`·`timeoutAction: "cancel"` 과 `nodeOutput: { "type": "carousel", ... }` 를 담았다. 둘 다 다른 기준과 모순되는 낡은 예시였다.
 
@@ -176,7 +178,9 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 - **C3 `nodeOutput` 판별자 폐지**: 노드 출력 규약의 `type` 판별자 래퍼 금지에 따라 엔진은 `buttonConfig.nodeOutput` 으로 노드 출력(`{ config, output, meta?, port?, status }`)을 그대로 싣는다(`nodeOutputForEvent = structured ?? flatNodeOutput`). 노드 종류는 상위 `payload.nodeType` 으로 이미 식별되므로 `nodeOutput` 안의 `type` 판별자는 불필요하고 중복이다. 예시를 실제 다섯 필드 구조로 바꿨다. 기각한 대안: `nodeOutput` 전용 스키마를 따로 적기. 판별자 래퍼 금지와 충돌해 기각했다.
 - 2026-08-24: `nodeOutput.nodeType` 을 "렌더 서브타입" 으로 따로 보는 구분은 코드에 없고 폐지한 `nodeOutput` 판별자를 되살리는 해석이라 §4 의 층별 사실 표로 적었다. 외부 클라이언트용 노드 종류는 EIA 정책에 맞춰 소비자별로 갈라 적었다.
 
-### 입력 대기 wire 필드: 예시를 다시 쓰지 않고 주의 문구와 소유 분리로 (2026-07-14)
+### 입력 대기 wire 필드: 예시를 다시 쓰지 않고 주의 문구와 소유 분리로
+
+결정일: 2026-07-14
 
 §4 JSON 예시(`nodeId`, 최상위 `formConfig`·`conversationConfig`)는 논리 구조 표기인데 실제 fanout wire 는 `waitingNodeId` 와 `nodeOutput` 중첩이라 어긋나 있었다. JSON 전체를 실제 wire 로 바꾸지 않고(가독성 저하, 두 문서 불일치) 머리에 wire 필드 주의 문구를 두었다. 메시지 형식 절과 EIA 쪽이 이미 쓰던 방식이다. 전체 매핑을 세 문서에 복제하지 않도록 외부 소비 매핑은 EIA 쪽에, WebSocket 내부 부가 식별자는 §4 에 두었다. EIA 쪽 서술은 외부 소비 필드만 다루도록 범위를 좁혔으므로 "전체 기준" 으로 올리지 않았다.
 

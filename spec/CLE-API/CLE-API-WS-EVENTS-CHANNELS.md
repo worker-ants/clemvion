@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-CHANNELS"
 title: "WebSocket 이벤트와 명령 — 채널별 부가 이벤트"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "7630b4cc27fc99251d72ec806ea784786966665f76e7ebbe6614b9e9656c19e7"
+content_hash: "cbd3f6b3dfbe360692c686bc4064846e4fd941e070aab43c0f23b1269e441389"
 read_as: "approved_fallback"
-task: "CLE-T-QVRQQ1"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "b8ab35454248b3f0fead95bec17e959cb918ef1c99cabec0d9a8efffc99bf141"
-etag: "sha256-1ab5a7f677516cd2f95a34ee92ee39bf77ea5fa498784e68940437cd865d5176"
+mirror_sha256: "e7b68695c8b29813b4bd4000aba460807652e3e78f68d84f0906f0788f474e75"
+etag: "sha256-32a1255c8406ac5bdf64d8f6e22dc43d271c15ee869ed527b972ae28dcb4ada0"
 ---
 > 구현 상태: 구현됨 (`system.maintenance`·`auth.refreshed` 는 비채택) · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -60,7 +60,7 @@ etag: "sha256-1ab5a7f677516cd2f95a34ee92ee39bf77ea5fa498784e68940437cd865d5176"
 | 이벤트 | payload | 설명 |
 |-------------|---------|------|
 | `auth.token_expired` | `{ message, expiresAt }` | 토큰 만료 **사전 통지**. 만료 60초 전에 1회 보내고 `exp` 에 서버가 `disconnect()` 한다([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.2 인증」](CLE-API-WS-CONN.md#22-인증)). `expiresAt` 은 ISO 8601 문자열이고 **이 소켓이 강제로 끊기는 시각**이다. `_retryState.expiresAt`(마지막 턴 재시도 TTL, [마지막 턴 재시도](CLE-API-WS-EVENTS-COMMANDS.md#24-마지막-턴-재시도-executionretry_last_turn))·`auth.refreshed.expiresAt`(비채택)과 **별개**다. 에러 코드 `TOKEN_EXPIRED` 는 REST·JWT 검증 코드일 뿐 이 이벤트와 다르다 |
-| `system.maintenance` _(비채택)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **발화 주체가 없다.** 유지보수를 선언하는 관리자 API·설정·스케줄이 없고 계획에도 없다. `scheduledAt` 은 사람이 미래 시점을 선언해야 성립해 그 표면은 새 제품 기능이다(근거: [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결](CLE-API-WS-CONN.md#systemmaintenance-발행과-서버-발신-app-ping-비채택-2026-09-02) 의 Rationale). 다시 들일 때를 대비해 payload 형태를 남긴다 |
+| `system.maintenance` _(비채택)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **발화 주체가 없다.** 유지보수를 선언하는 관리자 API·설정·스케줄이 없고 계획에도 없다. `scheduledAt` 은 사람이 미래 시점을 선언해야 성립해 그 표면은 새 제품 기능이다(근거: [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결](CLE-API-WS-CONN.md#systemmaintenance-발행과-서버-발신-app-ping-비채택) 의 Rationale). 다시 들일 때를 대비해 payload 형태를 남긴다 |
 | `error` | 인증 실패 `{ message }`. 등록되지 않은 이벤트 `{ code: 'UNKNOWN_TYPE', message }` | 두 경로가 같은 이벤트 이름을 쓴다. 핸드셰이크에서 토큰이 없거나 무효면 `handleConnection` 이 `{ message }` 를 보내고 연결을 끊는다. 연결된 소켓이 등록되지 않은 이벤트를 보내면 게이트웨이 `onAny` 가 `{ code: 'UNKNOWN_TYPE', message }` 를 보내고 연결은 유지된다. 이 경로도 소켓의 빈도 제한 예산을 쓰고 예산을 넘은 이벤트에는 보내지 않는다. 규칙은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「7. 에러 처리」](CLE-API-WS-MSG.md#7-에러-처리) |
 | `exception` | `{ code: 'RATE_LIMITED', message }` | 소켓당 명령 빈도 제한([HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한)) 초과. `WsRateLimitGuard` 가 `WsException` 을 던지면 NestJS 가 보내는 이벤트이고 그 명령의 핸들러는 실행되지 않는다. HTTP 429 의 `RATE_LIMITED` 와 같은 이름의 별개 발행이다(카탈로그는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)). 처리되지 않은 서버 예외도 같은 이름으로 나가고 `code` 가 없을 수 있다. 규칙은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「7. 에러 처리」](CLE-API-WS-MSG.md#7-에러-처리) |
 

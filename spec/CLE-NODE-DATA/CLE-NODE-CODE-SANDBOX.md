@@ -2,19 +2,19 @@
 id: "CLE-NODE-CODE-SANDBOX"
 title: "Code 노드 — 샌드박스"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CODE"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-DATA", "CLE-NODE-CODE"]
 area: "CLE-NODE-DATA"
-content_hash: "38fc24e33bba38966c1f982c604d32aa765dc487aa32ad3262b915cf1f1e6ec3"
+content_hash: "11459e6b6a9fff838e375e710f9b3fbf1980667a8420ed2e3f461e885b75031f"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "01d38542f51e2badaad30a4ccf40ed0a0acf003482596defa25d16976fae04f3"
-etag: "sha256-d29529028f6f4b4ec5935bd8cadfddfaddcec2dd627905bdd5ddebd0fbb28c9d"
+mirror_sha256: "36dfa8537f41246cd4771370896d7212132ac1d871d01b8aca679e0c4f3a42e5"
+etag: "sha256-42eddd5a53953b25e1913beae2ca13052dea6722e280bdcc2a0a014591027bfe"
 ---
 ## 개요
 
@@ -79,7 +79,9 @@ etag: "sha256-d29529028f6f4b4ec5935bd8cadfddfaddcec2dd627905bdd5ddebd0fbb28c9d"
 
 ## Rationale
 
-### 격리 방식을 `isolated-vm` 으로 전환 (2026-06-11)
+### 격리 방식을 `isolated-vm` 으로 전환
+
+결정일: 2026-06-11
 
 **위협 모델**: Code 노드를 만들 권한은 편집자 이상이다. 플랫폼은 Code 노드의 사용자 코드를 **신뢰할 수 없는 코드**로 다룬다(여러 워크스페이스에서 안전해야 하며 셀프 호스팅 단일 테넌트 가정에 기대지 않는다). 그래서 사용자 코드가 호스트(백엔드 프로세스)를 장악하는 경로를 구조적으로 막아야 한다. 호스트 프로세스 메모리에는 DB 자격 증명, `ENCRYPTION_KEY`, 배포 환경의 서비스 토큰, 내부망 접근권이 있으므로 호스트 realm 에 닿으면 곧 인증 우회·시크릿 탈취·SSRF 로 이어진다.
 
@@ -95,7 +97,9 @@ etag: "sha256-d29529028f6f4b4ec5935bd8cadfddfaddcec2dd627905bdd5ddebd0fbb28c9d"
 
 **트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 생긴다. CI 이미지 빌드 때 한 번 컴파일하면 되므로 배포 시점 복잡도는 없지만, 빌드 환경(alpine·musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 호스트 클로저를 `Reference`·`ivm.Callback` 으로 이어 호스트 realm 에서 실행하므로 기존 사용자 코드(dayjs·crypto·base64)와의 호환이 유지된다. isolated-vm 은 `7.x` 를 쓴다. `7.x` 의 engines 는 `node>=24` 이고 Node 24 · 26 용 prebuild(ABI 137 · 147, glibc · musl)를 함께 배포한다. 여기서 `node>=24` 는 라이브러리 지원 범위일 뿐이며, 프로젝트 런타임 하한은 `PROJECT.md` 버전·도구 정책(내부 앱 `>=26`)을 따른다. Node 메이저를 올릴 때는 그 메이저의 ABI 용 prebuild 가 있는지 먼저 확인한다(2026-10-16).
 
-### dayjs 매 실행 재컴파일을 힙 스냅샷으로 교체 (2026-06-12)
+### dayjs 매 실행 재컴파일을 힙 스냅샷으로 교체
+
+결정일: 2026-06-12
 
 동시 실행이 많을 때 실행마다 dayjs UMD 를 isolate 안에서 다시 컴파일하는 것이 고정 비용이었다. `ivm.Isolate.createSnapshot()` 으로 **정적 dayjs 만** 모듈 로드 때 한 번 힙 스냅샷하고 실행마다 그 스냅샷에서 isolate 를 만들어 재컴파일을 없앴다(모듈 로드 한 번에 약 4ms, 평상시 요청 지연에는 영향 없음). 스냅샷에 호스트 참조나 실행별 상태를 넣지 않으므로 격리·보안·출력 계약은 그대로다. 위 전환 결정이 세운 **실행마다 isolate 를 버리는(메모리 격리) 불변식**도 그대로다. 스냅샷은 dayjs 준비 비용만 줄이고 isolate 수명 모델을 바꾸지 않는다.
 
@@ -104,6 +108,8 @@ etag: "sha256-d29529028f6f4b4ec5935bd8cadfddfaddcec2dd627905bdd5ddebd0fbb28c9d"
 - **isolate 풀 재사용**: 실행마다 버리는(실행 사이 메모리·상태 격리) 불변식을 깬다. 스냅샷은 새 isolate 를 유지하면서 준비 비용만 줄이므로 격리 강도를 잃지 않는다.
 - **부트스트랩(`$helpers`·`console` 연결 + 전역 삭제)까지 스냅샷**: 호스트 콜백은 실행별 상태(예: `console` 의 로그 버퍼)와 호스트 realm 함수에 묶여 있다. 전역 삭제는 실행별 부트스트랩 시점에 해야 "캡처한 뒤 삭제" 순서가 성립한다. `createSnapshot` 은 호스트 바인딩이 없는 빈 isolate 에서 돌아서 이 둘을 담을 수 없다.
 
-### 메모리 한도를 환경 변수로 조정 (2026-06-12)
+### 메모리 한도를 환경 변수로 조정
+
+결정일: 2026-06-12
 
 배포 환경마다 메모리 여유가 달라 운영 조정 여지가 필요했다. 기본 128MB 는 그대로 두고 `CODE_NODE_MEMORY_LIMIT_MB` 로 조정한다. 128MB 결정의 **의도는 실행 하나의 메모리 상한을 두는 것**이었으므로, 512MB 상한을 둔 환경 변수 조정은 그 결정의 번복이 아니라 운영 확장이다. 안전 상한 512MB 로 실행 하나가 호스트 메모리를 독차지하지 못하게 한다. 기각: 상한 없는 환경 변수는 노드 하나가 호스트 OOM 을 일으킬 수 있다.

@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR-EXEC"
 title: "정보 추출기 노드 — 실행 로직과 메모리"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-EXTRACTOR"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-EXTRACTOR"]
 area: "CLE-NODE-AI"
-content_hash: "2e1410e95a9f6373ab3de03c014444f1ef908c433a486d9946bf7e79a0e55a4d"
+content_hash: "1e4d765c6b8ae5977ca3d68cd2b212f17de0b7bd1bc96de70149aaa25d467b7b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "ace35259a32009db98aa7e67026643303087ead9cf8c6666253e586a17ca79e6"
-etag: "sha256-abac67568c411f6990a04e0b0187e618ad65e17d9cc908250e38968debafb0fe"
+mirror_sha256: "fbb4362253dba1793e7f3c434f18c671d88b430e8ebffb9b7a5eb77fa20bb69d"
+etag: "sha256-ce2b4dcf30fa4bbc38027dc874adf1a37ac35293622c63dfbded7628d9f8a6ae"
 ---
 ## 개요
 
@@ -139,7 +139,9 @@ stateDiagram-v2
 
 `embeddingModelConfigId`·`extractionModelConfigId` 는 AI 에이전트와 같이 `/models` 에 등록한 모델 설정을 `config.id` 로 고른다(위젯 `embedding-config-selector`·`chat-config-selector`, 노드 `llmConfigId` 와 독립). 채택 근거와 번복 이력의 단일 기준은 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 요약·추출 전용 모델 필드 결정이며, 이 노드는 그 결정을 그대로 따른다. 이 노드는 롤링 요약 경로가 없어 요약 LLM 호출이 없으므로 `summaryModelConfigId` 를 갖지 않는다. 옛 모델명 필드(`embeddingModel`·`extractionModel`) 값은 새 필드와 키가 달라 폐기되고, 미설정 폴백(워크스페이스 기본 embedding, 노드 `llmConfigId`)으로 물러난다. 보조 호출이라 추출 무결성에는 영향이 없다.
 
-### 노드 취소는 `error` 포트로 보내지 않는다 (2026-10-31)
+### 노드 취소는 `error` 포트로 보내지 않는다
+
+결정일: 2026-10-31
 
 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 은 노드 취소 신호로 생긴 취소를 노드가 `AbortError` 로 엔진에 던진다고 정한다. 전에는 LLM 호출의 모든 예외를 `error` 포트의 `LLM_CALL_FAILED` 로 보냈다(단일 턴 · 멀티턴 첫 경로). 그래서 Parallel 의 cancel-others-on-fail 로 멈춘 분기가 `cancelled` 로 끝나지 않고 에러 포트로 라우팅돼 하류 노드를 실행했다.
 

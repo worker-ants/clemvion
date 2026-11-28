@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAROUSEL"
 title: "Carousel 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-CAROUSEL-001", "REQ-CAROUSEL-002", "REQ-CAROUSEL-003", "REQ-CAROUSEL-004", "REQ-CAROUSEL-005", "REQ-CAROUSEL-006", "REQ-CAROUSEL-007", "REQ-CAROUSEL-008", "REQ-CAROUSEL-009", "REQ-CAROUSEL-010", "REQ-CAROUSEL-011", "REQ-CAROUSEL-012", "REQ-CAROUSEL-013", "REQ-CAROUSEL-014", "REQ-CAROUSEL-015", "REQ-CAROUSEL-016", "REQ-CAROUSEL-017", "REQ-CAROUSEL-018", "REQ-CAROUSEL-019", "REQ-CAROUSEL-020", "REQ-CAROUSEL-021", "REQ-CAROUSEL-022", "REQ-CAROUSEL-023", "REQ-CAROUSEL-024", "REQ-CAROUSEL-025", "REQ-CAROUSEL-026"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "404237e68cf6be5fa5135134f908c03d493076fa8943e84b29b5174f238492bd"
+content_hash: "668e44be585596b83f7d84a9ddeef43c7a3b2dc9aed8e8190751fd6d83e40f92"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "17225fb0d981f4ac78ae27c3a0bd5c99ab0e44d86bf27a19340236970d2f765e"
-etag: "sha256-e5f4e99dcf194d9d381bc3ddc000f92e5fc89dc9b5b38cd15c5446e3f0847338"
+mirror_sha256: "2831df04f827632439d1c58445724d5d7e52ce86d19f99ea0512b6cd7d644531"
+etag: "sha256-959077f1dcf84fd4d2992e145934206e3418b5a6e45ed87fafef5cc4651800ea"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md`, `spec/4-nodes/_product-overview.md` (§9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -219,7 +219,9 @@ Carousel 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 실�
 
 ## Rationale
 
-### 레이아웃 렌더 표면을 둘로 나눈다 (2026-07-07)
+### 레이아웃 렌더 표면을 둘로 나눈다
+
+결정일: 2026-07-07
 
 `layout` 을 그리는 두 표면([렌더 표면](#렌더-표면))은 목적이 달라 표현을 나눈다. 웹채팅 위젯은 최종 사용자가 조작하는 실사용 화면이라 시각 레이아웃을 다시 만든다. 실행 내역·드로어 미리보기는 끝난 실행의 스냅샷이라 **조작할 수 없다**. 세 CSS 레이아웃을 픽셀 단위로 재현해도 얻는 것이 적고 여러 이미지를 한꺼번에 불러오는 비용만 들어서 텍스트 위주 데이터 뷰로 그린다.
 
