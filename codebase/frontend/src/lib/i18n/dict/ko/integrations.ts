@@ -242,6 +242,14 @@ export const integrations = {
   oauthTimedOutShort: "인증 시간이 초과됐어요. 다시 시도해 주세요.",
   oauthFailedShort: "OAuth에 실패했어요",
   oauthCompletedToast: "OAuth가 완료됐어요. 저장을 계속해 주세요.",
+  // OAuth 콜백 팝업 실패 코드별 문구 (CLE-INT-OAUTH-CALLBACK 「에러 매핑」, Task CLE-T-3WGPC0)
+  oauthCallbackDenied: "인증을 취소했어요. 연결하려면 다시 시도해 주세요.",
+  oauthCallbackStateInvalid: "인증 요청을 확인하지 못했어요. 연결을 처음부터 다시 시작해 주세요.",
+  oauthCallbackStateExpired: "인증 요청 시간이 지났어요. 다시 시도해 주세요.",
+  oauthCallbackCodeMissing: "인증 코드를 받지 못했어요. 다시 시도해 주세요.",
+  oauthCallbackTokenExchangeFailed: "서비스에서 토큰을 받지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+  oauthCallbackInvalidScope: "Cafe24 가 요청한 권한 범위를 거부했어요. 앱의 권한 설정을 확인해 주세요.",
+  oauthCallbackInstallExpired: "설치 기한이 지나 만료된 통합이에요. 새로 연결해 주세요.",
   reauthorizeBtn2: "재인증",
   // ----- Cafe24 mall_id 중복 사전 감지 (2026-05-16) -----
   // mall_id 입력 시점에 precheck endpoint 호출 → conflict 발견 시 inline
@@ -322,8 +330,6 @@ export const integrations = {
     "OAuth 상태 값이 만료됐어요. 설치 흐름을 다시 시작해 주세요.",
   makeshopErrorOauthInvalidScope:
     "요청한 scope 가 앱 권한과 일치하지 않아요. 파트너센터 앱 설정에서 scope 를 확인해 주세요.",
-  makeshopErrorHmacVerificationFailed:
-    "App URL HMAC 검증에 실패했어요. App URL 이 정확히 등록돼 있는지 확인해 주세요.",
   makeshopErrorGenericCallback:
     "설치 중 문제가 발생했어요. 파트너센터 설정을 확인하고 다시 시도해 주세요.",
   makeshopDetailAppUrlTitle: "MakeShop App URL",

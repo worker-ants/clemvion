@@ -39,7 +39,6 @@ const STATUS_REASON_I18N_KEY: Record<string, string> = {
   oauth_state_mismatch: "integrations.makeshopErrorOauthStateMismatch",
   oauth_state_expired: "integrations.makeshopErrorOauthStateExpired",
   oauth_invalid_scope: "integrations.makeshopErrorOauthInvalidScope",
-  hmac_verification_failed: "integrations.makeshopErrorHmacVerificationFailed",
 };
 
 const GENERIC_CALLBACK_ERROR_KEY = "integrations.makeshopErrorGenericCallback";

@@ -95,6 +95,25 @@ describe("useOauthPopupReturn", () => {
     expect(onAuthorized).not.toHaveBeenCalled();
   });
 
+  it("에러 postMessage 에 코드가 있으면 코드로 문구를 고른다", () => {
+    const onAuthorized = vi.fn();
+    const { result } = renderHook(() =>
+      useOauthPopupReturn({ t, onAuthorized }),
+    );
+    dispatchOAuthMessage({
+      type: "oauth_callback",
+      status: "error",
+      code: "OAUTH_STATE_EXPIRED",
+      error: "OAuth state has expired",
+    });
+    expect(result.current.oauthError).toBe(
+      "integrations.oauthCallbackStateExpired",
+    );
+    expect(hoisted.toastError).toHaveBeenCalledWith(
+      "integrations.oauthCallbackStateExpired",
+    );
+  });
+
   it("다른 origin 메시지는 무시한다", () => {
     const onAuthorized = vi.fn();
     const { result } = renderHook(() =>
