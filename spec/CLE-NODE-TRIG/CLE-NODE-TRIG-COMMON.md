@@ -2,19 +2,19 @@
 id: "CLE-NODE-TRIG-COMMON"
 title: "트리거 노드 공통"
 type: "convention"
-version: 3
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-TRIG"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-TRIG"]
 area: "CLE-NODE-TRIG"
-content_hash: "102688b0fdd3ddde1005ef6c3c1e12e62a51c42eaa3946d318f5d390a015a7ad"
+content_hash: "809847cbb4fd83738c15ecfed150ede58d04a89b3e2350d989afaa25340e1dfc"
 read_as: "approved_fallback"
-task: "CLE-T-ABHBSV"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/7-trigger/0-common.md"]
-mirror_sha256: "6cf2a77d44f8b3f38357e8199cc505e26250bb593e8482687041c1dfcd6cea76"
-etag: "sha256-021d09cdfff5c3a7b4c87f04e17a8260390d558e76fbdad68f7c32954a27a958"
+mirror_sha256: "a9f3ecd2ccd79e0e9d11d5c6da8fe568c39ae48338c00003de6633b1dea66371"
+etag: "sha256-99a82060ed4fa202a86bb2f648f8e07e65fd5dd274631c73772fbc612c4dc48a"
 ---
 > 구현 상태: 구현됨(설정 요약은 미구현) · 원문: `spec/4-nodes/7-trigger/0-common.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -47,9 +47,9 @@ etag: "sha256-021d09cdfff5c3a7b4c87f04e17a8260390d558e76fbdad68f7c32954a27a958"
 
    | 진입 경로 | 값 수집 방식 | 검증 실패 처리 |
    | --- | --- | --- |
-   | 수동 | 실행 대화상자 폼, 또는 `POST /workflows/:id/execute { parameterValues }`. 수동 재실행은 `POST /executions/:id/re-run` 의 `inputOverride` 로 값을 받는다. | 실행을 만들지 않고 `400 Bad Request`(`INVALID_TRIGGER_PARAMETERS`)로 응답한다. 재실행도 같다. |
+   | 수동 | 실행 대화상자 폼, 또는 `POST /workflows/:id/execute { parameterValues }` | 실행을 만들지 않고 `400 Bad Request`(`INVALID_TRIGGER_PARAMETERS`)로 응답한다. |
    | 웹훅 | HTTP POST `body` 에서 파라미터와 같은 이름의 최상위 키를 뽑는다. | HooksService 가 실행을 만들지 않고 `400 Bad Request`(`INVALID_WEBHOOK_PAYLOAD`)로 거부한다. |
-   | 스케줄 | 저장한 `schedule.parameterValues` 를 제한 표현식 컨텍스트(`$now`, `$schedule`)로 해석한다. | 스케줄을 등록·수정할 때 DTO 는 `parameterValues` 가 객체인지만 본다. 어기면 `400 Bad Request`(`VALIDATION_ERROR`)다. 파라미터 스키마와 대조하지 않는다. 실행 때 값이 빠지면 `warn` 로그를 남기고 스키마 없이 가능한 기본값을 채워 진행한다. |
+   | 스케줄 | 저장한 `schedule.parameterValues` 를 제한 표현식 컨텍스트(`$now`, `$schedule`)로 해석한다. | 스케줄을 등록·수정할 때 DTO 로 검증한다. 실행 때 값이 빠지면 `warn` 로그를 남기고 스키마 없이 가능한 기본값을 채워 진행한다. |
    | 채팅 채널 웹훅(`config.chatChannel`) | 정책(무시·기본값 적용·거부)이 정해지지 않았다. 현재 구현은 `resolveTriggerParameters` 를 거치지 않고 `parameters: {}` 로 실행한다. | 정해지지 않았다. 현재 구현은 필수 파라미터가 있어도 검증 없이 실행한다. [웹훅 미결 사항](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#미결-사항) 참조. |
 
    검증 사유 코드와 응답 형태는 [수동 트리거 노드](CLE-NODE-MANUAL.md#검증과-에러)가 정한다.
@@ -86,7 +86,7 @@ interface TriggerParameterDefinition {
 | --- | --- |
 | `config` | 원본 설정 에코. 수동 트리거 노드는 `config.parameters` 에 `TriggerParameterDefinition[]` 스키마를 그대로 싣는다(값이 아니라 스키마). |
 | `output` | 모은 파라미터 값. 수동 트리거 노드는 `output.parameters` 에 `$params`(= `$input.parameters`)를 싣는다. `config.parameters` 는 스키마, `output.parameters` 는 해석된 값이라 서로 겹치지 않는다([Principle 1.1](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다)). |
-| `meta` | 진입 경로 식별자 `meta.source: 'manual' \| 'webhook' \| 'schedule'` 를 둔다(필수). 진입 어댑터가 넣은 `__triggerSource` 마커를 핸들러가 받아 채운다. 관측 값이 아니라서 [노드 출력 규약 Principle 2 표의 트리거 행](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다)이 정한 예외다. 예외로 둔 이유는 [노드 출력 규약 Rationale](../CLE-NODE/CLE-NODE-OUTPUT.md#트리거의-metasource-는-principle-2-의-예외다)에 있다. `meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). |
+| `meta` | 실행 메트릭만 둔다. `meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). 진입 경로 표시 `meta.source: 'manual' \| 'webhook' \| 'schedule'` 는 필수다. 진입 어댑터가 넣은 `__triggerSource` 마커를 핸들러가 받아 채운다. |
 | `port` | 출력이 하나라서 `undefined` 또는 `'out'`(메타데이터에 정의한 정적 포트) |
 | `status` | 입력을 기다리지 않고 바로 끝나므로 `undefined` |
 
@@ -120,7 +120,6 @@ interface TriggerParameterDefinition {
 - `codebase/backend/src/modules/execution-engine/utils/resolve-trigger-parameters.ts`: 파라미터 검증·기본값·타입 강제
 - `codebase/backend/src/modules/hooks/hooks.service.ts`: 웹훅 진입 어댑터
 - `codebase/backend/src/modules/schedules/schedule-runner.service.ts`: 스케줄 진입 어댑터
-- `codebase/backend/src/modules/schedules/dto/create-schedule.dto.ts`, `update-schedule.dto.ts`: 스케줄 등록·수정 DTO 의 `parameterValues` 검증
 - `codebase/backend/src/modules/workflows/workflows.controller.ts`: 수동 실행 진입 어댑터
 
 ## Rationale
@@ -131,4 +130,4 @@ interface TriggerParameterDefinition {
 
 ### 진입 경로 마커를 출력에서 지우는 이유
 
-`__triggerSource` 는 엔진 내부 마커다. 핸들러가 이 마커로 `meta.source` 를 정한 뒤에는 쓸 곳이 없다. 다음 노드의 표현식에 엔진 내부 값이 보이지 않도록 출력 전에 지운다. 어느 경로로 실행됐는지는 `meta.source` 로 판단한다. `meta.source` 를 `output` 이 아니라 `meta` 에 두는 이유는 [노드 출력 규약 Rationale](../CLE-NODE/CLE-NODE-OUTPUT.md#트리거의-metasource-는-principle-2-의-예외다)에 있다.
+`__triggerSource` 는 엔진 내부 마커다. 핸들러가 이 마커로 `meta.source` 를 정한 뒤에는 쓸 곳이 없다. 다음 노드의 표현식에 엔진 내부 값이 보이지 않도록 출력 전에 지운다. 어느 경로로 실행됐는지는 `meta.source` 로 판단한다.

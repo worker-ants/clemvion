@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 21
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "ba5538390d6ed0aea58983889482e0a4a4af71d0ea74fde1a1cb4e22c85809c8"
+content_hash: "cd4bdbaac917a7fc33cc99cfeb993ad6c2482265c24103b52e75e773737e1a93"
 read_as: "approved_fallback"
-task: "CLE-T-ABHBSV"
+task: "CLE-T-72BN09"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "978f885fc4b81578f0a9e88eddd6b0761304819ecd5e285a9a1e25f0bb4be7eb"
-etag: "sha256-9a4d42be42163f217203e416a25bb823c82d1431ffc7405958e3d3d1c365c855"
+mirror_sha256: "69044edcbcfa01b102f020409d329c12ef23074579bc1f44a3b8379565d7c389"
+etag: "sha256-5a1c6a26914f9b018b117d94729f4703cf488793c222b9801e2af845ad21cf8a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -126,7 +126,6 @@ etag: "sha256-9a4d42be42163f217203e416a25bb823c82d1431ffc7405958e3d3d1c365c855"
 | 컨테이너 · Parallel | `meta.iterations`(Loop·ForEach·Map), `meta.skippedCount?`(ForEach·Map), `meta.fellBackToEmpty`(ForEach·Map), `meta.maxIterationsReached`·`meta.exitReason`(Loop). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency?` 를 싣는다 |
 | Split · Filter | `meta.fellBackToEmpty`([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값)) |
 | Merge | `meta.inputCount`, `meta.strategy`, `meta.outputFormat`, `meta.skippedKeys`, `meta.dormantFields`. `meta.strategy` · `meta.outputFormat` 은 설정 에코와 같은 값이라 이 원칙의 예외다. 예외로 둔 이유는 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다) 에 있다 |
-| 트리거 | `meta.source`(진입 경로 `'manual' \| 'webhook' \| 'schedule'`, 필수). 관측 값이 아니라 진입 경로 식별자라 이 원칙의 예외다. `meta.durationMs` 는 싣지 않는다. 예외로 둔 이유는 [Rationale](#트리거의-metasource-는-principle-2-의-예외다), 트리거 카테고리의 필드 사용 방식은 [트리거 노드 공통](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md#3-노드-출력-사용-방식) 에 있다 |
 
 AI 노드의 `meta` 필드는 다음과 같다.
 
@@ -263,7 +262,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 | [0](#principle-0-노드-출력의-다섯-필드) | 다섯 필드 고정 | 모든 노드 |
 | [1](#principle-1-출력-값에는-비즈니스-결과만-둔다) | `output` 에는 비즈니스 데이터만 | ai_agent |
 | [1.1](#principle-11-설정과-출력-값은-겹치지-않는다) | `config` 와 `output` 은 겹치지 않는다 | form, carousel, chart, template, ai_agent(멀티턴), information_extractor(멀티턴), manual_trigger, loop, parallel, workflow |
-| [2](#principle-2-실행-메트릭에는-관측-값만-둔다) | `meta` 에는 실행 메트릭만(Merge 의 설정 에코와 트리거의 진입 경로 `meta.source` 는 예외다) | ai_agent, text_classifier, code, loop, foreach, map, parallel, merge, manual_trigger |
+| [2](#principle-2-실행-메트릭에는-관측-값만-둔다) | `meta` 에는 실행 메트릭만(Merge 에 설정 에코 예외가 있다) | ai_agent, text_classifier, code, loop, foreach, map, parallel, merge |
 | [3](CLE-NODE-OUTPUT-FLOW.md#principle-3-에러-계약) | 에러 계약 통일 | send_email, code, transform |
 | [4](CLE-NODE-OUTPUT-FLOW.md#principle-4-블로킹과-재개-계약) | 블로킹·재개 구조 통일 | form, carousel, chart, table, template, ai_agent(멀티턴), information_extractor(멀티턴) |
 | [5](CLE-NODE-OUTPUT-FLOW.md#principle-5-출력-포트-선택-모델) | `port` 활성화 모델 | 동적 포트가 있는 모든 노드 |
@@ -329,17 +328,6 @@ wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다
 여러 노드 문서가 엔진이 이 값을 넣는다고 적었으나 엔진은 Form 재개 때만 이 값을 고친다. 값을 싣는 쪽은 핸들러다. HTTP 요청 · Send Email · DB 쿼리 · Cafe24 · MakeShop · Background · AI 노드 · 워크플로우 호출은 잰 값을 싣는다. 버튼 대기에 들어가는 Chart · Carousel · Table · Template 과 Form 은 `0` 을 싣고 버튼 재개는 이 값을 바꾸지 않는다. Code · Transform · 수동 트리거와 나머지 Logic 노드는 싣지 않는다. 그래서 문서를 지금 동작에 맞췄다(NERV Task `CLE-T-1GJKB2`). 실제 출력은 바뀌지 않으므로 호환 영향은 없다. 통합 노드 공통 규칙 3 은 시간 키 이름을 정하는 규칙이라 그대로 둔다.
 
 기각한 대안은 엔진이 모든 노드 완료 때 값을 넣는 안이다. 핸들러가 잰 외부 호출 시간과 엔진이 잰 노드 전체 시간이 한 키에서 뜻이 갈리고, 노드 전체 시간은 이미 실행 기록에 있다.
-
-### 트리거의 `meta.source` 는 Principle 2 의 예외다
-
-결정일: 2026-11-28
-
-트리거 노드는 진입 경로(`'manual' | 'webhook' | 'schedule'`)를 `meta.source` 에 싣는다. 트리거 문서는 이미 이 필드를 필수로 정했지만 이 규약의 Principle 2 표에는 트리거 행이 없었다. 2026-11-28 에 사람이 이 필드를 `meta` 에 두는 예외를 규약에 올리기로 정했다.
-
-- `meta` 에 두는 이유: 진입 경로는 다음 노드가 로직에 쓸 도메인 데이터가 아니라 이 실행이 어떻게 시작됐는지 알리는 실행 정보다. [트리거 노드 공통 §3.2](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md#32-진입-경로마다-같은-계약)는 세 진입 경로의 `output` 이 같은 형태라고 정한다. 경로 표시를 `output` 밖에 두어야 이 계약이 지켜진다.
-- 기각한 대안(`output.source`): 다음 노드의 `$input` 과 `$node["X"].output` 에 진입 경로가 드러난다. 그러면 세 경로의 출력 값이 달라지고 [Principle 1](#principle-1-출력-값에는-비즈니스-결과만-둔다)도 어긋난다.
-- 기각한 대안(`config` 나 다섯 필드 밖 최상위 키): `config` 는 실행 전에 알 수 있는 설정 에코라 실행마다 달라지는 값을 둘 곳이 아니다([Principle 1.1](#principle-11-설정과-출력-값은-겹치지-않는다)). 최상위 키는 [Principle 0](#principle-0-노드-출력의-다섯-필드) 5번이 막는다.
-- 택한 안의 비용: «`meta` 에는 관측 값만» 이라는 규칙에 Merge 다음으로 두 번째 예외가 생긴다. 그래서 Principle 2 표와 [Principle 요약](#principle-요약)에 예외를 적었다.
 
 ### 배열 · 원시값 출력을 감싸지 않는다
 

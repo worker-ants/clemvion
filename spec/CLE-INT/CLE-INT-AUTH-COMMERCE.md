@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH-COMMERCE"
 title: "서비스별 인증 방식과 자격 증명 — Cafe24 · MakeShop"
 type: "design"
-version: 4
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-AUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-AUTH"]
 area: "CLE-INT"
-content_hash: "fbcaa4d327f61bbba52a37839133bc358bb8f170b7018632675b66db02ee1f99"
+content_hash: "32559170323a9af50ff593c74ecec7159c3d0e8384cfbab2bfd94f5c167abb7e"
 read_as: "approved_fallback"
-task: "CLE-T-DJGSBR"
+task: "CLE-T-0TAE5G"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "2d02df413fb4ae76d12ad846ededc56568c9de988131867f247ea59cae8e7dfd"
-etag: "sha256-b07a0c4abfb434cea5297de1ca318bd99b58f59687057f5c2cf3235b3cf48ded"
+mirror_sha256: "3fcf44c3be05bdd62f9c6740f98c4579a93ab1e30c013fa6251155cafc01773c"
+etag: "sha256-7e7a3746ba35e968070328103a9f2a92698bb1589142c080bfa1c95eec669b22"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -78,11 +78,9 @@ etag: "sha256-b07a0c4abfb434cea5297de1ca318bd99b58f59687057f5c2cf3235b3cf48ded"
 **연결 테스트**: 저장된 `access_token` 으로 `GET https://{mall_id}.cafe24api.com/api/v2/admin/apps` 를 부르고 200 과 JSON 본문을 확인한다.
 
 - 401(`access_token time expired` 등)을 받을 때만 `refresh_token` 으로 access token 을 갱신한 뒤 한 번만 다시 시도한다. 다시 시도해도 401 이면 `error(auth_failed)` 로 바꾼다. 호출 직전 갱신이 경쟁 조건(DB `expires_at` 미동기, 여러 인스턴스 등)으로 빗나간 경우를 스스로 복구하려는 것이며, 노드 호출 경로와 같은 정책이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
-- 토큰 갱신이 실패하면 `mapPingError` 가 결과 코드를 고른다. 갱신 요청이 401·403 으로 거절되면 갱신 단계가 통합을 `error(auth_failed)` 로 바꾸고 `CAFE24_AUTH_FAILED` 를 돌려준다. 갱신 요청이 응답을 받고 그 밖의 상태(3xx·400·429·5xx 등)로 실패하면 상태를 낮추지 않고 받은 상태를 메시지에 담아 `CAFE24_API_ERROR` 를 돌려준다. 갱신 요청이 응답을 받지 못했거나(DNS·연결·타임아웃) 분류되지 않은 예외가 나면 `CAFE24_TRANSPORT_FAILED` 다. `invalid_grant` 를 인증 실패로 보는 일은 NERV Task `CLE-T-S0BJBV` 가 정한다.
-- 만료가 가까워 핑을 보내기 전에 미리 갱신할 때 갱신 작업 큐를 거치면 호출 쪽은 갱신 응답의 상태를 알 수 없다. 큐가 통합을 `error(auth_failed)` 로 바꿨으면 `CAFE24_AUTH_FAILED` 를 돌려준다. 갱신이 끝나지 않았으면 `CAFE24_TRANSPORT_FAILED` 다. 401 을 받은 뒤의 갱신은 큐를 거치지 않는다.
-- 필수 자격 증명이 빠졌으면 외부를 부르지 않고 `INTEGRATION_INCOMPLETE` 를 돌려준다.
+- 토큰 갱신 요청이 401·403 으로 거절되면 갱신 단계가 통합을 `error(auth_failed)` 로 바꾸고 `CAFE24_AUTH_FAILED` 를 돌려준다. 갱신 요청이 그 밖의 상태로 실패하면 지금은 `CAFE24_TRANSPORT_FAILED` 다(아래 Rationale 「연결 테스트는 401 만 토큰 문제로 본다」).
 - 403 이면 상태를 낮추지 않고 `CAFE24_INSUFFICIENT_SCOPE` 메시지만 돌려준다. 권한 부족이나 앱 미설치를 푸는 방법은 앱 유형에 따라 다르다. Cafe24 Public 은 통합 재인증이나 추가 권한 요청의 OAuth 팝업에서 다시 동의한다. Cafe24 Private 은 Cafe24 개발자 센터에서 앱 권한을 고친 뒤 통합 재인증이나 추가 권한 요청으로 재설치 대기 표시를 남기고 24시간 안에 «테스트 실행» 을 누른다. 설치 토큰이 없는 Private 행은 삭제 후 재등록한다([재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청)).
-- 2xx 가 아닌 상태 가운데 401·403 을 뺀 나머지(리다이렉트를 따른 뒤 남은 3xx, 404·429·5xx 등)는 토큰 문제로 보지 않는다. 토큰을 갱신하지 않고 상태도 낮추지 않는다. 받은 상태를 메시지에 담아 `CAFE24_API_ERROR` 를 돌려준다. 다시 보낸 요청이 이런 상태로 실패해도 같다. 사용자는 잠시 뒤 다시 시도한다.
+- 2xx 가 아닌 상태 가운데 401·403 을 뺀 나머지(429·5xx·404 등)는 토큰 문제로 보지 않는다. 토큰을 갱신하지 않고 상태도 낮추지 않는다. 받은 상태를 메시지에 담아 `CAFE24_API_ERROR` 를 돌려준다. 다시 보낸 요청이 이런 상태로 실패해도 같다. 사용자는 잠시 뒤 다시 시도한다.
 - 사용자가 직접 누른 진단 호출이라 연속 네트워크 실패(`consecutive_network_failures`) 합산에서 뺀다. 이 카운터는 노드 실행 시점의 자동 호출만 센다.
 - 저장 전 연결 테스트(`preview-test`)는 저장하기 전 자격 증명의 구조만 검증하고 외부를 부르지 않는다. 막 발급된 토큰이라 갱신이 필요 없다. 요청 빈도 제한은 [§7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 
@@ -129,7 +127,7 @@ Cafe24 와 같은 구조로 설계했다. 한 통합을 워크플로우의 [Make
 
 MakeShop 에는 별도 승인 권한 범위가 없다. Cafe24 의 파트너 별도 승인 단계가 없고 앱 심사 때 한꺼번에 검토한다([MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md)). 정확한 권한 토큰 문자열과 그룹은 코드에 `VERIFY` 로 표시돼 있어 운영 전에 MakeShop OAuth 문서로 확정해야 한다. 한글 권한 그룹(`x-scope`)과 실제 권한 토큰의 대응은 [MakeShop operation 메타데이터](CLE-MKS-META) 가 정한다.
 
-**연결 테스트**: 저장된 `access_token` 으로 `GET https://connect.makeshop.co.kr/api/v1/{shop_uid}/information` 을 부른다. 401 복구, 토큰 갱신 실패의 결과 코드, 401·403 이 아닌 상태의 처리(`MAKESHOP_API_ERROR`), 연속 네트워크 실패 합산 제외는 Cafe24 와 같고 코드 접두만 `MAKESHOP_` 다. 403 결과 코드는 다르다. 상태를 낮추지 않는 것은 같지만 Cafe24 가 `CAFE24_INSUFFICIENT_SCOPE` 로 가르는 자리에서 MakeShop 은 `MAKESHOP_AUTH_FAILED` 로 묶는다. 별도 승인 권한 범위가 없어 403 을 권한 부족으로 나눌 근거가 없다.
+**연결 테스트**: 저장된 `access_token` 으로 `GET https://connect.makeshop.co.kr/api/v1/{shop_uid}/information` 을 부른다. 401 복구, 401·403 이 아닌 상태의 처리(`MAKESHOP_API_ERROR`), 연속 네트워크 실패 합산 제외는 Cafe24 와 같다. 403 결과 코드는 다르다. 상태를 낮추지 않는 것은 같지만 Cafe24 가 `CAFE24_INSUFFICIENT_SCOPE` 로 가르는 자리에서 MakeShop 은 `MAKESHOP_AUTH_FAILED` 로 묶는다. 별도 승인 권한 범위가 없어 403 을 권한 부족으로 나눌 근거가 없다.
 
 **Rate limit**: MakeShop 은 데이터 호출 rate limit 을 공개하지 않았다. 토큰 발급만 client_credentials 기준 분당 5회로 정해져 있다. `MakeshopApiClient` 는 429 응답의 `Retry-After` 를 참고해 최대 2회 다시 시도한다. 확정되지 않은 항목은 [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) 에 있다.
 
@@ -139,8 +137,8 @@ MakeShop 에는 별도 승인 권한 범위가 없다. Cafe24 의 파트너 별�
 
 ## 구현 위치
 
-- `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` (Cafe24 연결 테스트 `pingConnection` 과 실패 코드 분류 `mapPingError`, 요청 빈도 제한 처리)
-- `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts` (MakeShop 연결 테스트 `pingConnection` 과 실패 코드 분류 `mapPingError`, `Retry-After` 재시도)
+- `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` (Cafe24 연결 테스트와 요청 빈도 제한 처리)
+- `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts` (MakeShop 연결 테스트와 `Retry-After` 재시도)
 
 ## Rationale
 
@@ -164,14 +162,4 @@ Cafe24·MakeShop 연결 테스트는 첫 요청이 401·403 이 아닌 상태로
 
 - 노드 호출 경로처럼 401 만 갱신하고 다시 보낸다([OAuth 연결과 토큰 갱신 「401 을 받으면 갱신하고 한 번 다시 보낸다」](CLE-INT-OAUTH.md#401-을-받으면-갱신하고-한-번-다시-보낸다)). 위 「Cafe24 연결 테스트 endpoint 를 `/store` 에서 `/apps` 로 바꿨다」 가 정한 «노드 호출 경로와 같은 401 정책» 을 코드가 401 밖 상태에서 지키지 않았다.
 - 401·403 이 아닌 상태는 새 코드 `CAFE24_API_ERROR`·`MAKESHOP_API_ERROR` 로 돌려주고 상태를 낮추지 않는다. 코드 이름과 기각한 대안은 [에러 코드 규약과 카탈로그 「Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다」](../CLE-API/CLE-API-ERRCODES.md#cafe24--makeshop-연결-테스트의-401--403-밖-실패에-_api_error-를-새로-만들었다) 에 있다.
-- 토큰 갱신 요청 자체의 실패는 아래 「토큰 갱신 실패와 남은 3xx 도 `*_API_ERROR` 로 답한다」 가 정한다.
-
-### 토큰 갱신 실패와 남은 3xx 도 `*_API_ERROR` 로 답한다
-
-결정일: 2026-11-28
-
-연결 테스트는 토큰 갱신 요청이 응답을 받고 401·403 밖 상태로 실패해도 `*_TRANSPORT_FAILED` 로 답했다. 이 코드는 응답을 받지 못한 실패를 뜻하는데 이 경우에는 응답이 있다. 그래서 첫 요청이 401·403 밖 상태일 때와 같은 `*_API_ERROR` 로 옮겼다(NERV Task `CLE-T-DJGSBR`).
-
-- 리다이렉트를 따른 뒤에도 남은 3xx 는 실패로 본다. 연결 테스트는 2xx 만 성공으로 보므로 남은 3xx 는 401·403 밖 상태이고 `*_API_ERROR` 다. 3xx 본문은 상점 데이터가 아니라서 연결이 됐다는 근거가 되지 못한다. 노드는 같은 응답을 `*_4XX` 로 낸다(NERV Task `CLE-T-8SCV17`, [MakeShop 노드 — 출력 구조와 에러 「3xx 와 토큰 갱신 실패의 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP-OUTPUT.md#3xx-와-토큰-갱신-실패의-코드)).
-- 갱신 작업 큐를 거친 미리 갱신은 호출 쪽이 갱신 응답의 상태를 모른다. 그래서 이 경우는 연결 테스트에서도 `*_TRANSPORT_FAILED` 로 남는다.
-- 노드 출력과 AI 도구 결과의 코드는 바꾸지 않았다. 노드는 갱신 실패를 `*_TRANSPORT_FAILED` 로 낸다. AI 도구는 큐 없이 갱신하면 `CAFE24_CALL_FAILED` · `MAKESHOP_CALL_FAILED` 이고 갱신 작업 큐를 거치면 `*_TRANSPORT_FAILED` 다. 노드 출력 코드는 워크플로우가 분기하는 값이라 이번 변경에 넣지 않았다.
+- 토큰 갱신 요청 자체가 401·403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 그 코드의 뜻(응답을 받지 못한 실패)과 어긋난다. NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.
