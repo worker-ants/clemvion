@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY-OUTPUT"
 title: "Database Query 노드 — 출력 구조와 에러 코드"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-DBQUERY"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-DBQUERY"]
 area: "CLE-NODE-INT"
-content_hash: "c68815237dbd283500a31b04306ff2f523a83dabc4699332418d5a71d7b898ca"
+content_hash: "5e295f3504cb19c27fa4324c4a7bb0dc9aee159a1c11faa8a45015c1d6fa3ac2"
 read_as: "approved_fallback"
-task: "CLE-T-DC5Y0P"
+task: "CLE-T-WR52C8"
 source_paths: []
-mirror_sha256: "94d8133bd69c67420305830f4126e845673d296935fe5c9a69da647ea3489e25"
-etag: "sha256-7f35a527523a70f3201f6d1115d750edcb838d4bcd4b5dee11bade1794dd58b4"
+mirror_sha256: "19c6d508934f1e00b2081653be7a1106b9ed933ff8881ae8212ec7af4d016dbe"
+etag: "sha256-4338a302236074f2aa41ceb4bec29d87822b1388725036c3e155b290f53ed298"
 ---
 ## 개요
 
@@ -173,9 +173,9 @@ INSERT(MySQL `ResultSetHeader`):
 | `DB_PERMISSION_DENIED` | 인증된 세션의 객체 권한 부족(실행 중 발견) | pg `42501`(insufficient_privilege), mysql `ER_TABLEACCESS_DENIED_ERROR`·`ER_COLUMNACCESS_DENIED_ERROR`·`ER_DBACCESS_DENIED_ERROR`·`ER_SPECIFIC_ACCESS_DENIED_ERROR` |
 | `DB_HOST_BLOCKED` | 사설망 차단 가드가 연결을 막음. 연결 전 검사(`credentials.host` 를 해석한 주소)와 연결할 때 푼 주소의 판정이 모두 이 코드를 낸다. 막는 대역은 [사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. 메시지는 호스트·IP 를 담지 않는다. 판정 시점과 처리 상세는 [Database Query 「사설망 차단」](CLE-NODE-DBQUERY.md#사설망-차단) 에 있다 | — (가드 차단. 연결 시점 판정의 차단은 드라이버가 감싼 오류의 `cause` 사슬에서 찾는다) |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 누락 실패(D4) | — |
-| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 위 가드 고장 처리는 연결 전 검사에만 해당한다. 연결할 때 판정하다가 판정이 아닌 오류가 나면 연결을 통과시키지 않고 실패시킨다. 이때 코드는 드라이버 연결 오류 분류를 따른다 | — |
+| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 쿼리를 시작하기 전 통합 조회에서 난 그 밖의 예외(`ECONNRESET` 같은 일시 오류)도 드라이버 code 가 붙어 있어도 이 코드다. 사용자 DB 의 실패가 아니기 때문이다(`classifyExecuteError`). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 위 가드 고장 처리는 연결 전 검사에만 해당한다. 연결할 때 판정하다가 판정이 아닌 오류가 나면 연결을 통과시키지 않고 실패시킨다. 쿼리를 시작한 뒤의 실패라 코드는 드라이버 연결 오류 분류를 따른다 | — |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 가 핸들러에 주입되지 않았거나 실행 컨텍스트에 `__workspaceId` 가 없음(배포 구성 에러, D4) | — |
-| `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4). MySQL 쿼리의 `$N` 이 1 보다 작거나 배열 길이보다 큰 경우와 `$N` 을 `?` 와 섞어 쓴 경우도 이 코드다. 쿼리를 보내지 않는다([Database Query 「실행 로직」](CLE-NODE-DBQUERY.md#실행-로직) 4단계) | — |
+| `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4). MySQL 쿼리의 `$N` 이 1 보다 작거나 배열 길이보다 큰 경우와 `$N` 을 `?` 와 섞어 쓴 경우도 이 코드다. 섞어 쓴 `?` 는 mysql2 가 값을 채우는 자리에서 센다. 큰따옴표 리터럴과 `#` 주석 안의 `?` 도 세고, 작은따옴표 · 백틱 · `-- ` · `/* */` 안의 `?` 는 세지 않는다(mysql2 3.24.6 · sql-escaper 1.5.2 동작). `$N` 변환은 통합을 얻은 뒤에 하므로 이 실패는 활동 로그에 `failed` 로 남는다. `config.parameters` 파싱 실패는 통합을 얻기 전에 나서 활동 로그를 남기지 않는다. 쿼리를 보내지 않는다([Database Query 「실행 로직」](CLE-NODE-DBQUERY.md#실행-로직) 4단계) | — |
 
 - 드라이버 간 일관성: pg SQLSTATE class `28` 과 mysql `ER_ACCESS_DENIED_ERROR` 는 모두 handshake 단계 인증 실패다. 두 드라이버 모두 `DB_CONNECTION_ERROR` 로 보내서 워크플로우의 자격 증명 교체 재시도 정책이 양쪽에서 같게 동작한다. 실행 중 권한 거부(`DB_PERMISSION_DENIED`)는 인증된 세션이 객체 접근에 실패한 별도의 영구 에러다.
 - 활동 로그에는 `toLogError(err)` 가 같은 방식으로 가린 `code`·`message` 를 기록한다.
@@ -206,3 +206,15 @@ INSERT(MySQL `ResultSetHeader`):
 결정일: 2026-11-20
 
 NERV Task `CLE-T-691T4G` 에서 연결할 때 푼 주소도 판정하게 했다. 이 판정에서 막혀도 연결 전 검사와 같은 `DB_HOST_BLOCKED` 와 같은 고정 문구를 낸다. 워크플로우는 `output.error.code` 로 분기한다. 시점마다 코드가 다르면 같은 차단을 두 갈래로 받아야 하고, 어느 시점에 막혔는지는 워크플로우 작성자가 손쓸 수 있는 차이가 아니다. 그래서 분기가 판정 시점에 따라 갈리지 않게 코드를 하나로 두었다. 차단된 host · IP 원문은 두 시점 모두 서버 경고 로그에만 남는다. 판정 방식과 기각한 대안은 [Database Query 「연결할 때 푼 주소도 판정한다」](CLE-NODE-DBQUERY.md#연결할-때-푼-주소도-판정한다) 에 있다.
+
+### 쿼리를 시작하기 전의 실패는 `INTEGRATION_CALL_FAILED` 로 낸다
+
+결정일: 2026-11-27
+
+전에는 핸들러가 `IntegrationError` 가 아닌 예외를 모두 `mapDbError` 로 보냈다. 그래서 통합 조회 거절(`NotFoundException`, `RESOURCE_NOT_FOUND`)이 `DB_QUERY_FAILED` 로 나왔고 스펙의 `INTEGRATION_CALL_FAILED` 와 달랐다. NERV Task `CLE-T-MWR7C5` 에서 사람이 핸들러를 스펙에 맞추는 안을 골랐다. 쿼리를 시작하기 전에 잡힌 예외는 드라이버 code 가 붙어 있어도 사용자 DB 의 실패가 아니다. 그래서 분류하지 않은 실패인 `INTEGRATION_CALL_FAILED` 로 낸다. 분류하지 않은 실패를 이 코드로 내는 것은 [통합 노드 공통 「공통 에러 코드」](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 와 같다.
+
+### MySQL 의 `$N` · `?` 혼용은 mysql2 가 값을 채우는 자리로 판정한다
+
+결정일: 2026-11-27
+
+MySQL 의 `$N` · `?` 혼용 판정은 mysql2 가 실제로 값을 채우는 자리를 따른다(PR #1833, NERV Task `CLE-T-WR52C8`). 채우지 않는 자리의 `?` 까지 세면 정상 쿼리를 거절한다. 채우는 자리를 빼면 `$N` 과 `?` 가 섞여 바인딩이 어긋난다.

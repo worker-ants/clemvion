@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-MODEL"
 title: "통합 상태와 만료 알림 — 상태 모델"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "2f952fe23c77802587da877ebe3df64532a66bb649a09acb8657405ff63a8b6d"
+content_hash: "39a0cc466a1bcac71721188579295a8fb4d0c98d310cd86d8b533b4e68010e8c"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-22PSME"
 source_paths: []
-mirror_sha256: "62b94d2ddb2ce07745551723d8319bcbcdfc30f0c7d58ec46375e8bc13b00a0e"
-etag: "sha256-85c16b71cfb09ee949350e3f7e1a143af91ab59bd6f9e8b85716a1846e74d01c"
+mirror_sha256: "0bf684d449b70d0d4ca461ed0b08ca2ba4b115c3c1b3b08980562ed9072d277a"
+etag: "sha256-d6779ebe0cb10ceb063848792b63cc20f381c642ed3d1a0fbf88d26e86296f88"
 ---
 ## 개요
 
@@ -208,9 +208,9 @@ MakeShop 복구 안내 요구사항은 처음에 MakeShop 통합이 오류나 �
 
 결정일: 2026-11-13
 
-MakeShop 설치 안내 화면의 프런트엔드 훅(`use-makeshop-pending-polling.ts`)은 `hmac_verification_failed` 를 i18n 문구로 매핑하지만 이 값은 union `INTEGRATION_STATUS_REASONS` 에 없다. 2026-11-13 에 서버 동작을 확인해 이 미결 항목을 닫았다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다. 그래서 이 값을 상태 사유로 저장하는 경로가 없고 union 에 더해도 쓰는 곳이 없다. 스펙은 union 과 `normalizeStatusReason` 을 기준으로 두고 이 값을 상태 사유로 적지 않는다.
+MakeShop 설치 안내 화면의 프런트엔드 훅(`use-makeshop-pending-polling.ts`)은 `hmac_verification_failed` 를 i18n 문구로 매핑했지만 이 값은 union `INTEGRATION_STATUS_REASONS` 에 없다. 2026-11-13 에 서버 동작을 확인해 이 미결 항목을 닫았다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다. 그래서 이 값을 상태 사유로 저장하는 경로가 없고 union 에 더해도 쓰는 곳이 없다. 스펙은 union 과 `normalizeStatusReason` 을 기준으로 두고 이 값을 상태 사유로 적지 않는다.
 
-- 고치지 않은 이유: 프런트엔드 훅의 `hmac_verification_failed` 매핑은 서버가 이 값을 내보내지 않아 닿지 않는 분기라 지워도 동작이 바뀌지 않는다. 스펙만 구현에 맞추고 매핑을 지우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다.
+- 2026-11-28 NERV Task `CLE-T-22PSME` 에서 닿지 않는 이 매핑과 i18n 키를 지웠다. 서버가 이 값을 내보내지 않아 동작은 바뀌지 않는다. 이 값이 오면 다른 알 수 없는 사유처럼 일반 문구로 보인다.
 
 ### 재설치 대기 표시 동안의 콜백은 요청자를 다시 판정하지 않는다
 

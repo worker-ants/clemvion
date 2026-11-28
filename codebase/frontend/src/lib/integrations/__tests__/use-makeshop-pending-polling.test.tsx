@@ -195,7 +195,9 @@ describe("useMakeshopPendingPolling", () => {
     );
   });
 
-  it("maps hmac_verification_failed to its i18n key", async () => {
+  // 서버는 HMAC 검증 실패를 상태 사유로 남기지 않는다(CLE-INT-STATUS). 옛 매핑을 지웠으니
+  // 이 값이 오더라도 알 수 없는 사유처럼 안전한 일반 문구로 보인다(CLE-T-22PSME).
+  it("treats hmac_verification_failed as an unknown reason (generic message)", async () => {
     getMock.mockResolvedValue(
       makeRow({
         status: "pending_install",
@@ -207,7 +209,7 @@ describe("useMakeshopPendingPolling", () => {
     });
     await waitFor(() =>
       expect(result.current.lastErrorMessage).toBe(
-        "integrations.makeshopErrorHmacVerificationFailed",
+        "integrations.makeshopErrorGenericCallback",
       ),
     );
   });
