@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-STORE"
 title: "EIA 데이터와 흐름 — 엔티티와 저장소"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "535f0a575732e3218a8032da7a7924408af52f05cba5226f129baf31d2717141"
+content_hash: "ce62ce3eee2feaaa5cf76568bd488928bb99678d33a703e6e8ad0752a9182f9d"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-KBQN85"
 source_paths: []
-mirror_sha256: "fe57e11a247b92102cfa057d72a4dba909e413b14a2fac47367acf9a24772b1f"
-etag: "sha256-487a4c3b93995bacc693bd46a2b43e34bd86686ad9916824f2d2c4cb8209dd5c"
+mirror_sha256: "5155ff92d1866a78d56642f5915ee4451318789f2e6cec8228ce562087597669"
+etag: "sha256-7717757b3f10851e348f75a0e0b8f8dc6f64eef090f91f008afa510ebce988a1"
 ---
 ## 개요
 
@@ -117,7 +117,7 @@ etag: "sha256-487a4c3b93995bacc693bd46a2b43e34bd86686ad9916824f2d2c4cb8209dd5c"
 | `trigger.config`(JSONB) | EIA 알림 웹훅 설정 | `notification.url`·`notification.events[]`·`notification.signing.{algorithm, secretRef}`·`notification.signing.secret`(옛 키. 읽기 · 옮기기만 하고 새로 받지 않는다)·`notification.retry.{maxAttempts, backoff}` | 생성이나 EIA 알림 웹훅 설정을 처음 붙이는 PATCH 때 서버가 발급한 `wsk_*` 의 참조를 `secretRef` 에 둔다. PATCH 와 옛 평문 `signing.secret` 의 처리는 [트리거 확장](#트리거-확장) |
 | `trigger` | 발송 건강도 | UPDATE `notification_health`(`healthy`·`degraded`), `notification_last_error` | 발송 프로세서가 성공·최종 실패 때 |
 | `trigger` | 시크릿 교체 | 트리거 설정 잠금 안에서 UPDATE `notification_secret_v2`(평문), `notification_rotated_at`. 승격 때 NULL 로 비움 | [서명 시크릿 교체와 승격](CLE-EIA-DATA-NOTIFY.md#서명-시크릿-교체와-승격) |
-| `trigger` | EIA 알림 웹훅 설정 해제 | 트리거 설정 잠금 안에서 `config.notification` 키를 지울 때 `notification_secret_v2` · `notification_rotated_at` 을 NULL 로 비움(이미 비었으면 쓰지 않음). 첫 시크릿을 발급하는 PATCH 와 알림 설정이 없는 행을 고른 승격도 두 값을 비움 | [알림 설정 해제](CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) |
+| `trigger` | EIA 알림 웹훅 설정 해제 | 트리거 설정 잠금 안에서 `config.notification` 키를 지울 때 `notification_secret_v2` · `notification_rotated_at` 을 NULL 로 비움(이미 비었으면 쓰지 않음). 첫 시크릿을 발급하는 PATCH 와 알림 설정이 없는 행을 고른 승격도 두 값을 비움. PATCH 가 커밋된 뒤에는 같은 잠금을 다시 잡고 알림 설정이 여전히 없을 때 `secret_store` 의 알림 서명 시크릿 행을 지움 | [알림 설정 해제](CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) |
 | `execution` | 인바운드 검증 | SELECT `status`(종료·입력 대기 검사, `itk_*` 의 `trigger_id` 대조). interact 는 실행 행을 직접 쓰지 않는다(재개 워커가 갱신) | 없음 |
 | `execution` | 상태 조회 | SELECT `status`·`result`·`error`·`duration_ms`·`conversation_thread` | 대기 노드 실행 출력도 읽는다 |
 
@@ -163,6 +163,8 @@ etag: "sha256-487a4c3b93995bacc693bd46a2b43e34bd86686ad9916824f2d2c4cb8209dd5c"
 
 JWT 는 무상태로 검증할 수 있어 저장소가 필요 없어 보인다. 그러나 실행이 끝날 때 그 실행이 발급한 토큰을 빠짐없이 폐기하려면 발급 jti 목록이 있어야 한다. 그래서 jti 를 실행별로 기록하는 테이블을 두고, 같은 테이블을 종료 토큰 정리 작업과 웹채팅 위젯 유휴 실행 회수의 원천으로 함께 쓴다. 이미 만료된 jti 는 블랙리스트에 올릴 필요가 없으므로 `exp_at` 을 함께 둔다.
 
-### 공백만 있는 옛 평문은 옮기지 않는다 (2026-11-06)
+### 공백만 있는 옛 평문은 옮기지 않는다
 
-「저장 형태」 의 알림 서명 시크릿 항목에 빈 문자열이나 공백만 있는 `signing.secret` 의 처리를 더했다. 결정과 근거는 [EIA 알림 웹훅 「공백만 있는 옛 평문도 없는 것으로 본다」](CLE-EIA-NOTIFY.md#공백만-있는-옛-평문도-없는-것으로-본다-2026-11-06) 에 있다.
+결정일: 2026-11-06
+
+「저장 형태」 의 알림 서명 시크릿 항목에 빈 문자열이나 공백만 있는 `signing.secret` 의 처리를 더했다. 결정과 근거는 [EIA 알림 웹훅 — 시크릿 교체 「공백만 있는 옛 평문도 없는 것으로 본다」](CLE-EIA-NOTIFY-SECRET.md#공백만-있는-옛-평문도-없는-것으로-본다) 에 있다.

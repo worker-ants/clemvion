@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-NOTIFY"
 title: "EIA 데이터와 흐름 — 알림 웹훅 발송과 서명 시크릿"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "671262eff677053fa6e430f3eb9e2e0798070e26c018aa46351ac8c99a5183b1"
+content_hash: "13494440998d010d1c338d42783d08c64a7676797ada9778cf11cb6bac715d78"
 read_as: "approved_fallback"
-task: "CLE-T-ZPT9W7"
+task: "CLE-T-KBQN85"
 source_paths: []
-mirror_sha256: "7a438103e7bc6fc9c3d187de13e3f1e912e367d7d3b5ab8f6302b5ca72056250"
-etag: "sha256-2eb18df71384f5a8333a16412ee617c0fd420bcd9edcc05e7e4ad4922e6c0849"
+mirror_sha256: "49a38dbf265507efb568a66d8514450072184d470f6083b1bcaab8f54cbcd142"
+etag: "sha256-d18e4ff733919d4c3ebb5a935fbdd74eb107d0169f97e32660277072a664cea4"
 ---
 ## 개요
 
@@ -64,7 +64,7 @@ sequenceDiagram
 - **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`NotificationWebhookProcessor`) 모두 같은 검사 `validateNotificationUrl` 을 쓴다. 이 검사는 SSRF 판정(`checkSsrfSafeUrl`) 뒤에 userinfo 가 든 URL 을 거부한다([EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md#ssrf-방지)). 두 지점의 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 이면 꺼진다. 운영 밖에서는 기본으로 꺼져 있고 `1` 이면 켜진다. 같은 플래그가 발송 요청의 연결 시점 판정(`notificationWebhookDispatcher`)도 함께 켜고 끈다. 켜져 있으면 발송 fetch 가 연결할 때 푼 주소를 다시 판정하므로 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역으로 연결하지 않는다. 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
 - **서명**: `X-Clemvion-Signature: t=<unix>,v1=<hex>[,v1=<v2hex>]`(`notification-signature.util.ts`). 정규형 `{timestamp}.{rawBody}`, 알고리즘 `hmac-sha256`(기본)·`hmac-sha512`. 시크릿이 없거나 가져오지 못하면 서명 없이 보내지 않는다. 이때 발송 건강도를 `degraded`(저하됨)로 바꾼다. 주 시크릿이 없으면 v2 가 있어도 같다. v2 는 주 시크릿이 있을 때 보조 서명으로만 쓴다. 교체 유예 중에는 `notification_secret_v2` 로도 서명해 `v1=` 를 두 개 싣는다.
 - **주 시크릿 읽기**: 발송 처리기(`resolveSigningSecret`)는 저장된 `signing.secretRef` 값으로 시크릿을 읽지 않는다. 참조(`secret://` 형식의 문자열)가 있으면 트리거 id 로 다시 만든 정식 참조(`notificationSigningSecretRef`)로 시크릿 저장소에서 읽는다. 저장값이 다시 만든 참조와 다르면 에러 로그를 남긴다. 참조가 있는데 시크릿 저장소에서 읽지 못하면 옛 평문 `signing.secret` 으로 내려가지 않는다. 그 알림 웹훅은 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 옛 평문은 참조가 없을 때만 주 시크릿으로 쓴다. 기준은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 다.
-- **적재 실패**: fanout 이 트리거를 다시 읽거나 발송 큐에 적재하다 실패하면 경고 로그를 남기고 그 알림을 버린다. 다시 적재하지 않는다. 실행과 단일 싱크는 영향을 받지 않는다. Redis 연결이 끊긴 동안에는 적재가 바로 실패하지 않는다. 연결된 적이 있으면 재연결을 20번 시도한 뒤(약 4분) 실패하고, 기동 때부터 닿지 않았으면 연결될 때까지 기다린다. 근거는 [알림 적재 실패를 경고 로그로 받는다](#알림-적재-실패를-경고-로그로-받는다-2026-11-06) 에 있다.
+- **적재 실패**: fanout 이 트리거를 다시 읽거나 발송 큐에 적재하다 실패하면 경고 로그를 남기고 그 알림을 버린다. 다시 적재하지 않는다. 실행과 단일 싱크는 영향을 받지 않는다. Redis 연결이 끊긴 동안에는 적재가 바로 실패하지 않는다. 연결된 적이 있으면 재연결을 20번 시도한 뒤(약 4분) 실패하고, 기동 때부터 닿지 않았으면 연결될 때까지 기다린다. 근거는 [알림 적재 실패를 경고 로그로 받는다](#알림-적재-실패를-경고-로그로-받는다) 에 있다.
 - **실패 정책**: 실패로 보는 응답(3xx 포함)과 재시도는 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 마지막 시도가 실패해도 트리거를 끄지 않는다. `notification_health`·`notification_last_error`(500자로 자름)만 갱신한다. BullMQ `removeOnComplete` 24시간, `removeOnFail` 7일이다.
 - **폭주 감지**: 발송 성공(2xx)마다 `OutboundNotificationRateLimiterService.consume`(Redis 고정 윈도우 `INCR`+`EXPIRE NX`, fail-open)이 트리거당 분당 발송 수를 센다. 60건을 넘으면 `healthy` 대신 `degraded` 와 폭주 전용 `notification_last_error` 로 표시한다. 발송 실패로 바뀐 `degraded` 와는 `notification_last_error` 로 원인을 가른다. 초과분도 계속 보낸다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md)).
 
@@ -109,7 +109,7 @@ stateDiagram-v2
   Grace --> Grace: 시크릿 저장소 행의 워크스페이스가 달라 매시 승격 작업이 건너뜀, v2 유지
   [*] --> None: EIA 알림 웹훅 설정 없이 트리거 생성
   Primary --> None: PATCH 의 notification null 로 해제, 커밋 뒤 시크릿 저장소 행 삭제
-  Grace --> None: PATCH 의 notification null 로 해제, notification_secret_v2·notification_rotated_at 도 비움
+  Grace --> None: PATCH 의 notification null 로 해제, notification_secret_v2·notification_rotated_at 도 비움, 커밋 뒤 시크릿 저장소 행 삭제
   None --> Primary: PATCH 로 EIA 알림 웹훅 설정을 다시 붙이면 첫 시크릿을 새로 발급하고 남은 교체 대기 값을 비움
 ```
 
@@ -133,7 +133,9 @@ stateDiagram-v2
 
 시크릿 승격은 평문을 설정에 쓰지 않고 시크릿 저장소 정식 참조를 `secrets.rotate` 로 교체한다. 발송 쪽 `resolveSigningSecret` 은 `secretRef` 가 있으면 평문 대신 시크릿 저장소를 읽는다. 읽는 참조는 저장값이 아니라 트리거 id 로 다시 만든 정식 참조다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24). 그래서 평문을 설정에 쓰면 교체한 시크릿이 실제 서명에 쓰이지 않는 어긋남이 생긴다. 이 어긋남은 "교체한 시크릿이 실제로 쓰이는가" 라는 보안 운영에 직접 닿는다.
 
-### 알림 적재 실패를 경고 로그로 받는다 (2026-11-06)
+### 알림 적재 실패를 경고 로그로 받는다
+
+결정일: 2026-11-06
 
 [인프라 장애에는 fail-open 한다](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 는 알림 적재를 기능 저하와 경고 로그로 적었다. 그런데 fanout 은 이벤트마다 처리를 기다리지 않고 띄웠고, 트리거 조회와 큐 적재의 예외를 받지 않았다. 그래서 DB 나 Redis 가 실패하면 처리되지 않은 Promise 거부가 됐다. 백엔드는 이 거부를 받는 처리기를 두지 않는다. Node 26 의 기본 동작은 그 거부로 프로세스를 끝내는 것이다(2026-11-06 확인, 종료 코드 1). 알림 하나의 적재 실패가 서버를 내릴 수 있었다.
 
@@ -146,6 +148,8 @@ stateDiagram-v2
 - **적재에 제한 시간을 둔다**: 시간이 지나도 명령은 Redis 클라이언트의 대기열에 남아 연결이 돌아오면 적재될 수 있다. 그러면 실패했다는 로그가 사실과 어긋난다. 대기열을 비우려면 연결 옵션을 바꿔야 하는데, 그 설정은 모든 BullMQ 큐가 함께 쓴다.
 - **프로세스 전역에서 처리되지 않은 거부를 받는다**: 다른 모듈의 결함까지 조용히 삼킨다. 실패를 아는 곳에서 받는 쪽을 택했다.
 
-### «낡은 알림 웹훅 차단» 으로 이름을 맞췄다 (2026-11-12)
+### «낡은 알림 웹훅 차단» 으로 이름을 맞췄다
+
+결정일: 2026-11-12
 
 용어 사전 기준(EIA 알림 웹훅을 단독 «알림» 으로 쓰지 않는다)에 맞춰 단계 이름 «낡은 알림 차단» 과 시퀀스 그림의 «낡은 알림 검사» 를 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md) 과 같은 용어로 바꿨다. 뜻은 바뀌지 않았다.
