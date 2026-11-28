@@ -31,8 +31,8 @@ export function isPostgresUniqueViolation(err: unknown): boolean {
 
 /**
  * PostgreSQL `55P03 lock_not_available` 여부. `SET LOCAL lock_timeout` 으로 건 잠금 대기 상한을 넘기면
- * 이 코드로 트랜잭션이 실패한다. 전역 예외 필터의 55P03 → 503 `SERVICE_UNAVAILABLE` 매핑에 쓰려고 둔다
- * (NERV Task `CLE-T-1C2JE0`). 그 매핑이 들어오기 전까지 이 오류의 응답은 500 이다.
+ * 이 코드로 트랜잭션이 실패한다. 전역 예외 필터(`GlobalExceptionFilter`)가 이것으로 503 `SERVICE_UNAVAILABLE`
+ * 을 낸다(NERV Task `CLE-T-1C2JE0`).
  */
 export function isPostgresLockNotAvailable(err: unknown): boolean {
   return pgErrorCode(err) === '55P03';

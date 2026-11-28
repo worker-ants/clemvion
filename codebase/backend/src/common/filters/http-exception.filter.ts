@@ -9,7 +9,10 @@ import {
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
-import { isPostgresUniqueViolation } from '../db/pg-error';
+import {
+  isPostgresLockNotAvailable,
+  isPostgresUniqueViolation,
+} from '../db/pg-error';
 
 /** http-errors(body-parser 등)·express 미들웨어 오류가 싣는 숫자 상태 필드. */
 type HttpErrorLike = { status?: number; statusCode?: number };
@@ -160,6 +163,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         status: HttpStatus.CONFLICT,
         code: 'RESOURCE_CONFLICT',
         message: 'Resource already exists or has been modified concurrently.',
+        details: undefined,
+      };
+    }
+    if (isPostgresLockNotAvailable(exception)) {
+      // 잠금 대기 상한(`SET LOCAL lock_timeout`)을 넘긴 요청이다. 트랜잭션이 롤백되어 남는 쓰기가 없고,
+      // 다시 시도하면 대개 통과하는 일시적 실패라 503 이다. 경로마다 따로 매핑하지 않는다
+      // (`CLE-ACCT-DATA` Rationale 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」, NERV Task `CLE-T-1C2JE0`).
+      // 드라이버 원문은 응답에 싣지 않고 서버 로그에만 남긴다.
+      this.logger.warn(
+        `lock wait timeout (55P03): ${exception instanceof Error ? exception.message : describeThrown(exception)}`,
+      );
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'The service is temporarily unavailable.',
         details: undefined,
       };
     }

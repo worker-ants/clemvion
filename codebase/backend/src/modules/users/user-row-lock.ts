@@ -6,7 +6,7 @@ import { setLocalLockTimeout } from '../triggers/trigger-config-lock';
 /**
  * 사용자 행 잠금의 대기 상한. 같은 사용자의 Passkey 등록 저장 · 삭제 · 복구 코드 재발급 · 복구 코드 사용 ·
  * Passkey 인증이 이 잠금에서 줄을 선다. 잠금을 잡은 쪽은 외부 호출 없이 몇 문장만 돌고 끝나서 짧다.
- * 넘기면 `55P03` 으로 아무것도 바꾸지 않고 실패한다(500).
+ * 넘기면 `55P03` 으로 아무것도 바꾸지 않고 실패하고, 전역 예외 필터가 503 `SERVICE_UNAVAILABLE` 로 낸다.
  */
 export const USER_ROW_LOCK_TIMEOUT_MS = 5_000;
 
