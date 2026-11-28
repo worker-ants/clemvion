@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-CONFIG"
 title: "Cafe24 노드 — 설정과 출력"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "726c77fb1f983e1db203f54ccdcbc575edbbfefb9247a3a51269307be1efbce6"
+content_hash: "93dc041c637dd53a640a940eba89dd9da3de4a311fb895ec21ab190a0380d206"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ABHBSV"
 source_paths: []
-mirror_sha256: "3f55eb3551d10bff35ab15a9dae6dba497ff55f7615395f22d92c1c2f20d0185"
-etag: "sha256-331686c44589c17669d424ed92bbcd867711de580050b0892c7b3958b6609630"
+mirror_sha256: "642e23082c865a0dd0458aee2f335d7e89dc6870094e526e4c3b0a7524d9157d"
+etag: "sha256-563a93dbbaaedede73bebeb6243d3153ad2a510146729a0913e6c7d673f3148f"
 ---
 ## 개요
 
@@ -145,9 +145,9 @@ etag: "sha256-331686c44589c17669d424ed92bbcd867711de580050b0892c7b3958b6609630"
 
 ### API 에러 또는 전송 실패 (`error`)
 
-[노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.2 의 `output.error.{code, message, details?}` 를 쓴다. 4xx·5xx 면 서버 응답 본문을 디버깅을 위해 `output.response` 에 둔다.
+[노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.2 의 `output.error.{code, message, details?}` 를 쓴다. 응답이 3xx·4xx·5xx 면 서버 응답 본문을 디버깅을 위해 `output.response` 에 둔다.
 
-Cafe24 API 4xx·5xx 응답:
+Cafe24 API 3xx·4xx·5xx 응답(예: 404):
 
 ```json
 {
@@ -206,7 +206,7 @@ Cafe24 API 4xx·5xx 응답:
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.fields` | object | 설정 에코 | 호출하려던 입력(`{{ }}` 보존) |
-| `output.response` | unknown | 런타임 | 4xx·5xx 에서도 Cafe24 응답 본문 보존 |
+| `output.response` | unknown | 런타임 | 3xx·4xx·5xx 에서도 Cafe24 응답 본문 보존 |
 | `output.error.code` | string | 핸들러 반환 | 아래 에러 코드 표의 값 |
 | `output.error.message` | string | 핸들러 반환 | `Cafe24 API returned <status>`. statusText 는 넣지 않는다. 서버 쪽 사유는 `details.cafe24ErrorCode`·`cafe24Message` 로 보존한다 |
 | `output.error.details.statusCode` | number | 핸들러 반환 | HTTP 상태 |
@@ -228,13 +228,13 @@ Cafe24 API 4xx·5xx 응답:
 
 | 코드 | 조건 | `output.response` | `meta.statusCode` |
 |------|------|-------------------|-------------------|
-| `CAFE24_4XX` | `400 ≤ statusCode < 500` 중 404·422 가 아닌 경우. 남은 3xx 도 여기로 분류한다 | 서버 본문 보존 | 응답 상태 |
+| `CAFE24_4XX` | `400 ≤ statusCode < 500` 중 404·422 가 아닌 경우. 리다이렉트를 자동으로 따라간 뒤에도 남은 3xx 도 이 코드다([리다이렉트 뒤에도 남은 3xx 는 `CAFE24_4XX` 다](#리다이렉트-뒤에도-남은-3xx-는-cafe24_4xx-다)) | 서버 본문 보존 | 응답 상태 |
 | `CAFE24_404` | Cafe24 응답 404(자주 분기하는 경우) | 서버 본문 보존 | 404 |
 | `CAFE24_422` | Cafe24 응답 422(검증 실패) | 서버 본문 보존 | 422 |
-| `CAFE24_AUTH_FAILED` | 401: 토큰 갱신 후 1회 재시도에도 401. 403: 즉시. 403 일 때의 코드는 정의가 갈린다. [미결 사항](CLE-NODE-CAFE24.md#미결-사항) 참조 | 서버 본문 보존 | 401 / 403 |
+| `CAFE24_AUTH_FAILED` | 401: 토큰 갱신 후 1회 재시도에도 401. 403: 즉시. 토큰 갱신 요청이 401·403 으로 거절된 경우도 이 코드다. 통합 상태 사유는 403 에 권한 범위 부족 신호가 있으면 `insufficient_scope`, 그 밖은 `auth_failed` 이고 코드는 둘 다 이 값이다([인증 실패 처리](#인증-실패-처리)) | 서버 본문 보존 | 401 / 403 |
 | `CAFE24_RATE_LIMITED` | 429 와 재시도 소진 | 서버 본문 보존(있으면) | 429 |
 | `CAFE24_5XX` | `500 ≤ statusCode < 600` | 서버 본문 보존 | 응답 상태 |
-| `CAFE24_TRANSPORT_FAILED` | 요청 reject(DNS·연결 거부·소켓·타임아웃) | 없음 | `0` |
+| `CAFE24_TRANSPORT_FAILED` | 요청 reject(DNS·연결 거부·소켓·타임아웃). API 호출 중 분류되지 않은 예외도 이 코드로 대체한다(경고 로그를 남긴다). 토큰 갱신 요청이 401·403 밖의 상태로 실패한 경우도 이 코드다([토큰 갱신 실패](#토큰-갱신-실패)) | 없음 | `0` |
 | `CAFE24_UNKNOWN_OPERATION` | `operation` 이 메타데이터에 없음 | — | `0` |
 | `CAFE24_MISSING_FIELDS` | `requiredFields` 누락 또는 조건부 필수 제약 위반. 두 사유 모두 같은 코드를 쓴다 | — | `0` |
 | `CAFE24_INVALID_MALL_ID` | `mall_id` 형식 위반(소문자 영숫자·하이픈, 3~50자 밖) | — | `0` |
@@ -252,7 +252,7 @@ Cafe24 API 4xx·5xx 응답:
 3. 재시도 응답이 2xx 면 통합을 `error` 로 바꾸지 않고(`connected` 그대로) 정상 결과를 돌려준다.
 4. 재시도 응답도 401 이면 토큰 자체의 문제로 확정하고 아래 격하 동작을 한다.
 
-갱신 자체가 401·403(`invalid_grant`)으로 실패하면 갱신 단계가 이미 통합을 `error(auth_failed)` 로 바꾸고 throw 하므로 재시도하지 않는다. 재시도는 정확히 1회이고(무한 재시도 차단) 429 재시도와 따로 센다.
+갱신 요청이 실패하면 요청을 다시 보내지 않는다. 실패 종류별 코드와 상태는 [토큰 갱신 실패](#토큰-갱신-실패)가 정한다. 재시도는 정확히 1회이고(무한 재시도 차단) 429 재시도와 따로 센다.
 
 **403(권한 범위 부족·앱 미설치)**: 토큰 갱신으로 되살릴 수 없으므로 즉시 격하한다. 권한 범위 부족 신호가 있으면 사유를 `insufficient_scope` 로, 그 밖은 `auth_failed` 로 둔다.
 
@@ -264,6 +264,18 @@ Cafe24 API 4xx·5xx 응답:
 
 격하한 뒤 `error → connected` 로 자동으로 돌아가지 않고 사용자가 통합 재인증으로 되돌린다. Cafe24 Private 앱은 통합 재인증이 [재설치 대기 표시](../CLE-INT/CLE-INT-OAUTH.md#재설치-대기-표시)만 남기고, 24시간 안에 Cafe24 Developers 의 "테스트 실행" 으로 콜백이 성공하면 `connected` 로 돌아간다. 그때까지 노드는 `INTEGRATION_NOT_CONNECTED` 로 끝난다. App URL 이 없는(설치 토큰이 없는) Private 통합만 삭제 후 다시 등록해야 한다([OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#cafe24-private-이-오류가-되면-삭제-후-재등록만-된다)). 자동 복귀를 막는 것은 시각 경쟁으로 상태가 뒤바뀌지 않게 하려는 정책이고 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)의 인증 실패 전환 정책과 같다.
 
+### 토큰 갱신 실패
+
+호출 전 사전 갱신([실행 로직](CLE-NODE-CAFE24-EXEC.md#실행-로직) 6단계)과 401 뒤 갱신(위 1단계)은 실패를 같은 규칙으로 다룬다.
+
+| 갱신 요청의 결과 | 노드 출력 코드 | 통합 상태 | 연속 전송 실패 카운터 |
+|------------------|----------------|-----------|-----------------------|
+| 401·403 으로 거절 | `CAFE24_AUTH_FAILED` | 갱신 단계가 `error(auth_failed)` 로 바꾼다 | 바꾸지 않는다 |
+| 401·403 밖의 상태(5xx·429·400 등)로 실패 | `CAFE24_TRANSPORT_FAILED`(`meta.statusCode = 0`) | 바꾸지 않는다 | 더하지 않는다 |
+| 응답을 받지 못함(DNS·연결·타임아웃) | `CAFE24_TRANSPORT_FAILED`(`meta.statusCode = 0`) | 3회 연속이면 `error(network)` | 더한다 |
+
+401·403 밖 상태의 갱신 실패는 노드가 따로 분류하지 않아 전송 실패와 같은 코드로 나간다. 그래도 토큰 엔드포인트가 응답한 실패라서 연속 전송 실패 카운터([통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) REQ-INTSTAT-008)에는 더하지 않는다. 연결 테스트(`pingConnection`)는 같은 실패를 `CAFE24_API_ERROR` 로 돌려준다([서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md#cafe24)). 리프레시 토큰이 무효(`invalid_grant`)라는 응답이 401·403 이 아닌 상태로 올 때의 처리는 후속 Task `CLE-T-S0BJBV` 에서 정한다.
+
 ## Rationale
 
 ### 필드 편집 UI
@@ -274,4 +286,21 @@ operation 을 바꿀 때 `fields` 를 모두 초기화하면 다음 operation �
 
 ### 별도 승인 라벨을 메타데이터 한 곳에서 렌더
 
-화면 네 곳(통합 추가 위저드, 통합 상세 권한 범위 영역, 이 노드의 operation 드롭다운, AI 에이전트 노출 도구 목록)의 ⚠ 라벨은 모두 같은 메타데이터(`Cafe24OperationMetadata.restrictedApproval`)에서 자동으로 렌더한다. 명단의 단일 기준은 [Cafe24 별도 승인 scope](CLE-C24-SCOPES)뿐이다. 이 문서는 라벨이 보이는 자리만 적고 명단을 되풀이하지 않는다(어긋남 방지). 막는 정책을 택하지 않은 이유는 [OAuth 연결과 토큰 갱신 Rationale](../CLE-INT/CLE-INT-OAUTH.md#cafe24-별도-승인-권한-범위는-막지-않고-안내한다)에 있다. 새 에러 코드는 더하지 않았다. 403 때 어떤 코드와 보강 필드로 알리는지는 [미결 사항](CLE-NODE-CAFE24.md#미결-사항)이다.
+화면 네 곳(통합 추가 위저드, 통합 상세 권한 범위 영역, 이 노드의 operation 드롭다운, AI 에이전트 노출 도구 목록)의 ⚠ 라벨은 모두 같은 메타데이터(`Cafe24OperationMetadata.restrictedApproval`)에서 자동으로 렌더한다. 명단의 단일 기준은 [Cafe24 별도 승인 scope](CLE-C24-SCOPES)뿐이다. 이 문서는 라벨이 보이는 자리만 적고 명단을 되풀이하지 않는다(어긋남 방지). 막는 정책을 택하지 않은 이유는 [OAuth 연결과 토큰 갱신 Rationale](../CLE-INT/CLE-INT-OAUTH.md#cafe24-별도-승인-권한-범위는-막지-않고-안내한다)에 있다. 새 에러 코드는 더하지 않았다. 403 은 `CAFE24_AUTH_FAILED` 로 알리고 별도 승인 단서는 `last_error.details.requiresCafe24Approval` 에 둔다. `CAFE24_INSUFFICIENT_SCOPE` 는 연결 테스트 결과 코드로만 쓰고 노드 출력에는 내지 않는다([Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#403-은-cafe24_auth_failed-와-사유-insufficient_scope-로-낸다)).
+
+### 리다이렉트 뒤에도 남은 3xx 는 `CAFE24_4XX` 다
+
+결정일: 2026-11-28
+
+API 클라이언트의 `fetch` 는 리다이렉트를 자동으로 따라간다. 그 뒤에도 3xx 가 남았다면 요청한 자원의 응답을 받지 못한 것이다. 그래서 2xx 만 성공으로 보고 남은 3xx 는 에러 포트로 보낸다(NERV Task `CLE-T-8SCV17`). 노드 핸들러와 AI 에이전트 도구는 같은 판정 함수(`isHttpFailureStatus`)를 쓴다. 코드는 `CAFE24_4XX` 를 그대로 쓴다. 이 코드는 따로 이름이 없는 2xx 밖 응답을 받는 대체값이라 3xx 를 넣어도 워크플로우 분기가 바뀌지 않는다. HTTP Request 노드의 `HTTP_4XX` 도 같은 판단이다([에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md)). MakeShop 노드의 `MAKESHOP_4XX` 도 같은 규칙이다.
+
+- 기각한 안: 3xx 를 성공으로 보는 안은 요청한 자원이 아닌 본문이 `success` 포트로 가서 다음 노드가 잘못된 데이터를 받는다. `CAFE24_3XX` 를 새로 만드는 안은 노드 출력 코드가 늘고 워크플로우가 분기를 하나 더 다뤄야 해서 택하지 않았다.
+
+### 토큰 갱신이 401 이나 403 밖의 상태로 실패해도 노드 출력 코드는 그대로다
+
+결정일: 2026-11-28
+
+연결 테스트는 갱신 요청이 401·403 밖의 상태로 실패하면 `CAFE24_API_ERROR` 로 돌려준다. 사용자가 직접 누른 진단이라 받은 상태를 메시지에 실어 원인을 보여 준다. 노드 출력은 지금처럼 `CAFE24_TRANSPORT_FAILED` 다(NERV Task `CLE-T-DJGSBR`). 노드 출력 코드를 바꾸면 이 코드로 분기하던 워크플로우가 깨진다. `CAFE24_API_ERROR` 는 연결 테스트 결과 코드이고 노드 출력에는 나오지 않는다. 이 실패는 연속 전송 실패 카운터에 더하지 않는다. 토큰 엔드포인트가 응답했으므로 연결이 끊겼다는 신호로 보지 않는다.
+
+- 기각한 안: 노드도 `CAFE24_API_ERROR` 를 내는 안은 노드 출력 코드 집합이 바뀌어 택하지 않았다.
+- `invalid_grant` 처리는 이 결정에서 떼어 후속 Task `CLE-T-S0BJBV` 로 넘겼다.
