@@ -2066,15 +2066,67 @@ describe('RetryTurnService', () => {
         expect((cancelCall![1] as { durationMs: number }).durationMs).toBe(
           PERSISTED_T1,
         );
-        // 되받을 컬럼을 실제로 요청했는가 — 두 컬럼 모두 `COALESCE` 대상이다.
+        // 되받을 컬럼을 실제로 요청했는가 — 앞의 두 컬럼은 `COALESCE` 대상이고 `error` 는
+        // 취소 사유를 정하는 값이다(CLE-T-NP5VPK).
         // 배열 인자는 엔티티 속성 경로라야 RETURNING 절이 생긴다. 컬럼 이름을 넘기면
         // TypeORM 이 RETURNING 을 빼서 실 Postgres 에서 되쓰기가 조용히 꺼진다
         // (`test/retry-turn-guard-sql.e2e-spec.ts` 의 G3 가 실제 DB 로 고정한다).
-        expect(returningSpy).toHaveBeenCalledWith(['durationMs', 'finishedAt']);
+        expect(returningSpy).toHaveBeenCalledWith([
+          'durationMs',
+          'finishedAt',
+          'error',
+        ]);
         // `finished_at` 되쓰기도 고정한다. 종전엔 이 블록을 통째로 지워도 GREEN 이었다
         // — 두 컬럼을 되쓰기로 해 놓고 한 컬럼만 단언했다.
         expect(execArg.finishedAt).toEqual(new Date(PERSISTED_FINISHED_AT));
       });
+
+      // 먼저 취소를 쓴 쪽이 남긴 `error.code` 가 사유다(CLE-T-NP5VPK). `'user'` 고정이면
+      // 첫 두 줄이 RED 다.
+      it.each([
+        [
+          'RESUME_CHECKPOINT_MISSING',
+          { code: 'RESUME_CHECKPOINT_MISSING', message: 'checkpoint' },
+          { cancelledBy: 'system' },
+        ],
+        [
+          'EXECUTION_QUEUE_WAIT_TIMEOUT',
+          { code: 'EXECUTION_QUEUE_WAIT_TIMEOUT', message: 'queue' },
+          { cancelledBy: 'timeout' },
+        ],
+        ['error 없음(사용자 취소)', null, { cancelledBy: 'user' }],
+      ])(
+        'DB 에 먼저 쓰인 error.code=%s 로 취소 사유를 정한다',
+        async (_label, persistedError, expected) => {
+          mockExecutionRepo.findOneBy.mockResolvedValue(
+            mkLiveExecution(ExecutionStatus.CANCELLED),
+          );
+          mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+            affected: 1,
+            raw: [{ id: EXEC_ID, duration_ms: 1, error: persistedError }],
+          });
+
+          await priv().failRetryExecution(
+            // 이번 시도의 in-memory error 는 DB 값이 아니다. 이 값을 읽으면 RED 다.
+            { ...mkExec(), error: { message: 'stale in-memory' } },
+            EXEC_ID,
+            new ExecutionCancelledError('cancelled'),
+          );
+
+          const cancelCall = (
+            mockEventEmitter.emitTerminalExecution as jest.Mock
+          ).mock.calls.find(
+            (c) => (c[1] as { type: string }).type === 'cancelled',
+          );
+          const payload = cancelCall![1] as Record<string, unknown>;
+          expect(payload.cancelledBy).toBe(expected.cancelledBy);
+          if (persistedError === null) {
+            expect('error' in payload).toBe(false);
+          } else {
+            expect(payload.error).toEqual(persistedError);
+          }
+        },
+      );
 
       it('guarded UPDATE 가 0행이면 (동시 재진입 선점) 취소 이벤트도 skip 한다', async () => {
         mockExecutionRepo.findOneBy.mockResolvedValue(

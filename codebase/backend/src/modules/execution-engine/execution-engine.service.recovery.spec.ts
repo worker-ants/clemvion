@@ -24,7 +24,10 @@ import {
   executionId,
   workflowId,
 } from './__test-utils__/engine-service-harness';
-import { installTxUpdateBuilders } from './__test-utils__/update-query-builder.mock';
+import {
+  installTxUpdateBuilders,
+  type TxAffected,
+} from './__test-utils__/update-query-builder.mock';
 
 /**
  * ExecutionEngineService 단위 테스트: 부팅 복구 · 멈춘 실행 재구동 · orphan 정리 · stalled 소진 종결.
@@ -978,7 +981,7 @@ describe('ExecutionEngineService', () => {
   describe('finalizeStalledExhausted (PR4)', () => {
     // 자매 `installCancelTx` 와 같은 유틸 — 두 UPDATE 가 **같은 트랜잭션 manager** 를 탄다.
     // 트랜잭션 밖 repo 를 쓰면 즉시 터지도록 무장해, 다시 밖으로 나가는 회귀를 잡는다.
-    const installStalledTx = ({ execution }: { execution: number }) => {
+    const installStalledTx = ({ execution }: Pick<TxAffected, 'execution'>) => {
       const { execQb, nodeQb, tx, managerCqb } = installTxUpdateBuilders(
         service,
         {
