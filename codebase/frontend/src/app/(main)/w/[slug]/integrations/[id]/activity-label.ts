@@ -2,6 +2,20 @@ import type { Locale } from "@/lib/i18n";
 import { resolveCafe24OperationLabel } from "@/lib/node-definitions/cafe24-extras";
 import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-extras";
 
+/** 카탈로그 dict 가 있는 provider 표. 접두와 라벨 조회 함수를 한곳에 둔다. provider 를 더할 때 여기만 고친다. */
+const CATALOG_PROVIDERS: ReadonlyArray<{
+  prefix: string;
+  resolve: (locale: Locale, key: string) => string;
+}> = [
+  { prefix: "makeshop.", resolve: resolveMakeshopOperationLabel },
+  { prefix: "cafe24.", resolve: resolveCafe24OperationLabel },
+];
+
+/** 키의 접두에 맞는 provider 를 찾는다. 카탈로그 키가 아니면 undefined. */
+function findCatalogProvider(key: string) {
+  return CATALOG_PROVIDERS.find((p) => key.startsWith(p.prefix));
+}
+
 /**
  * `<provider>.<resource>.<operation>` catalog key 를 사람 친화 라벨로 변환한다.
  * provider prefix 로 flat catalog dict 를 직접 lookup 한다:
@@ -16,19 +30,6 @@ import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-e
  * SoT: dict/{ko,en}/{cafe24,makeshop}Catalog.ts,
  *      spec/conventions/makeshop-api-metadata.md §2 · cafe24-api-metadata.md §7.5.
  */
-/** 카탈로그 dict 가 있는 provider 표. 접두와 라벨 조회 함수를 한곳에 둔다. provider 를 더할 때 여기만 고친다. */
-const CATALOG_PROVIDERS: ReadonlyArray<{
-  prefix: string;
-  resolve: (locale: Locale, key: string) => string;
-}> = [
-  { prefix: "makeshop.", resolve: resolveMakeshopOperationLabel },
-  { prefix: "cafe24.", resolve: resolveCafe24OperationLabel },
-];
-
-function findCatalogProvider(key: string) {
-  return CATALOG_PROVIDERS.find((p) => key.startsWith(p.prefix));
-}
-
 export function tryTranslateLabel(
   catalogKey: string,
   locale: Locale,

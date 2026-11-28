@@ -52,6 +52,16 @@ describe("resolveActivityApiLabel", () => {
     );
   });
 
+  it("cafe24 카탈로그 키 + dict hit → 사전 라벨", () => {
+    expect(
+      resolveActivityApiLabel("cafe24.application.scripttags_list", "ko"),
+    ).toBe("스크립트태그 목록 조회");
+  });
+
+  it("접두가 점까지 맞아야 카탈로그 키다 (`cafe24x.*` 는 그대로)", () => {
+    expect(resolveActivityApiLabel("cafe24x.foo", "ko")).toBe("cafe24x.foo");
+  });
+
   it("카탈로그 키 + dict miss → null (endpoint fallback)", () => {
     expect(
       resolveActivityApiLabel("cafe24.__nonexistent__.__op__", "ko"),
