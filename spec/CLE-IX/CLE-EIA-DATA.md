@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "de9ff5dd679a83114068f9b2fe2314eb9a031042410c80294e49db8eec141c32"
+content_hash: "471d72315fdd775fbb0bfb0c75ce8b86b3210c7a50fe010c4c8d8072ace7177a"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-18C572"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "4591420a22f77520a708a607ad6bc93b075a468fee71fc7a6a9126c9a7a23072"
-etag: "sha256-cae4f792b9ef88e4cc1424ed818a26845a8c1b2b1365d4815ceb6108eebec3b1"
+mirror_sha256: "a9a718a671c6eb956965e5b70dbe7129f42627979dc9310a7066bc75ff8a0aa2"
+etag: "sha256-a062e5706eabdda876585d687d1340dd66fcb36780615638c5d86c2de9c08e5b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -148,16 +148,16 @@ SSE 와 알림 흐름이 모두 `WebsocketService.executionEvents$` 에서 출�
 
 결정일: 2026-10-17
 
-→ [EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17)
+→ [EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#sse-버퍼와-실시간-전달을-redis-에-둔다)
 
 ### SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다
 
 결정일: 2026-11-05
 
-→ [EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다-2026-11-05)
+→ [EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다)
 
 ### 트리거 단위 토큰을 생성과 PATCH 에서 발급한다
 
 결정일: 2026-10-17
 
-→ [EIA 데이터와 흐름 — 토큰 발급과 인바운드 명령](CLE-EIA-DATA-TOKEN.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17)
+→ [EIA 데이터와 흐름 — 토큰 발급과 인바운드 명령](CLE-EIA-DATA-TOKEN.md#트리거-단위-토큰을-생성과-patch-에서-발급한다)
