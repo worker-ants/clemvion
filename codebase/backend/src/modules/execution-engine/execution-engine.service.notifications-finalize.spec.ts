@@ -561,6 +561,26 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.findOneBy).not.toHaveBeenCalled();
     });
 
+    // 이 함수가 쓴 행의 `error` 도 같은 표로 읽는다. 방금 SET 이 쓴 값이 곧 DB 값이라
+    // `savedExecution.error` 를 읽지 않으면(예: `null` 로 고정) 이 케이스가 RED 다.
+    it('이 함수가 쓴 행에 error.code 가 있으면 그 코드로 사유를 정한다', async () => {
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      mockExecutionRepo.query.mockResolvedValueOnce([
+        { id: 'ex-cancel-preempted' },
+      ]);
+      const error = { code: 'RESUME_FAILED', message: 'resume failed' };
+      await run({ ...saved(), error });
+      const payload = emitSpy.mock.calls[0][2] as Record<string, unknown>;
+      expect(payload.result).toEqual({ cancelledBy: 'system' });
+      expect(payload.error).toEqual(error);
+      expect(mockExecutionRepo.findOneBy).not.toHaveBeenCalled();
+    });
+
     it('(b) DB 가 failed — 다른 종결자가 이겼으므로 cancelled 를 쏘지 않는다', async () => {
       const emitSpy = arrange(ExecutionStatus.FAILED);
       await run(saved());
