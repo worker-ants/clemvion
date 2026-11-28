@@ -706,6 +706,34 @@ export function isAbortError(err: unknown): err is Error {
   return false;
 }
 
+/**
+ * `updateExecutionStatus` else 분기의 guarded UPDATE SQL 을 만든다.
+ *
+ * 바인딩 자리는 `$1` id · `$2` status · `$3` active_running_ms · `$4` finished_at ·
+ * `$5` duration_ms · `$6` output_data · `$7` resume_call_stack · `$8` error 다.
+ * 테스트 유틸 `findExecutionStatusUpdate` 의 spec 이 이 함수가 만든 SQL 로 단언한다.
+ * 그래서 SQL 을 바꾸면 그 spec 도 함께 깨진다(CLE-T-G1JP5S). 제품 동작은 옛 인라인
+ * SQL 과 같다.
+ *
+ * @param guardStatusesSql `status IN (…)` 안에 넣을 목록. `guardStatusesSql()` 가 만든
+ *   따옴표 친 상태 목록(`'running', 'pending'`)만 넘긴다. 사용자 입력을 넣지 않는다.
+ */
+export function buildExecutionStatusUpdateSql(
+  guardStatusesSql: string,
+): string {
+  return `UPDATE execution
+            SET status = $2,
+                active_running_ms = $3,
+                finished_at = $4,
+                duration_ms = $5,
+                output_data = $6::jsonb,
+                resume_call_stack = $7::jsonb,
+                error = $8::jsonb
+          WHERE id = $1
+            AND status IN (${guardStatusesSql})
+          RETURNING id`;
+}
+
 @Injectable()
 export class ExecutionEngineService
   implements
@@ -9464,17 +9492,7 @@ export class ExecutionEngineService
     await this.dataSource.transaction(async (manager) => {
       // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
       const updated: unknown = await manager.query(
-        `UPDATE execution
-            SET status = $2,
-                active_running_ms = $3,
-                finished_at = $4,
-                duration_ms = $5,
-                output_data = $6::jsonb,
-                resume_call_stack = $7::jsonb,
-                error = $8::jsonb
-          WHERE id = $1
-            AND status IN (${elseStatusesSql})
-          RETURNING id`,
+        buildExecutionStatusUpdateSql(elseStatusesSql),
         [
           execution.id,
           newStatus,

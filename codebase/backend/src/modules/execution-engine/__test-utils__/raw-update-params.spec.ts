@@ -1,17 +1,11 @@
+import { buildExecutionStatusUpdateSql } from '../execution-engine.service';
 import { findExecutionStatusUpdate } from './raw-update-params';
 
-/** `execution-engine.service.ts` `updateExecutionStatus` 의 UPDATE 와 같은 꼴. */
-const REAL_SQL = `UPDATE execution
-            SET status = $2,
-                active_running_ms = $3,
-                finished_at = $4,
-                duration_ms = $5,
-                output_data = $6::jsonb,
-                resume_call_stack = $7::jsonb,
-                error = $8::jsonb
-          WHERE id = $1
-            AND status IN ('running')
-          RETURNING id`;
+/**
+ * 제품 `updateExecutionStatus` 가 쓰는 SQL 그대로다. 손으로 옮긴 사본을 두지 않는다.
+ * 제품 SQL 의 컬럼이나 자리가 바뀌면 아래 단언이 함께 깨진다(CLE-T-G1JP5S).
+ */
+const REAL_SQL = buildExecutionStatusUpdateSql("'running'");
 
 describe('findExecutionStatusUpdate', () => {
   it('SET 절의 `컬럼 = $n` 을 컬럼 이름으로 묶고 `::jsonb` 캐스트도 읽는다', () => {
@@ -61,6 +55,50 @@ describe('findExecutionStatusUpdate', () => {
         'failed',
       ),
     ).toBeUndefined();
+  });
+
+  it('제품 SQL 의 바인딩 자리 여덟 개를 모두 컬럼 이름으로 읽는다', () => {
+    const params = ['e1', 'failed', 10, 't', 5, { o: 1 }, [], { code: 'X' }];
+    expect(findExecutionStatusUpdate([[REAL_SQL, params]], 'failed')).toEqual({
+      status: 'failed',
+      active_running_ms: 10,
+      finished_at: 't',
+      duration_ms: 5,
+      output_data: { o: 1 },
+      resume_call_stack: [],
+      error: { code: 'X' },
+    });
+  });
+
+  it('맞는 호출이 여럿이면 가장 먼저 부른 것을 돌려준다', () => {
+    const first = ['e1', 'failed', 1, null, 0, null, null, { code: 'FIRST' }];
+    const second = ['e1', 'failed', 2, null, 0, null, null, { code: 'SECOND' }];
+    expect(
+      findExecutionStatusUpdate(
+        [
+          [REAL_SQL, first],
+          [REAL_SQL, second],
+        ],
+        'failed',
+      ),
+    ).toMatchObject({ error: { code: 'FIRST' } });
+  });
+
+  it.each([
+    ['execution_foo', 'UPDATE execution_foo SET status = $1'],
+    ['node_execution', 'UPDATE node_execution SET status = $1'],
+  ])('다른 테이블(%s)의 UPDATE 는 건너뛴다', (_label, sql) => {
+    expect(findExecutionStatusUpdate([[sql, ['failed']]], 'failed')).toBe(
+      undefined,
+    );
+  });
+
+  it('한계: `COALESCE($n, 컬럼)` 대입은 읽지 못하고 범위를 넘는 `$n` 은 undefined 다', () => {
+    const sql =
+      'UPDATE execution SET status = $1, error = COALESCE($2, error), output_data = $9';
+    const r = findExecutionStatusUpdate([[sql, ['failed', 'boom']]], 'failed');
+    expect(r).toEqual({ status: 'failed', output_data: undefined });
+    expect(r).not.toHaveProperty('error');
   });
 
   it('params 가 배열이 아니거나 UPDATE execution 이 아닌 호출은 건너뛴다', () => {
