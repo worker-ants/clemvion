@@ -1106,6 +1106,70 @@ describe('McpToolProvider', () => {
       });
     });
 
+    // 활동 로그 `api_label` 에 서버가 알린 도구 이름을 싣는다. method · path 는 비운다
+    // (CLE-INT-DATA-ENTITY 「호출 API 식별 채우기 규칙」, CLE-T-22PSME).
+    describe('usage log api identity', () => {
+      const logCtx = {
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+      };
+      let logUsage: jest.Mock;
+
+      beforeEach(() => {
+        logUsage = jest.fn().mockResolvedValue(undefined);
+        (integrations as unknown as { logUsage: jest.Mock }).logUsage =
+          logUsage;
+      });
+
+      it.each<
+        [string, Parameters<typeof makeSession>[0], 'success' | 'failed']
+      >([
+        ['a successful call', undefined, 'success'],
+        [
+          'an isError response',
+          {
+            callTool: jest.fn().mockResolvedValue({
+              isError: true,
+              content: [{ type: 'text', text: 'boom' }],
+            }),
+          },
+          'failed',
+        ],
+        [
+          'a thrown call',
+          { callTool: jest.fn().mockRejectedValue(new Error('upstream 500')) },
+          'failed',
+        ],
+      ])(
+        'records the original tool name as api.label for %s',
+        async (_label, overrides, status) => {
+          mcpClient.connect.mockResolvedValue(makeSession(overrides));
+          await provider.buildTools(logCtx);
+
+          await provider.execute(
+            {
+              id: 'tc-1',
+              name: 'mcp_aaaaaaaa__echo',
+              arguments: JSON.stringify({ msg: 'hi' }),
+            },
+            logCtx,
+          );
+
+          expect(logUsage).toHaveBeenCalledTimes(1);
+          expect(logUsage).toHaveBeenCalledWith(
+            integration,
+            expect.objectContaining({
+              status,
+              api: { label: 'echo', method: null, path: null },
+            }),
+          );
+        },
+      );
+    });
+
     // 재실행 「dry-run」 — 외부 서버의 tools/call 은 부수효과를 판정할 수 없어
     // 보내지 않는다(CLE-EXEC-RERUN 「부수효과 판정」).
     describe('dry-run re-run (ctx.dryRun)', () => {

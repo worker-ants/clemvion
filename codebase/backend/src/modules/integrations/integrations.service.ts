@@ -468,7 +468,10 @@ function buildCafe24PrivatePendingResult(
 
 export type PublicIntegration = Omit<
   Integration,
-  'credentials' | 'installToken' | 'installTokenIssuedAt'
+  | 'credentials'
+  | 'installToken'
+  | 'installTokenIssuedAt'
+  | 'consecutiveNetworkFailures'
 > & {
   credentials: Record<string, unknown>;
   credentialsStatus: CredentialsStatus;
@@ -1794,7 +1797,8 @@ export class IntegrationsService {
    * `cafe24` · `makeshop` 은 backend 메타데이터에서 `operations[]` 를 채워
    * 반환한다 (spec §9.3 초기 응답 정책). 그 외 미지원 서비스 타입
    * (http, database, email, mcp, google, github 등) 은 빈 배열 — 활동
-   * 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다. 완전
+   * 로그의 `apiLabel` 이 NULL 이라 lookup 할 것이 없거나(http · database ·
+   * email) 카탈로그 키가 아니라 프런트가 그대로 그린다(mcp 도구 이름). 완전
    * 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching 흐름이
    * 분기 없이 일관 동작.
    */
@@ -1946,13 +1950,16 @@ export class IntegrationsService {
     // 제외 — App URL path segment 안에 이미 포함되어 별도 필드 노출은 식별자
     // 분산을 유발한다. spec/2-navigation/4-integration.md Rationale "Cafe24
     // App URL 상세 페이지 표시" 참조. entity spread 후 명시적 제거.
+    // `consecutiveNetworkFailures` 는 health 판정의 내부 카운터라 함께 뺀다(CLE-T-M2FG35).
     const {
       installToken: _installToken,
       installTokenIssuedAt: _installTokenIssuedAt,
+      consecutiveNetworkFailures: _consecutiveNetworkFailures,
       ...sanitizedEntity
     } = entity;
     void _installToken;
     void _installTokenIssuedAt;
+    void _consecutiveNetworkFailures;
     const appUrl = derived.appUrl;
     // 재설치 대기 표시는 유효할 때만 싣는다(24시간 — `isReinstallRequestActive`). 만료된 표시는 값이 DB 에 남아 있어도
     // `null` 이다 — 상세 화면의 안내 배너는 이 값만 보므로 판정을 서버 한곳에서 한다.

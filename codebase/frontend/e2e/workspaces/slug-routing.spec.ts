@@ -180,7 +180,7 @@ test.describe("user guide (/docs) is outside the workspace slug", () => {
     // 404 UI 가 실제로 렌더된다 — URL 고정만 보면 "조용한 blank 렌더" 도 통과해버리므로
     // notFound() 가 실제로 not-found 바운더리를 태웠는지까지 증명한다.
     await expect(
-      page.getByRole("heading", { name: /페이지를 찾을 수 없습니다|Page not found/ }),
+      page.getByRole("heading", { name: /페이지를 찾을 수 없어요|Page not found/ }),
     ).toBeVisible({ timeout: 15_000 });
     // 404 는 사이드바를 유지한다 (11-error-empty-states.md §1.3 "사이드바 표시").
     await expect(page.locator('nav a[href="/docs"]')).toBeVisible();

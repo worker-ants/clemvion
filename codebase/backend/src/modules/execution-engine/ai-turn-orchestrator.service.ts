@@ -1564,8 +1564,8 @@ export class AiTurnOrchestrator {
         },
       );
     } else {
-      // ai-review WARNING #2 (testing) — 세 번째 짝 전이 소비처(retry-last-turn
-      // 재진입의 RUNNING 재claim). 반환값을 확인하지 않으면 동시 Stop 이 이미
+      // 짝 전이 소비처 가운데 retry-last-turn 재진입의 RUNNING 재claim 이다.
+      // 반환값을 확인하지 않으면 동시 Stop 이 이미
       // CANCELLED 로 마감한 실행에도 아래 COMPLETED 이벤트(`NODE_COMPLETED`/
       // `EXECUTION_RESUMED`)가 그대로 발행되는 "사후 오시그널" 이 발생한다.
       const applied = await this.driver.updateExecutionStatus(

@@ -7,7 +7,11 @@ import {
   extractApiMessage,
   type ApiErrorBody,
 } from "./errors";
-import { resolveServerError } from "./server-error-messages";
+import {
+  SERVER_ERROR_CODE_TO_I18N,
+  resolveServerError,
+  type ServerErrorKeyTable,
+} from "./server-error-messages";
 
 /**
  * Backend integration 에러 코드 중 frontend 가 도메인-aware 메시지로 remap 하는
@@ -138,4 +142,46 @@ export function formatIntegrationErrorToast(
       })}`
     : t(key);
   return serverMessage ? `${primary} (${serverMessage})` : primary;
+}
+
+/**
+ * 통합 OAuth 콜백 팝업이 postMessage 로 보내는 실패 코드 → 화면 문구 키. 코드는 대상 통합의 `last_error.code` 와 같다.
+ * 코드 정의: NERV CLE-INT-OAUTH-CALLBACK 「에러 매핑」, Task CLE-T-3WGPC0. 역할 하한 거부(`ADMIN_REQUIRED` 등)는
+ * 위 `INTEGRATION_ERROR_CODE_TO_I18N` 이 맡는다.
+ */
+export const OAUTH_CALLBACK_CODE_TO_I18N: Readonly<
+  Record<string, TranslationKey>
+> = {
+  OAUTH_DENIED: "integrations.oauthCallbackDenied",
+  OAUTH_STATE_MISSING: "integrations.oauthCallbackStateInvalid",
+  OAUTH_STATE_MISMATCH: "integrations.oauthCallbackStateInvalid",
+  OAUTH_STATE_INVALID: "integrations.oauthCallbackStateInvalid",
+  OAUTH_STATE_EXPIRED: "integrations.oauthCallbackStateExpired",
+  OAUTH_CODE_MISSING: "integrations.oauthCallbackCodeMissing",
+  OAUTH_TOKEN_EXCHANGE_FAILED: "integrations.oauthCallbackTokenExchangeFailed",
+  OAUTH_INVALID_SCOPE: "integrations.oauthCallbackInvalidScope",
+  INTEGRATION_INSTALL_EXPIRED: "integrations.oauthCallbackInstallExpired",
+  OAUTH_CALLBACK_FAILED: "integrations.oauthFailedShort",
+};
+
+/**
+ * OAuth 콜백 팝업의 실패 payload 를 화면 문구로 바꾼다. 콜백 코드 매핑, 통합 코드 매핑(역할 하한), 공용 코드 매핑 순으로
+ * 보고, 모르는 코드나 코드가 없는 payload(옛 백엔드 · 지원하지 않는 provider)는 서버 문구 `error`, 그것도 없으면
+ * `integrations.oauthFailedShort` 다.
+ */
+export function formatOAuthCallbackError(
+  payload: { code?: string | null; error?: string | null },
+  t: TFunction,
+): string {
+  const code = payload.code ?? undefined;
+  if (code) {
+    const tables: readonly ServerErrorKeyTable[] = [
+      OAUTH_CALLBACK_CODE_TO_I18N,
+      INTEGRATION_ERROR_CODE_TO_I18N,
+      SERVER_ERROR_CODE_TO_I18N,
+    ];
+    const key = tables.find((table) => Object.hasOwn(table, code))?.[code];
+    if (key) return t(key);
+  }
+  return payload.error || t("integrations.oauthFailedShort");
 }

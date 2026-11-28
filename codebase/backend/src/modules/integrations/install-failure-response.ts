@@ -46,6 +46,42 @@ export function installErrorBody(
 }
 
 /**
+ * 예외를 가림 판정과 4xx 문구 추출로 나눈다. 설치 엔드포인트와 OAuth 콜백이 함께 쓴다.
+ *
+ * - `HttpException` 이 아니거나 5xx 면 `masked` 다. 호출부가 자기 고정 문구로 바꾼다.
+ * - 4xx `HttpException` 이면 `masked` 가 아니고 `message` 는 응답 객체의 `message`(없으면 예외 메시지)다.
+ * - `fields` 는 응답 객체이고 문자열 응답이면 빈 객체다.
+ */
+export interface HttpFailureShape {
+  masked: boolean;
+  status: number;
+  fields: Record<string, unknown>;
+  message: string;
+}
+
+export function classifyHttpFailure(err: unknown): HttpFailureShape {
+  if (!(err instanceof HttpException)) {
+    return {
+      masked: true,
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      fields: {},
+      message: '',
+    };
+  }
+  const status = err.getStatus();
+  const body = err.getResponse();
+  const fields =
+    typeof body === 'object' && body !== null
+      ? (body as Record<string, unknown>)
+      : {};
+  const message =
+    typeof fields.message === 'string' && fields.message.length > 0
+      ? fields.message
+      : err.message;
+  return { masked: status >= 500, status, fields, message };
+}
+
+/**
  * 설치 서비스가 던진 예외를 응답 값으로 바꾼다.
  *
  * - 4xx `HttpException`: 그 상태를 쓴다. 응답 객체의 `code` · `message` 가 있으면 싣고
@@ -58,35 +94,23 @@ export function resolveInstallFailure(
   err: unknown,
   fallbackCode: string,
 ): InstallFailure {
-  if (err instanceof HttpException) {
-    const status = err.getStatus();
-    const body = err.getResponse();
-    const fields =
-      typeof body === 'object' && body !== null
-        ? (body as Record<string, unknown>)
-        : {};
-    const code =
-      typeof fields.code === 'string' && fields.code.length > 0
-        ? fields.code
-        : fallbackCode;
-    if (status >= 500) {
-      return {
-        status,
-        code,
-        message: INSTALL_UNEXPECTED_ERROR_MESSAGE,
-        unexpected: true,
-      };
-    }
-    const message =
-      typeof fields.message === 'string' && fields.message.length > 0
-        ? fields.message
-        : err.message;
-    return { status, code, message, unexpected: false };
+  const shape = classifyHttpFailure(err);
+  const code =
+    typeof shape.fields.code === 'string' && shape.fields.code.length > 0
+      ? shape.fields.code
+      : fallbackCode;
+  if (shape.masked) {
+    return {
+      status: shape.status,
+      code,
+      message: INSTALL_UNEXPECTED_ERROR_MESSAGE,
+      unexpected: true,
+    };
   }
   return {
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    code: fallbackCode,
-    message: INSTALL_UNEXPECTED_ERROR_MESSAGE,
-    unexpected: true,
+    status: shape.status,
+    code,
+    message: shape.message,
+    unexpected: false,
   };
 }

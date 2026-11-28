@@ -750,6 +750,40 @@ describe('마지막 턴 재시도 · 종결 가드의 조건부 UPDATE (실제 P
     });
   });
 
+  // 먼저 취소를 쓴 쪽이 남긴 `error` 를 `.returning` 으로 되받아 사유를 정한다(CLE-T-NP5VPK).
+  // jsonb 가 실제 드라이버에서 객체로 오는지는 mock 으로 알 수 없어 실제 DB 로 본다.
+  describe('G3b · 먼저 쓴 시스템 취소의 error.code 로 cancelledBy 를 정한다', () => {
+    it('RESUME_FAILED 로 취소된 행이면 system 과 error 를 싣는다', async () => {
+      const { executionId, spawnedId } = await seedSpawnedRetryRow();
+      const systemError = { code: 'RESUME_FAILED', message: 'resume failed' };
+      orchestrator.processAiResumeTurn.mockImplementation(async () => {
+        await db.query(
+          `UPDATE execution
+              SET status = 'cancelled', finished_at = $2, duration_ms = $3, error = $4::jsonb
+            WHERE id = $1`,
+          [
+            executionId,
+            new Date(),
+            STOP_DURATION_MS,
+            JSON.stringify(systemError),
+          ],
+        );
+        throw new ExecutionCancelledError();
+      });
+
+      await retry.applyRetryLastTurn(executionId, spawnedId);
+
+      const row = await readExecution(executionId);
+      expect(row.error).toEqual(systemError);
+      expect(emitter.emitTerminalExecution).toHaveBeenCalledWith(executionId, {
+        type: 'cancelled',
+        durationMs: STOP_DURATION_MS,
+        cancelledBy: 'system',
+        error: systemError,
+      });
+    });
+  });
+
   describe('G4 · Stop 이 먼저 커밋되면 엔진 종결 경로는 0행이고 종결 이벤트를 내지 않는다', () => {
     it('finalizeFailedExecution', async () => {
       const executionId = await insertExecution(ExecutionStatus.RUNNING);

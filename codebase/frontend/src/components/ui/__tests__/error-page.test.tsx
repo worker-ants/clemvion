@@ -51,7 +51,7 @@ describe("ErrorPage", () => {
   // ErrorPage 자체는 redirect 하지 않는다 — 401 의 /login redirect 는 (main)/error.tsx 의 useEffect 담당.
   it("renders session-expired (401) with a re-login link carrying the redirect", () => {
     render(<ErrorPage variant="sessionExpired" />);
-    expect(screen.getByText("세션이 만료되었습니다")).toBeInTheDocument();
+    expect(screen.getByText("세션이 만료됐어요")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "다시 로그인" });
     expect(link).toHaveAttribute("href", buildLoginHref("/workflows/abc"));
   });
@@ -79,7 +79,7 @@ describe("ErrorPage", () => {
 
   it("renders forbidden (403) with a dashboard link (spec §1.2)", () => {
     render(<ErrorPage variant="forbidden" />);
-    expect(screen.getByText("접근 권한이 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("접근 권한이 없어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "대시보드로 이동" })).toHaveAttribute(
       "href",
       "/dashboard",
@@ -88,7 +88,7 @@ describe("ErrorPage", () => {
 
   it("renders not-found (404) with a dashboard link", () => {
     render(<ErrorPage variant="notFound" />);
-    expect(screen.getByText("페이지를 찾을 수 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("페이지를 찾을 수 없어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "대시보드로 이동" })).toHaveAttribute(
       "href",
       "/dashboard",
@@ -98,7 +98,7 @@ describe("ErrorPage", () => {
   it("renders server (500) with a working retry button + dashboard link", () => {
     const onRetry = vi.fn();
     render(<ErrorPage variant="server" onRetry={onRetry} />);
-    expect(screen.getByText("문제가 발생했습니다")).toBeInTheDocument();
+    expect(screen.getByText("문제가 생겼어요")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(onRetry).toHaveBeenCalledOnce();
     expect(screen.getByRole("link", { name: "대시보드로 이동" })).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe("ErrorPage", () => {
     const onRetry = vi.fn();
     render(<ErrorPage variant="network" onRetry={onRetry} />);
     expect(
-      screen.getByText("네트워크에 연결할 수 없습니다"),
+      screen.getByText("네트워크에 연결할 수 없어요"),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(onRetry).toHaveBeenCalledOnce();

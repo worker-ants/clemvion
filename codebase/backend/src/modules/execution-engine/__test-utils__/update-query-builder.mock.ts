@@ -59,10 +59,13 @@ export type MockUpdateQb = Record<ChainMethod | 'execute', jest.Mock> & {
  * 완전한 UPDATE 체인 qb 하나를 만든다.
  *
  * @param order 주면 `execute()` 때 `target`(엔티티 이름)을 넣는다. 잠금 순서를 단언할 때 쓴다.
+ * @param onUpdate 주면 `update()` 가 `target` 을 정한 뒤 그 qb 로 부른다. 엔티티 이름으로
+ *   qb 를 찾는 표를 채울 때 쓴다({@link installTxUpdateBuilders} 의 `byEntity`).
  */
 export function makeUpdateQb(
   options: UpdateQbOptions = {},
   order?: string[],
+  onUpdate?: (qb: MockUpdateQb) => void,
 ): MockUpdateQb {
   const qb = { target: '' } as MockUpdateQb;
   const observers = options as Record<
@@ -74,6 +77,7 @@ export function makeUpdateQb(
       if (method === 'update') {
         const entity = args[0] as { name?: unknown } | undefined;
         qb.target = typeof entity?.name === 'string' ? entity.name : '';
+        onUpdate?.(qb);
       }
       observers[method]?.(...args);
       return qb;
@@ -153,7 +157,12 @@ export interface TxUpdateBuilders {
  * 부르면 순서는 처음부터 다시 센다.
  *
  * qb 는 설치할 때 한 벌만 만들어 모든 트랜잭션이 함께 쓴다. 동시 claim 처럼 트랜잭션마다
- * 결과가 달라야 하면 `execute` 를 `mockResolvedValueOnce` 로 이어 준다.
+ * 결과가 달라야 하면 `execute` 를 `mockResolvedValueOnce` 로 이어 준다. 이렇게 qb 를
+ * 트랜잭션 여럿이 함께 쓰면 `order` 와 `byEntity` 에 모든 트랜잭션의 기록이 섞인다.
+ * 그때는 이 둘로 트랜잭션 하나의 잠금 순서를 단언하지 않는다.
+ *
+ * 한 트랜잭션에서 `createQueryBuilder()` 를 세 번째로 부르면 Error 를 던진다. 준비한 qb 는
+ * 두 개뿐이라 `undefined` 를 돌려주면 제품 코드가 엉뚱한 자리에서 TypeError 를 내기 때문이다.
  */
 export function installTxUpdateBuilders(
   service: unknown,
@@ -161,16 +170,15 @@ export function installTxUpdateBuilders(
 ): TxUpdateBuilders {
   const order: string[] = [];
   const byEntity: Record<string, MockUpdateQb> = {};
-  const execQb = makeUpdateQb(options.execution, order);
-  const nodeQb = makeUpdateQb(options.nodeExecution ?? { affected: 1 }, order);
-  for (const qb of [execQb, nodeQb]) {
-    const update = qb.update;
-    qb.update = jest.fn((...args: unknown[]) => {
-      update(...args);
-      byEntity[qb.target] = qb;
-      return qb;
-    });
-  }
+  const record = (qb: MockUpdateQb) => {
+    byEntity[qb.target] = qb;
+  };
+  const execQb = makeUpdateQb(options.execution, order, record);
+  const nodeQb = makeUpdateQb(
+    options.nodeExecution ?? { affected: 1 },
+    order,
+    record,
+  );
   const qbs = [execQb, nodeQb];
   // 호출 수만 세는 spy. 순서 카운터는 트랜잭션마다 따로 둬야 동시 트랜잭션이 섞이지 않는다.
   const managerCqb = jest.fn();
@@ -179,6 +187,12 @@ export function installTxUpdateBuilders(
     return cb({
       createQueryBuilder: (...args: unknown[]) => {
         managerCqb(...args);
+        if (i >= qbs.length) {
+          throw new Error(
+            `installTxUpdateBuilders: 트랜잭션 하나에 준비한 qb 는 ${qbs.length}개인데 ` +
+              `createQueryBuilder() 를 ${i + 1}번째로 불렀다`,
+          );
+        }
         return qbs[i++];
       },
     });

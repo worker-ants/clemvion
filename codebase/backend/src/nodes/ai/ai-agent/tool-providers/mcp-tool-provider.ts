@@ -470,7 +470,7 @@ export class McpToolProvider implements AgentToolProvider {
         typeof result === 'object' &&
         (result as { isError?: unknown }).isError === true
       ) {
-        this.fireUsageLog(ctx, entry, callStartedAt, 'failed', {
+        this.fireUsageLog(ctx, entry, originalName, callStartedAt, 'failed', {
           code: MCP_ERROR_CODES.TOOL_ERROR,
           message: 'MCP tool reported an error',
         });
@@ -487,7 +487,7 @@ export class McpToolProvider implements AgentToolProvider {
           },
         );
       }
-      this.fireUsageLog(ctx, entry, callStartedAt, 'success');
+      this.fireUsageLog(ctx, entry, originalName, callStartedAt, 'success');
       return this.successResult(call.id, result);
     } catch (err) {
       const message = sanitizeMcpErrorMessage(err);
@@ -505,7 +505,7 @@ export class McpToolProvider implements AgentToolProvider {
           : isAuthFailure(err, message)
             ? MCP_ERROR_CODES.AUTH_FAILED
             : MCP_ERROR_CODES.CALL_FAILED;
-      this.fireUsageLog(ctx, entry, callStartedAt, 'failed', {
+      this.fireUsageLog(ctx, entry, originalName, callStartedAt, 'failed', {
         code,
         message,
       });
@@ -531,10 +531,14 @@ export class McpToolProvider implements AgentToolProvider {
    * `.catch` to silence node's unhandled-rejection warning if the contract
    * regresses. Skipped when the surrounding ExecutionContext didn't carry
    * the foreign keys; the engine guarantees them for real workflow runs.
+   *
+   * `api.label` 은 서버가 알린 원래 도구 이름(`toolName`)이다. MCP 에는 HTTP 메서드 · 경로가 없어 `method` ·
+   * `path` 는 비운다([통합 엔티티 「호출 API 식별 채우기 규칙」](CLE-INT-DATA-ENTITY#호출-api-식별-채우기-규칙)).
    */
   private fireUsageLog(
     ctx: ProviderExecCtx,
     entry: ServerEntry,
+    toolName: string,
     startedAt: number,
     status: 'success' | 'failed',
     error?: { code: string; message: string },
@@ -547,6 +551,7 @@ export class McpToolProvider implements AgentToolProvider {
         status,
         durationMs: Date.now() - startedAt,
         error: error ?? null,
+        api: { label: toolName, method: null, path: null },
       })
       .catch((err: unknown) => {
         McpToolProvider.logger.warn(
