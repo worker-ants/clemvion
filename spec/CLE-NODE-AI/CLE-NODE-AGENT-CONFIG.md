@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-CONFIG"
 title: "AI 에이전트 노드 — 설정과 포트"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "742087c29942ce44fdb3863ada43995889be03673559155ec468b6e186b1c31d"
+content_hash: "e7e227446c82da707410f9d330952b71546435e2f5f9760b7745ed2b2f8f5f1b"
 read_as: "approved_fallback"
-task: "CLE-T-GG3WPZ"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "233767ca338a2a8b7a80612584a685f2c0731ba9a1eeddf59cedb14119e7690d"
-etag: "sha256-2e7a958d6ef79f5b8f0c06714ddeee6cb8a5ea4ed76c91dbbbeed74a347f5eb9"
+mirror_sha256: "9cbd2384f8cba3bd77f3460cc0b5382a4d0f1bc2b01912d16928abad0d4d1730"
+etag: "sha256-a4c909723ff3c4f9bea6ad9aaaa1c58dec8c668c99196f5673942fa1598f9829"
 ---
 ## 개요
 
@@ -157,6 +157,8 @@ etag: "sha256-2e7a958d6ef79f5b8f0c06714ddeee6cb8a5ea4ed76c91dbbbeed74a347f5eb9"
 
 ## Rationale
 
-### 멀티턴에 `out` 포트가 없는 이유 (2026-07-18)
+### 멀티턴에 `out` 포트가 없는 이유
+
+결정일: 2026-07-18
 
 원본 ND-AG-24 는 "멀티턴 조건 0개면 하위 호환으로 `out` + `error`" 라고 적어 포트 절과 코드와 맞지 않았다. 코드는 프런트엔드 `resolve-dynamic-ports.ts` 의 `aiAgentConditionalPorts` 가 멀티턴·조건 없음에서 `user_ended`·`max_turns`·`error` 만 내고, 백엔드 `multiTurnPortForEndReason` 도 어떤 종료 사유도 `out` 으로 보내지 않는다(`condition`·기본값은 방어적으로 `error`). 포트 절의 마이그레이션 규칙이 이미 옛 `out` 연결선을 다시 연결하라고 정해 하위 호환 `out` 은 구현된 적이 없다. 설계 번복이 아니라 어긋난 요구사항 문구를 지운 것이다.

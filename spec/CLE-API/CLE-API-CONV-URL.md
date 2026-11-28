@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "2a29af63f43d65092bc6d9bf65169fd4ff65d763ead86e22d22e73a3a9591e01"
+content_hash: "e7e72356c9700a87ceb97454e87d2ba3752eb21951f8082d28e6c65944482cde"
 read_as: "approved_fallback"
-task: "CLE-T-VWC60Z"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "84a92643ded48658e6221ec9c19c23e2a971ce9461d2d7e74a0c474b67368a41"
-etag: "sha256-bd460eb358db17e236edaf6a30567bd48231d0b5bd3fc7d834148e0ab28a600c"
+mirror_sha256: "243766c78b9a0811da5530e4ab6cc0915352606a3bc1dcf456ddbfde4f5117b5"
+etag: "sha256-b300f3b6b12371f1621fbd996235cb0ffcea0f6a4c2780696dee1dcf07c5e257"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-bd460eb358db17e236edaf6a30567bd48231d0b5bd3fc7d834148e0ab28a600c"
 | **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 삭제가 `DELETE` 대신 `POST …/:id/delete` 인 것은 아래 「본문을 받아야 하는 삭제」 행이 정한다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
 | **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 「자원 액션」 행(`/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
 | **예외: 본문을 받아야 하는 삭제** `POST /api/{resource}/{id}/delete`. 삭제 요청이 재확인 자격 증명(비밀번호)을 본문으로 받아야 하면 `DELETE` 대신 이 형태를 쓴다. 일부 CDN · 프록시가 `DELETE` 요청의 본문을 버리기 때문이다. 동작은 §3 의 `DELETE` 와 같은 자원 삭제이고 성공은 204 다. 2026-11-14 에 Passkey 삭제에서 처음 더한 예외다. 본문이 꼭 필요한 삭제에만 선례로 삼고, 본문 없이 지우는 삭제는 계속 `DELETE` 를 쓴다. 근거는 Rationale 의 「본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다」 | `POST /api/auth/2fa/webauthn/credentials/:id/delete` |
-| **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 「자원 액션」 행(`/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
+| **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 「자원 액션」 행(`/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
 | **예외: 외부 벤더에 등록하는 경로** `/api/3rd-party/{provider}/...`. 쇼핑몰 앱 설치 진입점(App URL)과 통합 OAuth 콜백이다. 두 URL 은 Cafe24 · MakeShop 개발자 센터와 OAuth 제공자 콘솔에 등록하고, 벤더는 등록값과 같은 URL 로만 브라우저를 보낸다. 그래서 리소스 이름 규칙보다 등록한 URL 을 바꾸지 않는 쪽을 앞세운다. 모두 `@Public()` 라우트다. 이 prefix 아래에는 벤더에 등록하는 경로만 둔다. 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 따로 등록하는 것은 [OAuth 연결 시작](../CLE-INT/CLE-INT-OAUTH-BEGIN.md#제공자별-설정) 이, 요청 빈도 제한은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다 | `GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`, `GET /api/3rd-party/:provider/callback` |
 | **예외: 관측용 단일 뷰** `/api/{view}[/{section}]`. 대시보드 · 시스템 상태 · 헬스 체크는 늘어나는 자원 목록이 아니라 집계를 한 번 보여 주는 뷰라 단수 이름을 쓴다. 하위 세그먼트는 뷰 안의 구역 이름이다(`summary`, `recent-executions`, `overview`, `live`). 범위는 서로 다르다. `/api/dashboard/*` 는 현재 워크스페이스 범위(§2.3)이고 `/api/system-status/overview` 는 아래 「시스템 전역 API 예외」, `/api/health` 는 `@Public()` 이다. 관측 뷰에만 이 형태를 쓰고 그 밖의 자원은 복수형 명사를 쓴다 | `GET /api/dashboard/summary`, `GET /api/dashboard/recent-executions`, `GET /api/system-status/overview`, `GET /api/health`, `GET /api/health/live` |
 | **예외: 통합 관리의 기존 이름**. 추가 권한 요청 `POST /api/integrations/:id/request-scopes` 는 목적어(`scopes`)를 액션 이름에 넣었다. 공개 범위 전환 `PATCH /api/integrations/:id/scope` 는 `PATCH /:id { scope }` 대신 하위 경로를 쓴다. API 카탈로그 `GET /api/integrations/services/:type/catalog` 는 통합 id 가 아닌 서비스 유형 아래에 단수 `catalog` 를 둔다. 목록 검색 파라미터는 §4.1 의 `search` 가 아니라 `q` 다. 모두 규칙에서 벗어난 기존 이름이고 선례로 삼지 않는다. 동작은 [통합 관리 API](../CLE-INT/CLE-INT-MANAGE-API.md) 가 정한다 | `/api/integrations/:id/request-scopes`, `/api/integrations/:id/scope`, `/api/integrations/services/:type/catalog`, `GET /api/integrations?q=` |
@@ -157,7 +157,9 @@ Content-Type: application/json
 
 ## Rationale
 
-### 세션 API 를 `/api/auth/sessions` 에 둔 이유 (2026-10-10)
+### 세션 API 를 `/api/auth/sessions` 에 둔 이유
+
+결정일: 2026-10-10
 
 Task CLE-T-ERAJ7P 의 결정이다.
 
@@ -179,11 +181,15 @@ Task CLE-T-ERAJ7P 의 결정이다.
 - 액세스 토큰에 로그인 세션 클레임을 넣어 쿠키 없이 현재 세션을 가리는 안. 토큰 계약과 토큰을 발급하는 모든 경로를 바꿔야 한다.
 - 옛 경로를 별칭으로 남기는 안. 옛 경로로 온 요청은 여전히 현재 세션을 가려내지 못한다.
 
-### 이메일 변경 경로를 하위 채널 액션의 예로 더했다 (2026-10-17)
+### 이메일 변경 경로를 하위 채널 액션의 예로 더했다
+
+결정일: 2026-10-17
 
 §2.2 의 RPC 형태 하위 채널 액션 행에 `/api/users/me/email-change/{action}` 을 예로 더했다(NERV Task `CLE-T-D331TT`). 이 경로는 전부터 있었는데 어느 형태에 드는지 적힌 곳이 없었다. `me` 는 로그인한 사용자 id 의 별칭이므로 이 경로는 `/api/{resource}/{id}/{channel}/{action}` 과 같은 형태다. 그래서 예외 행을 새로 두지 않고 기존 행의 예로 넣었다.
 
-### 인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)
+### 인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다
+
+결정일: 2026-10-24
 
 §12.1 은 인앱 알림의 `is_read` 를 Boolean 토글의 적용 대상으로 들었지만 알림 모듈은 읽음을 처음부터 전용 경로 `PATCH /api/notifications/:id/read` 로 구현했다. 읽음은 되돌리지 않는 한 방향 전이다. 그래서 이 경로만 §12.1 의 예외로 적었다(NERV Task `CLE-T-3HJ8MM`). 이 경로가 `PATCH` 인 것은 이미 구현된 경로를 그대로 두기 때문이다.
 
@@ -196,7 +202,9 @@ Task CLE-T-ERAJ7P 의 결정이다.
 
 읽지 않음으로 되돌리는 기능이 생기면 `PATCH /api/notifications/:id { isRead }` 로 옮기는 것을 다시 본다.
 
-### 본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다 (2026-11-14)
+### 본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-Q6E11N` 의 사람 결정으로 Passkey 삭제에도 비밀번호 재확인을 둔다([Passkey 기능과 등록 「Passkey 삭제에도 비밀번호 재확인을 둔다」](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다)). 비밀번호는 요청 본문으로 받아야 한다. 일부 CDN · 프록시는 `DELETE` 요청의 본문을 버려서 §3 의 `DELETE` 를 그대로 쓰면 비밀번호가 서버에 닿지 않을 수 있다. 그래서 §2.2 에 `POST /{id}/delete` 예외를 더하고 §3 의 `DELETE` 행에서 그 예외를 가리켰다.
 
@@ -208,7 +216,9 @@ NERV Task `CLE-T-Q6E11N` 의 사람 결정으로 Passkey 삭제에도 비밀번�
 - `DELETE` 에 본문을 싣는 안. 중간 장비가 본문을 버리면 서버는 비밀번호가 빠진 요청으로 보고 거부한다. 사용자는 비밀번호를 맞게 넣고도 실패한다.
 - 비밀번호를 쿼리 문자열이나 헤더로 받는 안. 쿼리 문자열은 접근 로그와 브라우저 기록에 남는다. 헤더로 받으면 비밀번호를 본문으로 받는 다른 재확인 라우트(TOTP 끄기 · Passkey 복구 코드 재발급)와 형식이 갈린다.
 
-### 컬렉션 수준 액션 · 벤더 등록 경로 · 관측 뷰를 §2.2 에 적었다 (2026-11-19)
+### 컬렉션 수준 액션 · 벤더 등록 경로 · 관측 뷰를 §2.2 에 적었다
+
+결정일: 2026-11-19
 
 NERV Task `CLE-T-SRXR5W` · `CLE-T-62B0J9` 와 `CLE-T-B9CRCF` 6번 항목을 한 번에 정리했다. 세 Task 모두 이미 쓰는 경로가 §2.2 의 어느 행에도 맞지 않는다는 지적이다. 경로는 바꾸지 않았다.
 
@@ -223,7 +233,9 @@ NERV Task `CLE-T-SRXR5W` · `CLE-T-62B0J9` 와 `CLE-T-B9CRCF` 6번 항목을 한
 - 경로를 규칙에 맞게 옮기는 안. 벤더 등록값과 프런트엔드 호출을 함께 바꿔야 하고 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
 - 컬렉션 수준 액션을 경로마다 예외 행으로 적는 안. 표가 길어지고 다음 미리 보기 경로가 생길 때마다 같은 예외를 또 더해야 한다.
 
-### 목록 정렬 값의 공통 처리를 §4.1 에 적었다 (2026-11-19)
+### 목록 정렬 값의 공통 처리를 §4.1 에 적었다
+
+결정일: 2026-11-19
 
 NERV Task `CLE-T-9YZ9BN` 의 정리다. 트리거 목록 정렬을 구현하면서(`CLE-T-FKYM4N`) 허용 밖 값을 400 대신 `created_at` 으로 정렬하기로 했는데, 같은 처리를 하는 스케줄 · 워크플로우 목록의 스펙에는 그 폴백이 적혀 있지 않았다. 목록마다 따로 적으면 다음 목록이 생길 때 또 빠진다. 그래서 §4.1 에 공통 규칙으로 적고 목록 스펙은 이 절을 가리키게 했다. 코드 동작은 바꾸지 않았다.
 

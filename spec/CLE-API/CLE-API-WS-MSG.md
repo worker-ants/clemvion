@@ -2,19 +2,19 @@
 id: "CLE-API-WS-MSG"
 title: "WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "7a82d70ca518d9c7731bcc360435b47e9c9195ce462afdb1a02f005290e1ec23"
+content_hash: "d56a5028b3b12836c17fc7bbe890ec9a5595a616a89d1a309c19e0dc0f78b3a2"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "5bc19d6bd492c9e37ee331907f7e1e6c5736048f003b2739c08e1bc29c3a4520"
-etag: "sha256-2f82617401d22844ff8e31faa63694a448857d8f2794339fa7f4ae69e4a7947b"
+mirror_sha256: "7856d9e2cb7cff04c1312452def963c4437c8d41a247ad6954ddc2a2e6186eef"
+etag: "sha256-d35711709c0c9373f6442f40580b86be809c7a51f814763798bbce2cc8a9aa3b"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§3 · §4 · §7 · §8, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -157,7 +157,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 - **전달 방식**: 게이트웨이(namespace `/ws`)에 Socket.IO Redis adapter(`@socket.io/redis-adapter`)를 건다. 채널 발행(`server.to(channel).emit()`)은 자기 서버 인스턴스의 구독 소켓에 보내고 같은 패킷을 Redis pub/sub 로 PUBLISH 한다. 다른 서버 인스턴스는 받은 패킷을 자기 쪽의 같은 채널 구독 소켓에 보낸다. §4.2 의 모든 채널이 이 경로를 지난다.
 - **Redis 채널**: 이름은 라이브러리가 정하는 형식이고 접두는 `ws:sio` 다(예: 채널 하나로 보내는 패킷은 `ws:sio#/ws#<채널>#`). 모든 서버 인스턴스가 이 접두의 채널을 모두 구독하므로 구독자가 없는 서버 인스턴스도 패킷을 받는다. Redis 트래픽은 이벤트 수에 서버 인스턴스 수를 곱한 만큼이다.
 - **보내는 것은 wire 봉투뿐이다.** 다른 서버 인스턴스로 가는 것은 클라이언트가 받는 이벤트 봉투(§3.2)다. 같은 서버 인스턴스 안의 외부 fanout(SSE · 채팅 채널 · EIA 알림 웹훅이 받는 내부 스트림)과 그쪽 이벤트에만 붙는 실행 라우팅 정보는 이 경로로 보내지 않는다. SSE 의 서버 인스턴스 사이 전달은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다.
-- **실행 라우팅 정보의 회수**: 외부 fanout 이벤트에 붙는 실행 라우팅 정보(payload 의 `triggerId` · `workflowId` 와 별도 필드 `routing` 의 `chatChannel`)는 서버 인스턴스 메모리에 두고 종료 이벤트를 보낸 서버 인스턴스에서 푼다. `routing` 은 서버 안 채팅 채널 dispatcher 만 읽고 SSE 와 EIA 알림 웹훅에는 실리지 않는다([응답 자격 증명 마스킹 — 재제출 거부와 마스커 좌표계 「6. 호출 순서」](CLE-API-EGRESS-PIPELINE.md#6-호출-순서-마스킹은-한-번이다)). 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다르면 park 한 쪽에 항목이 남는다. 남은 항목은 §3.2 의 `seq` 메모리 미러와 같은 유휴 TTL · 상한으로 회수한다. park 뒤 재개는 늘 rehydration 경로이고 재개한 서버 인스턴스가 라우팅 정보를 다시 등록한다([장애 복구와 안전 종료 — 체크포인트와 rehydration 「재개 절차」](../CLE-EXEC/CLE-EXEC-RECOVERY-REHYDRATE.md#재개-절차) 3단계). 그래서 park 동안 회수돼도 재개 뒤 fanout 이벤트에는 영향이 없다. 진행 중인 실행의 항목이 상한 때문에 지워지면 그 뒤 외부 fanout 이벤트에 `triggerId` · `routing.chatChannel` 이 빠진다. 그러면 이 값으로 대상을 찾는 외부 알림 fanout 과 채팅 채널 응답은 그 이벤트를 건너뛴다. EIA SSE 이벤트를 Redis 에 쓸지는 `triggerId` 가 없으면 DB 로 판정하므로 영향이 없다([EIA 데이터와 흐름 — SSE 스트림 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」](../CLE-IX/CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다-2026-11-05)). wire 봉투는 바뀌지 않는다.
+- **실행 라우팅 정보의 회수**: 외부 fanout 이벤트에 붙는 실행 라우팅 정보(payload 의 `triggerId` · `workflowId` 와 별도 필드 `routing` 의 `chatChannel`)는 서버 인스턴스 메모리에 두고 종료 이벤트를 보낸 서버 인스턴스에서 푼다. `routing` 은 서버 안 채팅 채널 dispatcher 만 읽고 SSE 와 EIA 알림 웹훅에는 실리지 않는다([응답 자격 증명 마스킹 — 재제출 거부와 마스커 좌표계 「6. 호출 순서」](CLE-API-EGRESS-PIPELINE.md#6-호출-순서-마스킹은-한-번이다)). 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다르면 park 한 쪽에 항목이 남는다. 남은 항목은 §3.2 의 `seq` 메모리 미러와 같은 유휴 TTL · 상한으로 회수한다. park 뒤 재개는 늘 rehydration 경로이고 재개한 서버 인스턴스가 라우팅 정보를 다시 등록한다([장애 복구와 안전 종료 — 체크포인트와 rehydration 「재개 절차」](../CLE-EXEC/CLE-EXEC-RECOVERY-REHYDRATE.md#재개-절차) 3단계). 그래서 park 동안 회수돼도 재개 뒤 fanout 이벤트에는 영향이 없다. 진행 중인 실행의 항목이 상한 때문에 지워지면 그 뒤 외부 fanout 이벤트에 `triggerId` · `routing.chatChannel` 이 빠진다. 그러면 이 값으로 대상을 찾는 외부 알림 fanout 과 채팅 채널 응답은 그 이벤트를 건너뛴다. EIA SSE 이벤트를 Redis 에 쓸지는 `triggerId` 가 없으면 DB 로 판정하므로 영향이 없다([EIA 데이터와 흐름 — SSE 스트림 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」](../CLE-IX/CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다)). wire 봉투는 바뀌지 않는다.
 - **서버 인스턴스 로컬로 두는 것**: 소켓, 구독 목록(join · leave), 구독 한도(§4.5), 명령 빈도 제한(§7.1 `RATE_LIMITED`), 토큰 만료 타이머([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.2 인증」](CLE-API-WS-CONN.md#22-인증))는 소켓이 붙은 서버 인스턴스에만 둔다. 모두 소켓 단위라 다른 서버 인스턴스와 맞출 필요가 없다. WebSocket 연결 상태는 Redis 에 두지 않고 옛 `ws:{wsId}:session:{connId}` 키도 되살리지 않는다.
 - **sticky session 에 기대지 않는다.** transport 가 websocket 하나라([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.1 엔드포인트」](CLE-API-WS-CONN.md#21-엔드포인트)) 소켓 하나는 연결한 서버 인스턴스를 떠나지 않는다.
 - **Redis 가 없거나 끊겼을 때**: Redis 설정이 없으면 adapter 를 걸지 않고 메모리 adapter 로 돈다(서버 인스턴스 하나 전제). 돌던 중 Redis 에 닿지 못하면 다른 서버 인스턴스로 가는 전달만 멈춘다. 자기 서버 인스턴스의 구독자는 계속 받고 발행하는 쪽 처리도 멈추지 않는다. 그동안 다른 서버 인스턴스의 구독자가 놓친 이벤트는 다시 보내지 않는다. 화면은 다음 이벤트나 다음 구독 때 받는 `execution.snapshot`([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「6.2 놓친 이벤트 복구」](CLE-API-WS-CONN.md#62-놓친-이벤트-복구))으로 상태를 맞춘다.
@@ -233,7 +233,9 @@ raw WebSocket close code(1000·1001·1008·4000·4001 등)를 애플리케이션
 - **`workflow:` 는 발행이 있다고 보고 인가를 더했으나 발행은 처음부터 없었다**: 2026-06-12 에 에디터 실행 알림 발행(`workflow:{workflowId}`)이 있다고 보고 인가를 더했다. 다른 워크스페이스의 `workflowId` 를 추측한 사용자가 이벤트를 받는 IDOR 를 막으려는 것이었다. 그러나 서버에는 이 채널로 보내는 코드가 처음부터 없었고 프론트엔드도 이 채널을 구독한 적이 없다(2026-11-13 확인, NERV Task `CLE-T-P5BDNX`). 인가는 fail-closed 로 남긴다. 아래 `notifications:` 와 같이 나중에 발행을 들일 때 인가가 빠지는 일을 막는다. `WorkflowsService.findById(workflowId, workspaceId)`(소유하지 않았거나 없으면 NotFound. ID 열거 차단)로 join 전에 막는다.
 - **`notifications:` 는 발행을 도입하기 전에 인가를 먼저 두었다(fail-closed)**: `notification.new` 발행 경로가 없던 시점에 인가를 **먼저** 배치했다. 발행이 뒤 단계에서 들어올 때 인가가 빠지면 사용자 사이 알림 유출로 바로 이어지는 패턴(집행 비대칭)을 구조적으로 막기 위해서다. "발행이 없을 때 인가 먼저" 가 fail-closed 원칙에 맞고 JWT `sub` 비교라 구현 비용도 몇 줄이었다. **기각한 대안**: 발행을 구현할 때 인가를 함께 더하기. 발행 작업이 인가 추가를 기억해야 하는 절차 의존이라 누락이 재발할 위험이 커서 기각했다. 이후 발행(`emitNotificationEvent`)이 실제로 들어오면서 이 선제 배치가 의도대로 인가를 갖춘 채 활성화됐다.
 
-### 여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)
+### 여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-4YT18G` 에서 사람이 정한 결정이다. 그 전에는 채널 발행이 자기 서버 인스턴스의 소켓에만 닿았다. k8s 배포는 서버 인스턴스를 여럿 띄우고(기본 매니페스트 2, prod 3) sticky session 설정이 없으며 실행 세그먼트는 아무 서버 인스턴스의 워커에서나 돈다. 그래서 에디터가 붙은 서버 인스턴스와 세그먼트를 돈 서버 인스턴스가 다르면 실시간 실행 이벤트가 오지 않았다. 인앱 알림도 같았다.
 
@@ -253,7 +255,9 @@ NERV Task `CLE-T-4J965H` 가 구현했고 `CLE-T-7PTJAS` 가 스펙에 적었다
 - **상한을 둔 이유**: 유휴 TTL 만으로는 그 시간(기본 24시간) 안에 쌓이는 항목 수를 묶지 못한다. 상한이 서버 인스턴스 하나가 붙드는 항목 수를 묶는다.
 - **받아들인 비용**: 상한 때문에 항목을 지우면 두 가지를 잃을 수 있다. Redis 를 쓸 수 없는 구간에 미러를 잃은 실행은 `seq` 가 1부터 다시 나갈 수 있다. 진행 중인 실행의 라우팅 정보를 잃으면 그 뒤 이벤트의 외부 전달이 빠진다. 상한은 서버 인스턴스 하나가 동시에 붙드는 실행 수보다 훨씬 크게 잡았으므로 두 경우 모두 드물다.
 
-### 구독 실패 응답에 요청한 채널을 싣는 이유 (2026-11-19)
+### 구독 실패 응답에 요청한 채널을 싣는 이유
+
+결정일: 2026-11-19
 
 NERV Task `CLE-T-A338CH` 에서 정한 결정이다. 같은 소켓이 실행 채널과 Background 카드 채널을 함께 구독한다. 그런데 실패 응답에는 채널이 없었다. 그래서 에디터는 다른 채널의 실패를 이 실행의 실패로 읽고 REST 폴링을 켰다. 예를 들면 `background:run:` 구독이 한도(20)나 인가로 거부된 경우다.
 

@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER-ROUTE"
 title: "OpenAPI 문서화 — 컨트롤러와 응답 DTO"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-SWAGGER"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-SWAGGER"]
 area: "CLE-API"
-content_hash: "cefd139ffc5ca716f2528d3e6c5f5c9f353db5b081d4921cb51b8278ef75b6f8"
+content_hash: "50a85d18634bf63ef4e7bda278b6e70bb200c611a312d332872fe73bb5685aec"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "1373183d16e2e0d640ea6a455798659eea4c2536f0ea8dc28d4d1564d5e168c6"
-etag: "sha256-17dc537a24ae8df2aca2d1efb6905adc61c36f8d833404116ac1a0b02488d31a"
+mirror_sha256: "61570e66825b9d1a10e88be5d8103de570db78404e7fe1299c798ae215119d13"
+etag: "sha256-171c804c2c5e7312543429e818517c984de21a871300364b5e747114744344c0"
 ---
 ## 개요
 
@@ -227,7 +227,7 @@ async create(...) { ... }
 - [ ] DTO 필드에 JSDoc 이 있고 필요하면 `@ApiProperty`(enum, example, format, nullable)로 보강했는가
 - [ ] `ApiOkWrappedResponse`·`ApiOkPaginatedResponse` 등 알맞은 래퍼를 썼는가
 - [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()`·`@WorkspaceParam(...)` 을 쓰는 엔드포인트에 `@ApiForbiddenResponse` 를 더했는가.
-  - `RolesGuard` 는 워크스페이스 컨텍스트를 쓰는 라우트에서 `@Roles()` 유무와 무관하게 워크스페이스 멤버십을 검증한다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트(시스템 전역 API 등)는 검증하지 않는다. 그래서 `@WorkspaceId()`·`@WorkspaceParam(...)` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(근거: [API 인가 「멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다), [API 인가 「경로 파라미터 워크스페이스도 가드가 본다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터-워크스페이스도-가드가-본다)).
+  - `RolesGuard` 는 현재 워크스페이스를 쓰는 라우트에서 `@Roles()` 유무와 무관하게 워크스페이스 멤버십을 검증한다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트(시스템 전역 API 등)는 검증하지 않는다. 그래서 `@WorkspaceId()`·`@WorkspaceParam(...)` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(근거: [API 인가 「멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다), [API 인가 「경로 파라미터 워크스페이스도 가드가 본다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터-워크스페이스도-가드가-본다)).
   - 설명에는 **가드가 낼 수 있는 거부 코드를 모두** 싣는다. 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 이므로 대상 라우트는 모두 "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)" 을 싣는다. `@Roles()` 가 있으면 요구 역할 중 가장 낮은 역할의 코드를 더한다(예: "워크스페이스 멤버가 아님(`NOT_A_MEMBER`) 또는 Editor 이상 권한 필요(`EDITOR_REQUIRED`)"). `@Roles('viewer')` 는 멤버십과 같아 앞 문장뿐이다.
   - 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER`·`forbiddenForRole(role)`(`common/swagger`)로 만들고 서비스가 내는 403 은 그 뒤에 덧붙인다. 코드 목록은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 가드 거부 코드다.
   - 저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 빠진 가드 코드를 잡는다. 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으므로 `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. `@Public()` 라우트는 대상이 아니다.
@@ -274,13 +274,17 @@ async create(...) { ... }
 
 옛 헬퍼가 선언하던 이중 래핑 `{ data: { data, pagination } }` 은 통과 분기를 간과한 **버그**였다. 런타임(`PaginatedResponseDto` 와 인터셉터), e2e(`res.body.data`·`res.body.pagination` 최상위), [HTTP API 규약](CLE-API-CONV.md) 의 목록 응답이 모두 한 번 래핑이다. **이중 래핑으로 되돌리지 않는다.** 런타임과 어긋난다.
 
-### 새 엔드포인트 체크리스트의 403 항목을 `@WorkspaceId()` 소비 라우트로 넓힌 배경 (§5-4, 2026-08-08)
+### 새 엔드포인트 체크리스트의 403 항목을 `@WorkspaceId()` 소비 라우트로 넓힌 배경 (§5-4)
+
+결정일: 2026-08-08
 
 옛 §5-4 는 "`@Roles()` 가 있어야 403 이 가능하다" 는 opt-in 가드 모델을 전제로 적혀 있었다. 워크스페이스 멤버십 가드 보안 수정이 `RolesGuard` 를 opt-out 할 수 없는 구조로 다시 짜면서 그 전제가 깨졌다(멤버십 검증 기준은 §5-4 체크리스트의 링크). 이 정정은 동작 변경이 아니라 문서와 구현을 맞춘 것이다.
 
 규약 문구까지 고치는 이유: §5-4 는 새 엔드포인트를 만들 때 판단 기준으로 쓰인다. 문구가 실제 403 발생 조건과 어긋나면 규약을 그대로 따른 다음 작성자에게서 같은 틈이 다시 생긴다. "사람이 규칙을 기억해야 하는 opt-in" 구조를 규약 수준에서 반복하지 않는다(그 수정이 코드에서 닫은 것과 같은 결함 부류).
 
-### 광고한 성공 코드와 실제 성공 코드를 왜 가드로 세는가 (§2-4, 2026-09-26)
+### 광고한 성공 코드와 실제 성공 코드를 왜 가드로 세는가 (§2-4)
+
+결정일: 2026-09-26
 
 광고는 응답 데코레이터에, 실제 코드는 `@HttpCode` 나 Nest 기본값에 있어 둘을 한 번에 보는 곳이 없었다. 컴파일도 단위 테스트도 이 짝을 보지 않고 e2e 는 `[200, 201]` 로 둘 다 받아 불일치를 가렸다. 전수 조사(2026-09-26, `src/modules` 핸들러 223개)에서 불일치가 15곳이었다(201 을 내는 200 광고 POST 14, 200 을 내는 204 광고 초대 취소 DELETE 1). 그중 둘(MCP `preview-test`, 통합 `:id/test`)은 문서 본문이 이미 200 으로 적은 자리였다.
 
@@ -289,19 +293,23 @@ async create(...) { ... }
 - **"광고가 있어야 한다" 는 광고를 채운 뒤 조였다.** 광고 없던 핸들러 15곳 중 11곳을 채웠고(응답 DTO 가 없던 워크플로우 AI 어시스턴트 세션 6곳 포함) 남은 넷은 OpenAPI 밖(`@ApiExcludeEndpoint()` 2)이거나 302 를 광고하던 OAuth 리다이렉트 2 였다(전수 조사가 2xx 만 셌다). 그래서 3xx 도 성공 광고로 친다. 새 라우트가 광고 없이 들어오면 가드가 실패한다.
 - **어느 코드가 맞는지는 이 규칙이 정하지 않는다.** 고친 14곳은 광고(200)에 실제를 맞췄다. 액션이고 `@HttpCode(200)` 을 단 POST 42곳 중 광고가 있는 40곳이 모두 200 을 광고하기 때문이다. 두 자리는 행이 생긴다. OAuth 시작은 Cafe24 Private·MakeShop 분기에서 설치 대기 통합 행을 만들고(§5-2 래퍼 표가 그 분기 응답을 200 으로 적는다), 초대 수락은 멤버십 행을 만든다(1차 자원은 소비되는 초대이고 응답은 기존 워크스페이스다). 둘 다 설치·합류 흐름의 부수 효과로 보고 200 을 유지했다. 그러나 §2-4 와 [HTTP API 규약](CLE-API-CONV.md) 의 상태 코드 표에는 "자원을 만들지 않는 POST" 칸이 없다. 그 명문화는 별도 결정이다.
 
-### 403 설명의 거부 코드: 왜 두 코드이고 왜 가드로 세는가 (§5-4, 2026-09-26)
+### 403 설명의 거부 코드: 왜 두 코드이고 왜 가드로 세는가 (§5-4)
+
+결정일: 2026-09-26
 
 가드 거부에 코드가 붙은 뒤에도([워크스페이스와 멤버 「가드 거부에 에러 코드를 붙인다」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부에-에러-코드를-붙인다)) 기존 라우트의 403 설명은 따라가지 않았다. §5-4 는 새 엔드포인트 체크리스트라 기존 라우트를 묶지 않았고 그 결정을 적용한 변경은 경로 라우트 15곳과 재실행·chain 의 설명만 고쳤다. 2026-09-26 실측(`src/modules`, reflection)에서 가드가 403 을 낼 수 있는 라우트 157곳 중 129곳의 설명에 코드가 빠져 있었다.
 
 - **`@Roles()` 라우트도 `NOT_A_MEMBER` 를 싣는다.** 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 라는 것이 그 결정의 채택안이다. 옛 문구("`@Roles()` 가 있으면 요구 역할과 코드")대로면 비멤버 코드가 광고에서 빠진다. 이미 코드를 싣던 28곳은 두 코드를 함께 싣고 있었고 문구를 그 실제에 맞췄다.
 - **`viewer` 는 코드가 하나다.** `@Roles('viewer')` 의 거부는 멤버십 거부와 같다(`ROLE_REQUIRED.viewer` 가 `NOT_A_MEMBER`). "viewer 이상 권한 필요" 라고 쓰면 오지 않는 코드를 암시한다.
-- **공용 헬퍼로 쓴다.** 문장 형식이 컨트롤러마다 갈렸다("Admin 미만 권한", "관리자 권한 필요", "권한 부족 (Admin 미만) 또는 비멤버"). 헬퍼가 코드를 `NOT_A_MEMBER`·`ROLE_REQUIRED` 상수에서 끼워 넣으므로 코드 이름이 바뀌어도 문장이 따라간다. 역할 문구 표기는 `ROLE_REQUIRED` 메시지("Editor 이상의 권한이 필요합니다.")를 따른다. 컨트롤러가 따로 두던 같은 문장의 상수(`workspaces` 의 `FORBIDDEN_*_ROUTE`, `integrations` 의 `FORBIDDEN_MEMBER`)는 이 헬퍼로 흡수한다.
+- **공용 헬퍼로 쓴다.** 문장 형식이 컨트롤러마다 갈렸다("Admin 미만 권한", "관리자 권한 필요", "권한 부족 (Admin 미만) 또는 비멤버"). 헬퍼가 코드를 `NOT_A_MEMBER`·`ROLE_REQUIRED` 상수에서 끼워 넣으므로 코드 이름이 바뀌어도 문장이 따라간다. 역할 문구 표기는 `ROLE_REQUIRED` 메시지("Editor role or higher is required.")를 따른다. 컨트롤러가 따로 두던 같은 문장의 상수(`workspaces` 의 `FORBIDDEN_*_ROUTE`, `integrations` 의 `FORBIDDEN_MEMBER`)는 이 헬퍼로 흡수한다.
 - **reflection 으로 센다.** 설명은 상수 보간(`${NOT_A_MEMBER.code}`)이라 소스 텍스트로는 최종 문장을 알 수 없다. 데코레이터가 평가된 메타데이터를 읽는다. 가드가 낼 코드는 `RolesGuard` 와 같은 규칙(`@Public`, `@Roles`, 워크스페이스 소비)으로 계산하고 가장 낮은 역할은 가드와 **같은 함수**(`lowestRequiredRole`)로 고른다. 옮겨 적으면 둘이 갈린다. 나머지 분기가 가드와 같은지는 가드 spec 의 "모델 캐너리" 가 실제 `RolesGuard` 를 돌려 대조한다. 스캔 모집단이 비는 공허함은 하한(컨트롤러 30, 대조 라우트 150 초과)이 막는다.
 - **대조군은 가드 spec 안의 클래스다.** reflection 가드라 대조군도 데코레이터가 평가된 클래스여야 하고 모델 캐너리가 같은 클래스를 돌린다. 별 파일로 두면 대조군과 캐너리가 두 곳이 된다. 그래서 구현 위치에는 가드 파일 한 쌍만 적는다.
 - **기존 라우트까지 소급한다.** [DTO 패턴 §1-4](CLE-API-SWAGGER-DTO.md#1-4-nested-enum-union) · [설명 문구 §3](CLE-API-SWAGGER-TEXT.md#3-주석과-설명-톤) 의 규약은 새 변경에만 걸지만 이 규칙은 §2-4 처럼 **광고가 실제와 맞는가** 의 문제라 틀린 광고가 배포된 라우트에서 클라이언트를 오도한다.
 - **서비스 거부는 세지 않는다.** 서비스가 내는 403 은 자리마다 조건과 코드가 달라 기계적으로 판정할 수 없다. 헬퍼 문장 뒤에 덧붙이도록 안내만 한다.
 
-### 요청 본문 스키마: 왜 클래스로 받게 강제하지 않고 왜 reflection 으로 세는가 (§5-4, 2026-09-26)
+### 요청 본문 스키마: 왜 클래스로 받게 강제하지 않고 왜 reflection 으로 세는가 (§5-4)
+
+결정일: 2026-09-26
 
 2026-09-26 실측(`@Body()` 78개): 본문이 없던 3곳(`rotate-bot-token`, 실행 `continue`, 웹훅 수신)을 채운 뒤 DTO 클래스 74, 인라인 타입과 `@ApiBody` 4 로 빈 자리가 0이 됐다.
 

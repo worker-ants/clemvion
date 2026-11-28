@@ -8,10 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, MoreThan, Not, Repository } from 'typeorm';
 import { createHash } from 'crypto';
-import {
-  PASSWORD_VERIFY_CODES,
-  comparePassword,
-} from '../../common/utils/password.util';
+import { comparePassword } from '../../common/utils/password.util';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { TotpService } from './totp.service';
@@ -20,6 +17,7 @@ import { RevokeSessionDto } from './dto/requests/revoke-session.dto';
 import { SessionDto } from './dto/responses/session.dto';
 import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
+import { AUTH_ERROR_BODIES } from './auth-error-bodies';
 
 @Injectable()
 export class SessionsService {
@@ -290,10 +288,7 @@ export class SessionsService {
     if (hasPassword && auth.password) {
       const ok = await comparePassword(auth.password, user.passwordHash!);
       if (ok) return;
-      throw new UnauthorizedException({
-        code: PASSWORD_VERIFY_CODES.INVALID,
-        message: 'The password is incorrect.',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.passwordInvalid });
     }
 
     if (has2fa && auth.totpCode) {
@@ -303,10 +298,7 @@ export class SessionsService {
       }
       const ok = await this.totpService.verifyForLogin(userFull, auth.totpCode);
       if (ok) return;
-      throw new UnauthorizedException({
-        code: 'TOTP_INVALID',
-        message: 'The verification code is incorrect.',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.totpInvalid });
     }
 
     throw new BadRequestException({

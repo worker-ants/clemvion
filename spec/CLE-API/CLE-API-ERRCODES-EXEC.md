@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "e3768e56294885587d047b2cf4578f11cbaa74099ad28979d79c16fc7a5328cb"
+content_hash: "2cc51e212158404fe7cf47e58c909f401a4011531a566699872a952c149e92b9"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "579d0257dd5e54e376aea78400234f7f3c4366cc599a3dc906b9ea5394aace36"
-etag: "sha256-1b715d0b5520a8887269eb98e416c31dec467c0ca23701db10726faf7cec4602"
+mirror_sha256: "aa9c833791ce93ac266344d12c6d5d880be285b7f7673b3851b89e67ca544d72"
+etag: "sha256-f343b9b28a7c24521d702a77d939740a7c25d7d9a61b899b3390ae3b475f30b3"
 ---
 ## 개요
 
@@ -163,7 +163,7 @@ NERV Task `CLE-T-6G3084` 다. 두 경우 모두 동작은 그대로 두고 카�
 
 결정일: 2026-11-14
 
-NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 근거와 기각한 대안의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 다.
+NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 근거와 기각한 대안의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다) 다.
 
 - **리다이렉트 한도 초과**: `HTTP_BLOCKED` 를 규칙 6 의 받아들인 예외로 둔다. 기존 코드를 다시 쓰는 결정이라 §3 에는 올리지 않는다(부모 문서 Rationale 「규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다」). 부모 문서 규칙 6 의 예외 목록에 이 경우를 더하는 일은 NERV Task `CLE-T-J6M2JG` 가 맡는다.
 - **`HTTP_4XX` 의 3xx**: 2xx 도 5xx 도 아닌 응답이라는 같은 조건이라 새 조건으로 보지 않았다. 그래도 이름이 4xx 만 말하고 조건의 뜻 대신 상태 범주를 적어 규칙 1 과 맞지 않는다. 그래서 `CAFE24_4XX` 처럼 `HTTP_4XX` · `HTTP_5XX` 를 §3 에 올렸다.

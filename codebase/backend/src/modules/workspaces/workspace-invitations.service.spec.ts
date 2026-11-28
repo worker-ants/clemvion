@@ -1061,7 +1061,7 @@ describe('invitationNotFoundException', () => {
     expect(first.getStatus()).toBe(404);
     expect(first.getResponse()).toEqual({
       code: 'invitation_not_found',
-      message: '초대를 찾을 수 없습니다.',
+      message: 'Invitation not found.',
     });
     expect(second).not.toBe(first);
   });

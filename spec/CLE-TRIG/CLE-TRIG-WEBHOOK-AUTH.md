@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-AUTH"
 title: "웹훅 — 인증과 워크플로우 입력"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "f3b8f6f06d387e30400f8a6a4fe1bcfa30a75da19ef3f18b209ac4c58d937298"
+content_hash: "05498de7d865248b93150182e485a9cd6f8dd18eb268e0a8b5186207a512dab4"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-3WDHJT"
 source_paths: []
-mirror_sha256: "d557aac6be2f8a41702fa45300ce096ea40a99fb39295a295a22f756571db5af"
-etag: "sha256-4befc29a86cc8991b73f4d2e177737b3efebabfafba30107d82cad2a9df6840c"
+mirror_sha256: "d32566e8e8a558bda4b432461defafdf125fa0a52f9cdfa04fcb6fe249744aef"
+etag: "sha256-28ce0bb077ebcfe112aab7dbfd007c8b4640e9c849a0b7a1ca5b20931726878a"
 ---
 ## 개요
 
@@ -112,7 +112,7 @@ required 파라미터 누락이나 타입 강제 변환 실패가 나면 `hooks.
 - 인증에는 영향이 없다. HMAC 서명 검증·IP whitelist·토큰 비교는 가리기 전 원본 헤더로 한다. `sourceIp` 와 인증 설정 사용 내역도 원본으로 기록한다.
 - 이 층은 알려진 민감 헤더 키에만 걸린다. body·params 의 자유 텍스트에 박힌 자격 증명(`Bearer …`, 자격 증명을 담은 URI 등)은 이 층이 잡지 못한다. 그 빈틈은 응답 마스킹이 덮는다. `inputData` 도 `outputData`·`error` 처럼 나가는 값 패턴 마스킹의 대상이다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)). 즉 저장 때 키 기준 마스킹과 응답 때 값 패턴 마스킹의 이중 방어다.
 - 그래도 이 층은 대체되지 않는다. 표현식 `$trigger.headers` 는 실행 런타임에 주입돼 응답 마스킹을 거치지 않으므로 그 표면을 가리는 것은 이 저장 시점 층뿐이다.
-- 정당화는 [수신 헤더 마스킹을 저장 시점에 하는 이유](#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07) 에 있다.
+- 정당화는 [수신 헤더 마스킹을 저장 시점에 하는 이유](#수신-헤더-마스킹을-저장-시점에-하는-이유) 에 있다.
 
 ## 보안 고려사항
 
@@ -134,7 +134,9 @@ required 파라미터 누락이나 타입 강제 변환 실패가 나면 `hooks.
 
 ## Rationale
 
-### 수신 헤더 마스킹을 저장 시점에 하는 이유 (2026-07-07)
+### 수신 헤더 마스킹을 저장 시점에 하는 이유
+
+결정일: 2026-07-07
 
 민감 헤더는 저장(ingestion) 시점에 가린다. 대안인 응답(display) 시점 마스킹, 즉 원본을 `Execution.inputData` 에 저장하고 실행·Background 실행 응답 DTO 에서만 가리는 방식은 기각했다.
 

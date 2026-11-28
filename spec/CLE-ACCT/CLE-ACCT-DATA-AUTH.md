@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-AUTH"
 title: "계정과 워크스페이스 데이터 흐름 — 인증 흐름"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "e1e7a3cdc5a2f45d2fc52b2af2b9817b77c1eead3953f72b4d51a68c30b3f42a"
+content_hash: "c6116ffcde8a7dfe0913b4bad99361542fece5274e4ad9b9db0e054cff9ad6bb"
 read_as: "approved_fallback"
-task: "CLE-T-WYJEAQ"
+task: "CLE-T-CY2HTJ"
 source_paths: []
-mirror_sha256: "cff291e41a3adc16f617073fb6566f333e34102bb1d79f3ee18f95bf340b351a"
-etag: "sha256-14edf1e2af36ecbf54a231cf6c7c6d672a97b8e0d463675b069b566353948adb"
+mirror_sha256: "74aaf30a7549617d4453b137d7c0c2e30c2a81a005ad9b499128c00a0cbd497b"
+etag: "sha256-0d02b6a6e41c2212b62e8784c2b60f2bfc6dc1dbf4539fce7d3aed2c1e5a2b2b"
 ---
 ## 개요
 
@@ -96,7 +96,7 @@ sequenceDiagram
   Svc-->>C: { accessToken } + 리프레시 쿠키
 ```
 
-- 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed` 를 기록하고 401 `WEBAUTHN_INVALID` 를 준다. TOTP 는 `totp_failed` 를 기록하고 401 `TOTP_INVALID` 를 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿).
+- 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed` 를 기록하고 401 `WEBAUTHN_INVALID` 를 준다. TOTP 는 `totp_failed` 를 기록하고 401 `TOTP_INVALID` 를 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿). 응답의 credential 을 그 사용자의 credential 에서 찾지 못한 401 `WEBAUTHN_INVALID` 도 이 규칙 밖이라 로그인 이력을 남기지 않는다([Passkey 로그인 인증과 counter 역행 「Passkey 로그인 인증 흐름」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-로그인-인증-흐름) 3단계).
 - 성공 응답 본문은 `{ accessToken }` 뿐이다. 리프레시 토큰은 httpOnly 쿠키로만 내려가고 `user` 객체는 없다(`auth.controller.ts` 의 `login`).
 - Passkey 를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 때 받은 복구 코드를 내 2단계를 통과한다(`webauthn/webauthn.controller.ts`).
 - 이메일 인증 여부는 비밀번호 확인 뒤에 보므로 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 다이어그램의 `EMAIL_VERIFICATION_REQUIRED` 와 `WEBAUTHN_DISABLED` 두 경우 모두 비밀번호가 맞았으므로 `login_attempts` 는 0 으로 되돌린다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.

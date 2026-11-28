@@ -13,7 +13,8 @@ const REPO_ROOT = path.resolve(BACKEND_SRC, '../../..');
  * **에러 응답 `message` 는 영문이다** (CLE-UI-I18N-BACKEND 규칙 3 · 5).
  *
  * 백엔드는 영문 원문을 내고 한국어는 프런트엔드가 에러 코드로 고른다. 인증 · 트리거 모듈과 워크스페이스 가드 거부 본문은
- * NERV Task `CLE-T-MNX9KP` · `CLE-T-CP6E9B` · `CLE-T-CHP94Z` · `CLE-T-1K5CWP` 에서 영문으로 옮겼다. 그 전에는 한 줄만
+ * NERV Task `CLE-T-MNX9KP` · `CLE-T-CP6E9B` · `CLE-T-CHP94Z` · `CLE-T-1K5CWP` 에서, 워크스페이스 · 초대 · 사용자 서비스는
+ * `CLE-T-MBMPX5` 에서 영문으로 옮겼다. 그 전에는 한 줄만
  * 영문으로 고쳐도 같은 파일에 두 언어가 섞여서 매번 미뤘다. 옮긴 범위가 다시 섞이지 않게 이 가드가 막는다.
  *
  * 새 한국어 문구가 걸리면 영문으로 쓰고, 화면에 한국어가 필요하면 프런트엔드 사전에 코드로 매핑한다.
@@ -85,7 +86,33 @@ describe('findKoreanMessages 판정', () => {
       '영문 응답 문구',
       `throw new BadRequestException({ code: 'X', message: 'Invalid.' });`,
     ],
+    [
+      '인앱 알림 notify 의 message(CLE-T-MBMPX5)',
+      "await this.notificationsService.notify({ type: 'x', title: '초대', message: `${name}님이 초대했어요.` });",
+    ],
   ])('%s 는 잡지 않는다', (_label, source) => {
+    expect(findKoreanMessages(source)).toEqual([]);
+  });
+
+  /**
+   * 판정이 이름 규칙 휴리스틱이라 **지금은 못 잡는** 꼴이다(NERV Task CLE-T-7QQPK7). 판정을 넓히지 않기로 해서 못 잡는다는
+   * 사실을 여기 고정한다. 판정을 넓혀 이 픽스처가 걸리기 시작하면 이 목록에서 「잡는다」 쪽으로 옮기고 가드 docstring 의
+   * 한계 서술도 고친다.
+   */
+  it.each([
+    [
+      '변수에 담았다가 throw 하는 문구',
+      `const reason = '권한이 없어요';\nthrow new ForbiddenException({ code: 'X', message: reason });`,
+    ],
+    [
+      '화살표 함수 예외 헬퍼의 인자',
+      `const denied = (text: string): ForbiddenException => new ForbiddenException({ code: 'X', message: text });\nthrow denied('권한이 없어요');`,
+    ],
+    [
+      '다른 파일에서 가져온 예외 헬퍼의 인자',
+      `import { denied } from './errors';\nthrow denied('권한이 없어요');`,
+    ],
+  ])('%s 는 지금은 안 잡는다', (_label, source) => {
     expect(findKoreanMessages(source)).toEqual([]);
   });
 

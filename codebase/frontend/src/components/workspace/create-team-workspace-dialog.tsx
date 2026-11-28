@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { workspacesApi } from "@/lib/api/workspaces";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { useT } from "@/lib/i18n";
@@ -49,9 +50,10 @@ export function CreateTeamWorkspaceDialog({ open, onOpenChange }: Props) {
       router.push(buildWorkspaceHref(created.slug, "/dashboard"));
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : t("workspace.createGenericFailed");
-      toast.error(msg);
+      // 서버 `message` 는 영문이라 에러 코드로 사전 문구를 고른다(CLE-T-MBMPX5). axios 의 영문 오류 문구는 보이지 않는다.
+      toast.error(
+        serverErrorMessage(err, t, t("workspace.createGenericFailed")),
+      );
     },
   });
 

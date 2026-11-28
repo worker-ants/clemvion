@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "64d347887af904509a5b135a0042b83af20e9aee13c7c5c53ef9032070dace84"
+content_hash: "f091073d5479195252608eb36bb97d364a2c9f45985344802c2e4fe7a39cb627"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "a2a140885326b3d444a965ed58d59bf7d94a6a6b032c5b2940ba01eb9de2fa23"
-etag: "sha256-261c0370091814c836705c48b9b4f18ee98c7cace8057b518f466310a2b8da0c"
+mirror_sha256: "ce9188505c7c11f7aeb3d8966c4f45cfbad9c11e8af22c47de0016589bc094bf"
+etag: "sha256-f61b64daccc1abce58980fb9bc0f247610037046948c09e66e53176923eb714c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -94,6 +94,8 @@ etag: "sha256-261c0370091814c836705c48b9b4f18ee98c7cace8057b518f466310a2b8da0c"
 
 설정 에코와 세 내부 필드(`_resumeState`·`_resumeCheckpoint`·`_retryState`)는 옮길 키를 열거하는 허용 목록 방식으로 자격 증명을 애초에 뺀다. `adaptHandlerReturn` 경계의 자동 마스킹(`maskSensitiveFields`)은 2026-08-24 에 제거됐으므로([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md)) 배제는 허용 목록이 보장한다. `turnDebug` 의 자격 증명 마스킹은 나가는 응답(REST·WS) 단계에서 한다.
 
-### AI 대화 경로도 재개 스냅샷을 낸다 (2026-11-12)
+### AI 대화 경로도 재개 스냅샷을 낸다
+
+결정일: 2026-11-12
 
 대화 턴 경로도 `resumed` 스냅샷을 내고 노드 실행 행에 저장한다(사람 결정). 근거는 [AI 에이전트 노드 출력 — 멀티턴 §Rationale](CLE-NODE-AGENT-OUTPUT-MULTI.md#rationale) 에 있다.

@@ -202,7 +202,7 @@ export class WorkspacesService {
     if (trimmed.length < 2) {
       throw new BadRequestException({
         code: 'WORKSPACE_NAME_INVALID',
-        message: '워크스페이스 이름은 2자 이상이어야 합니다.',
+        message: 'Workspace name must be at least 2 characters.',
       });
     }
     const slug = `team-${uuidv4().substring(0, 8)}`;
@@ -294,7 +294,7 @@ export class WorkspacesService {
     if (role === 'owner') {
       throw new ForbiddenException({
         code: 'CANNOT_ASSIGN_OWNER',
-        message: 'owner 역할은 직접 부여할 수 없습니다.',
+        message: 'The owner role cannot be assigned directly.',
       });
     }
     assertMayChangeAdminRole(requesterRole, role);
@@ -305,7 +305,7 @@ export class WorkspacesService {
     if (lookup.kind !== 'found') {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
-        message: '해당 이메일로 가입된 사용자가 없습니다.',
+        message: 'No user is registered with this email.',
       });
     }
     const user = lookup.user;
@@ -315,7 +315,7 @@ export class WorkspacesService {
     if (existing) {
       throw new ConflictException({
         code: 'ALREADY_A_MEMBER',
-        message: '이미 워크스페이스 멤버입니다.',
+        message: 'The user is already a member of this workspace.',
       });
     }
     const member = this.memberRepository.create({
@@ -363,7 +363,8 @@ export class WorkspacesService {
         if (member.role === 'owner' || role === 'owner') {
           throw new ForbiddenException({
             code: 'OWNER_ROLE_PROTECTED',
-            message: 'owner 역할은 별도 양도 흐름이 필요합니다.',
+            message:
+              'The owner role can only change through ownership transfer.',
           });
         }
         assertMayChangeAdminRole(requesterRole, member.role, role);
@@ -396,7 +397,7 @@ export class WorkspacesService {
   private throwMemberNotFound(): never {
     throw new NotFoundException({
       code: 'MEMBER_NOT_FOUND',
-      message: '멤버를 찾을 수 없습니다.',
+      message: 'Member not found.',
     });
   }
 
@@ -409,7 +410,7 @@ export class WorkspacesService {
   private throwCannotRemoveOwner(): never {
     throw new ForbiddenException({
       code: 'CANNOT_REMOVE_OWNER',
-      message: 'owner는 제거할 수 없습니다.',
+      message: 'The owner cannot be removed.',
     });
   }
 
@@ -488,7 +489,7 @@ export class WorkspacesService {
         if (!isValidIanaTimezone(tz)) {
           throw new BadRequestException({
             code: 'INVALID_TIMEZONE',
-            message: `유효하지 않은 타임존입니다: ${tz}`,
+            message: 'The time zone must be a valid IANA time zone name.',
           });
         }
         nextSettings = { ...nextSettings, timezone: tz };
@@ -670,7 +671,7 @@ export class WorkspacesService {
     if (!myMembership || myMembership.role !== 'owner') {
       throw new ForbiddenException({
         code: 'OWNER_REQUIRED',
-        message: '워크스페이스 삭제는 owner만 가능합니다.',
+        message: 'Owner role is required.',
       });
     }
     if (!workspace) {
@@ -682,7 +683,7 @@ export class WorkspacesService {
     if (workspace.type === 'personal') {
       throw new ForbiddenException({
         code: 'CANNOT_DELETE_PERSONAL',
-        message: '개인 워크스페이스는 삭제할 수 없습니다.',
+        message: 'A personal workspace cannot be deleted.',
       });
     }
     return workspace;
@@ -714,7 +715,7 @@ export class WorkspacesService {
     if (workspace.type === 'personal') {
       throw new ForbiddenException({
         code: 'CANNOT_LEAVE_PERSONAL',
-        message: '개인 워크스페이스에서는 나갈 수 없습니다.',
+        message: 'You cannot leave a personal workspace.',
       });
     }
 
@@ -740,7 +741,7 @@ export class WorkspacesService {
           throw new ForbiddenException({
             code: 'SOLE_OWNER_CANNOT_LEAVE',
             message:
-              '유일한 owner는 나갈 수 없습니다. 다른 멤버를 owner로 승격하거나 워크스페이스를 삭제해 주세요.',
+              'The only owner cannot leave. Make another member the owner or delete the workspace.',
           });
         }
       }
@@ -840,7 +841,7 @@ export class WorkspacesService {
       if (workspace.type === 'personal') {
         throw new ForbiddenException({
           code: 'CANNOT_TRANSFER_PERSONAL',
-          message: '개인 워크스페이스는 owner 이양 대상이 아닙니다.',
+          message: 'Ownership of a personal workspace cannot be transferred.',
         });
       }
 
@@ -854,7 +855,7 @@ export class WorkspacesService {
       if (newOwnerMemberId === requesterMembership.id) {
         throw new BadRequestException({
           code: 'TARGET_IS_SELF',
-          message: '본인을 새 owner 로 지정할 수 없습니다.',
+          message: 'You cannot make yourself the new owner.',
         });
       }
 
@@ -867,13 +868,13 @@ export class WorkspacesService {
       if (!targetMembership) {
         throw new NotFoundException({
           code: 'MEMBER_NOT_FOUND',
-          message: '대상 멤버를 찾을 수 없습니다.',
+          message: 'Member not found.',
         });
       }
       if (targetMembership.role === 'owner') {
         throw new ConflictException({
           code: 'TARGET_ALREADY_OWNER',
-          message: '대상이 이미 owner 입니다.',
+          message: 'The member is already the owner.',
         });
       }
 
@@ -1058,7 +1059,7 @@ export class WorkspacesService {
   private throwOwnerTransferRequired(): never {
     throw new ForbiddenException({
       ...ROLE_REQUIRED.owner,
-      message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
+      message: 'Owner role is required.',
     });
   }
 
@@ -1120,7 +1121,7 @@ export class WorkspacesService {
     if (ws.type !== type) {
       throw new ForbiddenException({
         code: 'WORKSPACE_TYPE_MISMATCH',
-        message: `${type} 워크스페이스에서만 가능한 동작입니다.`,
+        message: 'This action is not available for this workspace type.',
       });
     }
   }

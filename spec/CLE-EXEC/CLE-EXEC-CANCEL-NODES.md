@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL-NODES"
 title: "노드 취소 — 노드별 적용과 구현 현황"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CANCEL"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CANCEL"]
 area: "CLE-EXEC"
-content_hash: "14eed65d2fe104653ee4eb978ab2f7adcda2df1222d9e0c48819cd45da33df58"
+content_hash: "36db992713a0a7acd4dca1390c873f3be36fed72e842924e25c44dfafa24929d"
 read_as: "approved_fallback"
-task: "CLE-T-DA04F4"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "150a170028ed4778d5d9dacb87ce3d4de6c99c1ddae2210a4f46c756dd3007c5"
-etag: "sha256-66190b7a6b003057c7a8f7c35687e8ede0aa5fdb30af7ad848748b19e9afbdfc"
+mirror_sha256: "66cab68783d0c640c66cf246a58965696d16773541a016f63d3cf17c707c84ee"
+etag: "sha256-a47a2b20a65bd4c90da840b49e3d072fffef7719f8b1e31a134acfa64b08ccac"
 ---
 ## 개요
 
@@ -105,7 +105,9 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 
 ## Rationale
 
-### HTTP Request 노드도 노드 취소를 `cancelled` 로 끝낸다 (2026-10-10)
+### HTTP Request 노드도 노드 취소를 `cancelled` 로 끝낸다
+
+결정일: 2026-10-10
 
 이 규약은 외부 I/O 노드가 취소 때 `AbortError` 를 그대로 던진다고 정했다. 그런데 HTTP Request 노드는 노드 취소 신호로 생긴 `AbortError` 를 전송 실패와 묶어 `HTTP_TRANSPORT_FAILED` 와 에러 포트로 돌려줬다. 그래서 cancel-others-on-fail 로 멈춘 HTTP 분기가 `cancelled` 대신 에러 포트 라우팅(정상 종료)으로 기록됐다. 사용자가 2026-10-10 에 선택지 1 을 승인했다.
 
@@ -118,7 +120,9 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 
 같은 작업에서 세 노드에 따로 있던 연쇄 코드를 공용 헬퍼(`_base/abort-cascade.util.ts`)로 합쳤다. 정리를 controller 의 `abort` 이벤트에 거는 방식은 성공한 요청이 `controller.abort()` 를 부르지 않아 요청마다 노드 취소 신호에 리스너를 남긴다. 그래서 `finally` 에서 리스너를 떼는 형태로 정했다.
 
-### AI 노드는 노드 신호로 취소를 판정한다 (2026-10-31)
+### AI 노드는 노드 신호로 취소를 판정한다
+
+결정일: 2026-10-31
 
 규칙 3 은 노드 취소를 `AbortError` 로 엔진에 넘기라고 정한다. 엔진의 `isAbortError` 와 규칙 18 은 `error.name === 'AbortError'` 로 취소를 분류한다. 그런데 설치된 Anthropic SDK 와 OpenAI SDK 는 `signal` 이 취소되면 `APIUserAbortError`(메시지 `Request was aborted.`)를 던지고 이 에러의 `name` 은 `'Error'` 다. 런타임에서 확인한 값이다. fetch 기반 클라이언트는 이름이 `AbortError` 인 DOMException 을 던진다. 그래서 2026-10-31 이전에는 AI 에이전트도 Anthropic·OpenAI 호출이 취소되면 노드 실행이 `failed` 로 기록되고 노드의 에러 처리 정책이 적용됐다. 텍스트 분류기와 정보 추출기는 취소를 `LLM_CALL_FAILED` 실패 출력으로 바꿨다.
 

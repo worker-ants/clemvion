@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "c647b2aa024e1b444ae0b7da131232fc0e32bb5a4f9f31944ab44ee8d69a4178"
+content_hash: "fae6b6e689aae9fe2c55f2ed18d0fc2217e25aa63ed4ef25c9c1c17a5073fe50"
 read_as: "approved_fallback"
-task: "CLE-T-PK8EKG"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "22d58a6714c239d7551b9f91913f79098c67434ed297059a89563da88f780896"
-etag: "sha256-36665066e33a53ba7f33dc38957094a624e15300bec067063944bee52edb9ecf"
+mirror_sha256: "d9724ec6345538f9c6c179d6074a2db775346942b942e2c4c6649eec3e2dd08a"
+etag: "sha256-b1d971b3f64afab940bb5bb26c47c1d0988d94b86ff95e013c8730ae5e78e337"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -85,9 +85,11 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 - 이 문서 계열은 `durationMs` 를 `duration` 으로 적어 왔다. 같은 값이며 표기 차이는 그대로 둔다.
 - 시스템 취소로 끝나는 코드(`EXECUTION_QUEUE_WAIT_TIMEOUT`, `WEBCHAT_IDLE_TIMEOUT`, `RESUME_*`)는 `execution.cancelled` 의 `error.code` 로 온다([에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)).
 
-### 1.2 `execution.node.failed` 의 `error` 와 `output` (2026-08-24 실측)
+### 1.2 `execution.node.failed` 의 `error` 와 `output`
 
-- **`error` 는 문자열이다.** 발행 4곳 전수 실측 결과 최상위 `error` 는 늘 `string`(메시지만)이다. `execution-engine.service.ts` 3곳(사전 검증 throw, 에러 포트 종결, 컨테이너 실패)과 `ai-turn-orchestrator.service.ts` 1곳이다. 그 뒤 더해진 마지막 턴 재시도의 새 행 마감(`retry-turn.service.ts` 의 `closeSpawnedRowIfRunning`)도 메시지 문자열을 싣는다.
+결정일: 2026-08-24
+
+- **`error` 는 문자열이다.** 2026-08-24 에 발행 4곳을 전수 실측한 결과 최상위 `error` 는 늘 `string`(메시지만)이다. `execution-engine.service.ts` 3곳(사전 검증 throw, 에러 포트 종결, 컨테이너 실패)과 `ai-turn-orchestrator.service.ts` 1곳이다. 그 뒤 더해진 마지막 턴 재시도의 새 행 마감(`retry-turn.service.ts` 의 `closeSpawnedRowIfRunning`)도 메시지 문자열을 싣는다.
 - **구조화 에러 객체는 `output.output.error` 에만 있다.** 클라이언트는 재시도 가능 여부(`details.retryable`)와 대기 시간(`retryAfterSec`)을 거기서 읽는다.
 - **`output` 은 발행 경로에 따라 실린다.** 에러 포트 종결(`finalizeErrorPortNode`)과 AI 턴 종결 **2곳만** `output: <nodeExec>.outputData`(completed 와 같은 래퍼)를 싣는다. 일반 사전 검증 throw 와 컨테이너 실패 2곳은 키 자체가 없다. 마지막 턴 재시도의 새 행 마감도 키가 없다. 실릴 때는 그 래퍼도 fanout 에서 같은 허용 목록을 지난다.
 - **`node.started` 없이 올 수 있다.** 워커가 마지막 턴 재시도를 거절하면 새 노드 실행 행은 `node.started` 를 내기 전에 `failed` 로 마감되고 `node.failed` 만 나간다. 실행이 더는 `failed` 가 아니거나 같은 실행의 다른 재시도에 실행 단위 claim 을 빼앗긴 경우다. 규칙은 [재시도 전제와 재시도 턴 시작](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작), 짝 없는 `node.failed` 를 고른 근거는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다) 에 있다.
@@ -171,7 +173,9 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 
 ## Rationale
 
-### WebSocket 이벤트 enum 이름은 `<도메인>EventType` (2026-08-30)
+### WebSocket 이벤트 enum 이름은 `<도메인>EventType`
+
+결정일: 2026-08-30
 
 `websocket-events.types.ts` 의 이벤트 enum 은 **도메인을 접두로** 붙인다. `ExecutionEventType`, `NodeEventType`, `BackgroundRunEventType`, `KbEventType`, `InAppNotificationEventType` 이다. 도메인 없는 일반 이름(`NotificationEventType` 등)은 **다른 영역의 같은 이름 타입과 부딪히므로** 쓰지 않는다.
 
@@ -181,10 +185,14 @@ WebSocket 쪽 이름을 바꾼 근거: 반대쪽은 EIA 알림 웹훅의 외부 
 
 규약 문서로 따로 올리지 않은 이유: 이 규칙의 적용 범위가 **WebSocket 이벤트 enum 한 모듈**이다. 규약 문서는 여러 영역이 참조하는 규약의 자리이고 한 파일에만 걸리는 규칙을 올리면 저장소가 네 PR 을 들여 걷어낸 미러를 문서 층에 되살린다([응답 자격 증명 마스킹](CLE-API-EGRESS.md) 의 좌표계 문서를 둘 때 "새로 두는 것이 자동으로 옳지 않다" 는 같은 판단을 적었다). 적용 범위가 넓어지면 그때 올린다. 코드 쪽 근거는 `InAppNotificationEventType` JSDoc 이다. 같은 규칙이 두 곳에 있으므로 서로 가리켜 어긋남을 잡는다.
 
-### `buttonConfig` 예시 정정: 타임아웃 제거와 `nodeOutput` 판별자 폐지 (2026-06-03, C2·C3)
+### `buttonConfig` 예시 정정: 타임아웃 제거와 `nodeOutput` 판별자 폐지 (C2·C3)
 
-→ [WebSocket 이벤트와 명령 — 입력 대기 이벤트](CLE-API-WS-EVENTS-WAITING.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-2026-06-03-c2c3)
+결정일: 2026-06-03
 
-### `submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)
+→ [WebSocket 이벤트와 명령 — 입력 대기 이벤트](CLE-API-WS-EVENTS-WAITING.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-c2c3)
+
+### `submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유
+
+결정일: 2026-06-10
 
 → [WebSocket 이벤트와 명령 — 실행 제어 명령과 ack](CLE-API-WS-EVENTS-COMMANDS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유)

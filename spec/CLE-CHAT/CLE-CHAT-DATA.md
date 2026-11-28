@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "81ed57d161fc7245918307702bd750ca536273e43a99170b8f5b1d4e8a763890"
+content_hash: "1b0457a18d33d3b264848e22b5f13caecdb5f9ccd822d2296a1aad3f3aa31aa1"
 read_as: "approved_fallback"
-task: "CLE-T-P4TSAA"
+task: "CLE-T-JPSHKZ"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "23e5df1cbc992d553495ec85e0fe5164e45ed7edc6a686de72bfee214049f0dd"
-etag: "sha256-692184262a74fbb2e90bea026c2614087bee5ecf9b0a1ba6cf69aa968bf9f1ee"
+mirror_sha256: "38e141bf0454e18a97f491772c6dee1759d540bbf60c1adf90bf188ce7d7445d"
+etag: "sha256-bd6fba30d91ae829717fce276283dd7e4f2ac0e2e5893164a07195d5f3084439"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -73,7 +73,7 @@ etag: "sha256-692184262a74fbb2e90bea026c2614087bee5ecf9b0a1ba6cf69aa968bf9f1ee"
 
 웹채팅의 서버 쪽 구성 요소와 그 쓰기 경로는 [웹채팅 구조 §서버 쪽 구성 요소](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md#서버-쪽-구성-요소) 가 목록의 기준이다. 임베드 설정 공개 조회, `/api/external/*` 경로별 CORS 처리, 공개 웹훅 가드(`PublicWebhookThrottleGuard`)가 있고, 실행 상태를 바꾸는 쓰기 경로는 유휴 입력 대기 회수(`WebChatIdleReaperService`, BullMQ `webchat-idle-reaper`)뿐이다. 회수 규칙은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정한다.
 
-임베드 허용 목록과 `/api/external/*` CORS 허용 목록은 같은 키(`workspace.settings.interactionAllowedOrigins`, [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md))를 쓰지만 빈 목록일 때의 뜻이 다르다. 그 차이는 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 정한다.
+임베드 허용 목록과 `/api/external/*` CORS 허용 목록은 같은 키(`workspace.settings.interactionAllowedOrigins`, [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#workspace))를 쓰지만 빈 목록일 때의 뜻이 다르다. 그 차이는 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 정한다.
 
 ## 외부 의존
 

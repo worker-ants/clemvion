@@ -3,6 +3,7 @@ import type { TFunction } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
 import {
   formatIntegrationErrorToast,
+  formatOAuthCallbackError,
   isIntegrationNameTaken,
 } from "../integration-error-codes";
 
@@ -120,6 +121,15 @@ describe("formatIntegrationErrorToast", () => {
     ).toBe("이름이 비었습니다");
   });
 
+  it.each(["constructor", "toString", "hasOwnProperty"])(
+    "프로토타입 이름 %s 은 두 표 어디에서도 코드로 보지 않는다(CLE-T-7QQPK7)",
+    (code) => {
+      expect(
+        formatIntegrationErrorToast(wrapped(code, "Raw text."), t, FALLBACK),
+      ).toBe("Raw text.");
+    },
+  );
+
   it("응답 본문이 없으면 오류 메시지, 그것도 없으면 대체 문구다", () => {
     expect(
       formatIntegrationErrorToast(new Error("Network Error"), t, FALLBACK),
@@ -131,7 +141,9 @@ describe("formatIntegrationErrorToast", () => {
 
 describe("isIntegrationNameTaken", () => {
   it("감싼 응답과 평탄한 응답의 INTEGRATION_NAME_TAKEN 을 알아본다", () => {
-    expect(isIntegrationNameTaken(wrapped("INTEGRATION_NAME_TAKEN"))).toBe(true);
+    expect(isIntegrationNameTaken(wrapped("INTEGRATION_NAME_TAKEN"))).toBe(
+      true,
+    );
     expect(
       isIntegrationNameTaken(axiosError({ code: "INTEGRATION_NAME_TAKEN" })),
     ).toBe(true);
@@ -142,5 +154,55 @@ describe("isIntegrationNameTaken", () => {
     expect(isIntegrationNameTaken(wrapped("RESOURCE_CONFLICT"))).toBe(false);
     expect(isIntegrationNameTaken(new Error("Network Error"))).toBe(false);
     expect(isIntegrationNameTaken(null)).toBe(false);
+  });
+});
+
+/*
+ * OAuth 콜백 팝업 실패 문구 — NERV CLE-INT-OAUTH-CALLBACK 「에러 매핑」, Task CLE-T-3WGPC0.
+ * payload 의 `error` 는 서버 문구 문자열로 남고 `code` 가 따로 온다.
+ */
+describe("formatOAuthCallbackError", () => {
+  it.each([
+    ["OAUTH_DENIED", "integrations.oauthCallbackDenied"],
+    ["OAUTH_STATE_MISMATCH", "integrations.oauthCallbackStateInvalid"],
+    ["OAUTH_STATE_EXPIRED", "integrations.oauthCallbackStateExpired"],
+    [
+      "OAUTH_TOKEN_EXCHANGE_FAILED",
+      "integrations.oauthCallbackTokenExchangeFailed",
+    ],
+    ["INTEGRATION_INSTALL_EXPIRED", "integrations.oauthCallbackInstallExpired"],
+    ["OAUTH_CALLBACK_FAILED", "integrations.oauthFailedShort"],
+  ])("콜백 코드 %s 는 %s 를 고른다", (code, key) => {
+    expect(formatOAuthCallbackError({ code, error: "server text" }, t)).toBe(
+      key,
+    );
+  });
+
+  it("역할 하한 코드는 통합 코드 매핑을 쓴다", () => {
+    expect(
+      formatOAuthCallbackError({ code: "ADMIN_REQUIRED", error: "x" }, t),
+    ).toBe("integrations.adminRequiredToast");
+  });
+
+  it("공용 코드 매핑에만 있는 코드는 공용 문구를 쓴다", () => {
+    expect(
+      formatOAuthCallbackError({ code: "INTERNAL_ERROR", error: "x" }, t),
+    ).toBe("errors.codes.internalError");
+  });
+
+  it("모르는 코드는 서버 문구를 보인다", () => {
+    expect(
+      formatOAuthCallbackError(
+        { code: "RESOURCE_NOT_FOUND", error: "Not found" },
+        t,
+      ),
+    ).toBe("Not found");
+  });
+
+  it("코드가 없는 옛 payload 는 서버 문구를, 문구도 없으면 기본 문구를 보인다", () => {
+    expect(formatOAuthCallbackError({ error: "boom" }, t)).toBe("boom");
+    expect(formatOAuthCallbackError({ code: null, error: null }, t)).toBe(
+      "integrations.oauthFailedShort",
+    );
   });
 });

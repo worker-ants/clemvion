@@ -183,6 +183,7 @@ export type Cafe24PingCode =
  * - `Cafe24AuthFailedError` (401/403 — refresh 단계 또는 자격증명 불완전 시)
  * - `Cafe24TransportFailedError` (refresh fetch 실패)
  * - `Cafe24IncompleteCredentialsError` (assertCredentials)
+ * - `Cafe24TokenRefreshFailedError` (갱신 요청이 401 · 403 밖 상태로 실패 → `CAFE24_API_ERROR`)
  * 그 외 unknown 은 transport 실패로 분류 (best-effort — pingConnection 의
  * "never throws" 계약을 위해 silently swallow 하지 않고 메시지를 surface).
  */
@@ -208,6 +209,9 @@ function mapPingError(err: unknown): {
       message: err.message,
     };
   }
+  if (err instanceof Cafe24TokenRefreshFailedError) {
+    return { success: false, code: 'CAFE24_API_ERROR', message: err.message };
+  }
   return {
     success: false,
     code: 'CAFE24_TRANSPORT_FAILED',
@@ -220,6 +224,21 @@ export class Cafe24TransportFailedError extends Error {
   constructor(readonly cause: unknown) {
     super(extractErrorMessage(cause));
     this.name = 'Cafe24TransportFailedError';
+  }
+}
+
+/**
+ * 토큰 갱신 요청이 응답을 받고 401 · 403 밖 상태(5xx · 429 · 400 등)로 실패했다(CLE-T-DJGSBR).
+ * 연결 테스트(`mapPingError`)는 `CAFE24_API_ERROR` 로 답한다. 노드 · 도구 경로는 이 타입을 따로 거르지 않아
+ * 지금처럼 분류되지 않은 예외(`CAFE24_TRANSPORT_FAILED`)로 나간다. 그래서 `code` 필드를 두지 않는다.
+ */
+export class Cafe24TokenRefreshFailedError extends Error {
+  constructor(
+    readonly status: number,
+    sanitizedBody: string,
+  ) {
+    super(`Cafe24 token refresh failed (${status}): ${sanitizedBody}`);
+    this.name = 'Cafe24TokenRefreshFailedError';
   }
 }
 
@@ -918,8 +937,9 @@ export class Cafe24ApiClient {
       // SEC-C2: 옛 코드는 raw body 를 그대로 Error message 에 넣어 throw
       // 했고, 이 message 가 `markIntegrationCallbackError` 의 lastError 에
       // 잔류하는 경로가 있었다. 직접 sanitize 후 message 에 포함.
-      throw new Error(
-        `Cafe24 token refresh failed (${response.status}): ${sanitizeLastErrorMessage(JSON.stringify(body))}`,
+      throw new Cafe24TokenRefreshFailedError(
+        response.status,
+        sanitizeLastErrorMessage(JSON.stringify(body)),
       );
     }
 

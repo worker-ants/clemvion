@@ -2,19 +2,19 @@
 id: "CLE-KB-GRAPH-EXTRACT"
 title: "Graph RAG — 그래프 추출"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-KB-GRAPH"
 ancestors: ["CLE-VISION", "CLE-KB", "CLE-KB-GRAPH"]
 area: "CLE-KB"
-content_hash: "5e455d7f6d6eb8717a78bfacb393c5bc4985b29c671dc0e61355d970c54888f6"
+content_hash: "f089dadba1efedf3d2d47f4c5976f50d760e6cc6620bc5f5dfeffb82a4d6c16b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "24756deba6200b2961593187e5887195483be3f4affa1de7d85805d9dc43430a"
-etag: "sha256-43d71dde066205a06d10e4a2eabbf3d0352cc8fcbba6e29bb026c7c90c4a89fd"
+mirror_sha256: "8704d760865bcec4444449c718e683a649ad1bee98efc6bb22e6ab308a9ce338"
+etag: "sha256-ef702135f08c93e707e74a34e270ba5b892a99e55ae6a677e77af68ac81eee30"
 ---
 ## 개요
 
@@ -155,6 +155,8 @@ LLM 을 부를 때 JSON 스키마를 강제한다.
 
 ## Rationale
 
-### 전체 재추출 잠금의 판정 결함 (2026-08-14 수정)
+### 전체 재추출 잠금의 판정 결함
+
+결정일: 2026-08-14
 
 재추출 잠금은 `UPDATE … RETURNING` 이 0행인지로 선점을 판정한다. 그런데 반환값이 행 배열이 아니라 `[rows, affectedCount]` 튜플이라 길이가 늘 2 였다. 그래서 409 `KB_REEXTRACT_IN_PROGRESS` 가 넉 달 동안 한 번도 나지 않았다. 설계는 옳았고 구현이 지키지 못했다. 전체 재임베딩 잠금도 같은 결함이었다([문서 임베딩](CLE-KB-EMBED.md)). 결과를 읽는 규칙은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 에 있다.

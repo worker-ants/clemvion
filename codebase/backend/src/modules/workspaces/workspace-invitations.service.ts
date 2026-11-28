@@ -60,7 +60,7 @@ function generateToken(): string {
 export function invitationNotFoundException(): NotFoundException {
   return new NotFoundException({
     code: 'invitation_not_found',
-    message: '초대를 찾을 수 없습니다.',
+    message: 'Invitation not found.',
   });
 }
 
@@ -113,13 +113,13 @@ export class WorkspaceInvitationsService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'workspace_not_found',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     if (workspace.type !== 'team') {
       throw new ForbiddenException({
         code: 'workspace_type_mismatch',
-        message: '팀 워크스페이스에서만 초대할 수 있습니다.',
+        message: 'Invitations are only available in team workspaces.',
       });
     }
     assertMayChangeAdminRole(requesterRole, role);
@@ -137,7 +137,7 @@ export class WorkspaceInvitationsService {
       if (existingMember) {
         throw new ConflictException({
           code: 'already_a_member',
-          message: '이미 워크스페이스 멤버입니다.',
+          message: 'The user is already a member of this workspace.',
         });
       }
     }
@@ -183,7 +183,7 @@ export class WorkspaceInvitationsService {
         throw new ConflictException({
           code: 'invitation_already_pending',
           message:
-            '동일 이메일의 초대가 동시에 발송됐어요. 잠시 후 다시 시도해 주세요.',
+            'An invitation to this email was sent at the same time. Try again in a moment.',
         });
       }
       throw err;
@@ -283,7 +283,7 @@ export class WorkspaceInvitationsService {
     if (invitation.acceptedAt) {
       throw new ConflictException({
         code: 'invitation_already_accepted',
-        message: '이미 수락된 초대는 재발송할 수 없습니다.',
+        message: 'This invitation has already been accepted.',
       });
     }
 
@@ -299,7 +299,7 @@ export class WorkspaceInvitationsService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'workspace_not_found',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     await this.dispatchEmail(
@@ -379,13 +379,13 @@ export class WorkspaceInvitationsService {
     if (!user) {
       throw new NotFoundException({
         code: 'user_not_found',
-        message: '사용자를 찾을 수 없습니다.',
+        message: 'User not found.',
       });
     }
     if (user.email.toLowerCase() !== invitation.email) {
       throw new BadRequestException({
         code: 'invitation_email_mismatch',
-        message: '초대 이메일과 로그인 이메일이 일치하지 않습니다.',
+        message: 'The invitation email does not match the signed-in email.',
       });
     }
 
@@ -455,7 +455,7 @@ export class WorkspaceInvitationsService {
     if (invitation.acceptedAt) {
       throw new ConflictException({
         code: 'invitation_already_accepted',
-        message: '이미 수락된 초대는 취소할 수 없습니다.',
+        message: 'This invitation has already been accepted.',
       });
     }
     await this.invitationRepository.remove(invitation);
@@ -493,7 +493,7 @@ export class WorkspaceInvitationsService {
     if (!update.affected) {
       throw new GoneException({
         code: 'invitation_already_used',
-        message: '이미 사용된 초대입니다.',
+        message: 'This invitation has already been used.',
       });
     }
 
@@ -554,7 +554,7 @@ export class WorkspaceInvitationsService {
       // 404 rather than returning a meaningless empty workspaceName.
       throw new NotFoundException({
         code: 'workspace_not_found',
-        message: '초대된 워크스페이스가 더 이상 존재하지 않습니다.',
+        message: 'Workspace not found.',
       });
     }
 
@@ -602,19 +602,19 @@ export class WorkspaceInvitationsService {
     if (!invitation) {
       throw new NotFoundException({
         code: 'invitation_not_found',
-        message: '초대 토큰이 유효하지 않습니다.',
+        message: 'Invitation not found.',
       });
     }
     if (invitation.acceptedAt) {
       throw new GoneException({
         code: 'invitation_already_used',
-        message: '이미 사용된 초대입니다.',
+        message: 'This invitation has already been used.',
       });
     }
     if (invitation.expiresAt.getTime() < Date.now()) {
       throw new GoneException({
         code: 'invitation_expired',
-        message: '초대가 만료되었습니다.',
+        message: 'This invitation has expired.',
       });
     }
   }
@@ -652,7 +652,7 @@ export class WorkspaceInvitationsService {
     if (!role || !isAdminRole(role)) {
       throw new ForbiddenException({
         code: 'admin_required',
-        message: 'Admin 이상의 권한이 필요합니다.',
+        message: 'Admin role or higher is required.',
       });
     }
     return role;

@@ -139,6 +139,7 @@ export const auth: Dict["auth"] = {
     failed: "Request failed",
     invalidTokenShort: "Invalid reset link. Please request a new one.",
     passwordChanged: "Password reset successfully!",
+    rejected: "The reset link has expired, or the new password does not meet the rules. Check the password rules, and request a new link if it still fails.",
     genericFailed: "Failed to reset password. Please try again.",
   },
   verifyEmail: {
@@ -157,6 +158,7 @@ export const auth: Dict["auth"] = {
     redirecting: "Redirecting to dashboard...",
     verifiedToast: "Email verified successfully!",
     genericFailed: "Verification failed. Please try again.",
+    linkInvalid: "The verification link is invalid or has expired. Request a new verification email.",
     resendCooldown: "Resend available in {{seconds}}s",
     resendSent: "Verification email sent again.",
     resendFailed: "Couldn't resend the email. Please try again in a moment.",

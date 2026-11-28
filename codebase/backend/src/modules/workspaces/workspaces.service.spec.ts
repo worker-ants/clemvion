@@ -1307,7 +1307,7 @@ describe('WorkspacesService', () => {
         ).rejects.toMatchObject({
           response: {
             code: 'OWNER_REQUIRED',
-            message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
+            message: 'Owner role is required.',
           },
         });
         expect(workspaceRepo.findOne).not.toHaveBeenCalled();
@@ -1555,7 +1555,7 @@ describe('WorkspacesService', () => {
     const REQUESTER = 'user-requester';
     const USER_NOT_FOUND = {
       code: 'USER_NOT_FOUND',
-      message: '해당 이메일로 가입된 사용자가 없습니다.',
+      message: 'No user is registered with this email.',
     };
 
     function lookupByEmail(): jest.Mock {
@@ -1764,7 +1764,7 @@ describe('WorkspacesService', () => {
         ).rejects.toMatchObject({
           response: {
             code: 'OWNER_REQUIRED',
-            message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
+            message: 'Owner role is required.',
           },
         });
         // 재검사 분기를 실제로 탔는지 — 선행(무락)과 재검사(락) 두 번 요청자를 읽었다.

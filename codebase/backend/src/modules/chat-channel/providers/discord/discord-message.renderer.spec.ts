@@ -585,7 +585,7 @@ describe('renderDiscordEvent — 코드 블록을 지나는 분할', () => {
 describe('renderDiscordEvent — languageHints 빈 문자열 덮어쓰기 → 기본 문구', () => {
   it('executionCompleted 가 빈 문자열이면 완료 기본 문구를 보낸다', () => {
     const msgs = renderDiscordEvent(
-      { ...BASE, type: 'execution.completed', result: {} },
+      { ...BASE, type: 'execution.completed' },
       { ...CONFIG, languageHints: { executionCompleted: '' } },
     );
     expect(msgs[0].body).toEqual({

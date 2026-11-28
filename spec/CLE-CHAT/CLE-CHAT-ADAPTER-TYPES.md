@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-TYPES"
 title: "채팅 채널 어댑터 규약 — 이벤트와 데이터 타입"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "db1afed2e8530a79e9fa6e33bbf900e830a0df51695c8dbc95f2755a47d1b561"
+content_hash: "d9e6bbf1b1878f597926406c0b788004ec6a4a75945ff3d2d60b1bb7514123b0"
 read_as: "approved_fallback"
-task: "CLE-T-T2RK53"
+task: "CLE-T-B4VSS9"
 source_paths: []
-mirror_sha256: "dc357d4bb32b77f084e96fa5114834522bf61b637028bc405df82a4460113d04"
-etag: "sha256-7da240d156d5adf122947b60e8da00a56500325abdb8ba8d410d537084d4361f"
+mirror_sha256: "831d64f5e1f27eae484d1e3f2e307d35e2bb7049d3629d5e0951808c312298c0"
+etag: "sha256-a31d18c09a0a809336fc11b7fd35f6d35e258fec5b2daf8b5defdfdebed6073b"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ type EiaEvent =
       presentations?: PresentationPayload[];
       timestamp: string; seq: number }
   | { type: "execution.completed"; executionId: string; triggerId: string; workflowId: string; status: "completed";
-      result?: { outputs?: unknown }; durationMs?: number | null; timestamp: string; seq: number }
+      durationMs?: number | null; timestamp: string; seq: number }
   | { type: "execution.failed"; executionId: string; triggerId: string; workflowId: string; status: "failed";
       error: { code: string | null; message: string; nodeId: string | null; details?: unknown } | string;
       durationMs?: number | null; timestamp: string; seq: number }
@@ -53,7 +53,7 @@ type EiaEvent =
 - 입력 대기 표면(`interactionType`)은 네 값이다([인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md)). `ai_form_render` 는 AI 에이전트 `render_form` 의 블로킹 하위 상태이고 채팅 채널에서는 `ai_conversation` 과 같은 경로다. 채널 어댑터는 서버 안 소비자라 네 값을 받는다. 현재 구현(dispatcher)도 그대로 넘기고, 레지스트리가 이 위치들을 값별 분기 위치로 등록한다([인터랙션 타입 레지스트리 §서버 안 소비자: 채팅 채널](../CLE-IX/CLE-IX-TYPES.md#서버-안-소비자-채팅-채널)). EIA 외부 경로에서 `ai_form_render` 가 어떻게 보이는지는 [인터랙션 타입 레지스트리 §미결 사항](../CLE-IX/CLE-IX-TYPES.md#미결-사항) 에서 다룬다.
 - 디버그 전용 `llmCalls` 는 fanout 단계에서 지워져 채널 어댑터에 오지 않는다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)).
 - `presentations` 의 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 다.
-- `completed` 의 `result` 가 선택인 이유: 현재 발행은 `status` 와 `durationMs` 를 채우고 `result.outputs` 만 미구현이다. `cancelled` 의 `result.cancelledBy` 는 발행 타입이 필수로 강제한다([EIA 알림 웹훅 「종결 이벤트 필드 집합」](../CLE-IX/CLE-EIA-NOTIFY.md#종결-이벤트-필드-집합)). `durationMs` 는 2026-08-15 에 종결 세 가지 모두 구현됐고, 모르면 `null` 이다.
+- `completed` 에는 `result` 가 없다. EIA 는 종결 이벤트에 실행 출력(`result.outputs`)을 싣지 않는다([EIA 알림 웹훅 — 이벤트와 payload 「종결 이벤트 필드를 약속한 만큼만 둔다」](../CLE-IX/CLE-EIA-NOTIFY-EVENTS.md#종결-이벤트-필드를-약속한-만큼만-둔다)). `cancelled` 의 `result.cancelledBy` 는 발행 타입이 필수로 강제한다([EIA 알림 웹훅 「종결 이벤트 필드 집합」](../CLE-IX/CLE-EIA-NOTIFY.md#종결-이벤트-필드-집합)). `durationMs` 는 2026-08-15 에 종결 세 가지 모두 구현됐고, 모르면 `null` 이다.
 - `failed` 의 `error` 가 `| string` 을 품는 이유는 따로 있다. 발행은 2026-08-14 부터 모든 경로가 object(`toTerminalErrorPayload`)다. union 은 배포 경계에서 재생되는 옛 이벤트를 받으려고 일부러 남겼다. 지우면 그 창 동안 실행 실패 안내가 조용히 빠진다.
 - `cancelled` 의 `error` 는 시스템 취소에만 실리고, 실릴 때는 `code` · `message` 가 둘 다 문자열이다([EIA 알림 웹훅 「종결 이벤트 필드 집합」](../CLE-IX/CLE-EIA-NOTIFY.md#종결-이벤트-필드-집합)). 발행 쪽 타입(`emitCancellationEvent`)이 둘 다 필수로 강제한다. dispatcher(`toChatChannelEvent`)는 이 모양이 아닌 `error` 를 싣지 않고 warn 로그를 남긴다. 그래서 채널 어댑터는 `message` 가 있다고 보고 읽는다.
 
@@ -230,7 +230,7 @@ interface ChatChannelConfig {
 
 `languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(슬래시 명령의 `commandReceived` 와 `help`, 실행이 없는 슬래시 명령 `/cancel` 의 `noActiveExecution`, 새 실행을 시작한 슬래시 명령 `/start` 의 `executionStarted` · `executionRestarted`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. Discord 는 이 문구를 그대로 싣는다. Slack 은 응답 `text` 가 mrkdwn 으로 렌더되므로 채널 어댑터가 `escapeControlText` 와 같은 규칙(`&` `<` `>`)으로 escape 해 싣는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
 
-실행이 없는 `/cancel` 과 새 실행을 시작한 `/start` 의 응답은 `HooksService` 가 `commandReceived` 자리를 `noActiveExecution` 안내나 시작 안내(`executionStarted`, 활성 실행이 없었음) · 재시작 안내(`executionRestarted`, 활성 실행을 취소하고 다시 시작함)로 바꾼 설정을 넘겨 `defaultInteractionResponse` 를 다시 불러 만든다. 그래서 Slack 에서도 같은 mrkdwn escape 를 거친다. Telegram 은 이 안내를 `sendMessage` 로 보내므로 `escapeControlText` 를 거친다. 근거는 [인바운드 HTTP 응답 계약 「R-CC-36」](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 과 [설정과 안내 문구 「시작과 재시작 안내를 안내 문구 키로 둔다」](CLE-CHAT-DATA-CONFIG.md#시작과-재시작-안내를-안내-문구-키로-둔다-2026-11-20) 에 있다.
+실행이 없는 `/cancel` 과 새 실행을 시작한 `/start` 의 응답은 `HooksService` 가 `commandReceived` 자리를 `noActiveExecution` 안내나 시작 안내(`executionStarted`, 활성 실행이 없었음) · 재시작 안내(`executionRestarted`, 활성 실행을 취소하고 다시 시작함)로 바꾼 설정을 넘겨 `defaultInteractionResponse` 를 다시 불러 만든다. 그래서 Slack 에서도 같은 mrkdwn escape 를 거친다. Telegram 은 이 안내를 `sendMessage` 로 보내므로 `escapeControlText` 를 거친다. 근거는 [인바운드 HTTP 응답 계약 「R-CC-36」](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 과 [설정과 안내 문구 「시작과 재시작 안내를 안내 문구 키로 둔다」](CLE-CHAT-DATA-CONFIG.md#시작과-재시작-안내를-안내-문구-키로-둔다) 에 있다.
 
 ### SetupResult와 SendResult
 

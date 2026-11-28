@@ -2,19 +2,19 @@
 id: "CLE-KB-EMBED-REPROC"
 title: "문서 임베딩 — 재임베딩과 실패 처리"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-KB-EMBED"
 ancestors: ["CLE-VISION", "CLE-KB", "CLE-KB-EMBED"]
 area: "CLE-KB"
-content_hash: "b3611a27093ee140c0e263d55be4826fd8c699946bc56a7dd07450a70039deac"
+content_hash: "a7407bc428284e8ffbbe9241dab8bb1a4d97696332f0a1f9b23f3282cf3c1da0"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "fc2e6071bec6db49b095451a878ea567314e43d331e9681874b0ab1fa97ff510"
-etag: "sha256-9ad899ecf1a8b3db0bc1c7fd472d904bc48980e060598f71f5ba44649624c8da"
+mirror_sha256: "e8aeb5678f577de84c0fe8af07238e1e320d48ee6ff624db04cdcbe9f78f5916"
+etag: "sha256-c1cf5238c85fc1f346823b1b0b39321575ddb8f3c0cc0d7742ec519a167e5c78"
 ---
 > 원문 · 구현 상태: [문서 임베딩](CLE-KB-EMBED.md) 머리 줄과 같다 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -114,6 +114,8 @@ SELECT id FROM document
 
 BullMQ 의 멈춘 작업 판정 주기(`stalledInterval` 30초)의 두 배에 부팅 지연과 여유를 더한 값이다. 이보다 짧으면 정상적으로 도는 작업을 잘못 되돌릴 수 있다.
 
-### 전체 재임베딩 잠금의 판정 결함 (2026-08-14 수정)
+### 전체 재임베딩 잠금의 판정 결함
+
+결정일: 2026-08-14
 
 잠금은 처음부터 CAS 였지만 raw `UPDATE … RETURNING` 의 반환값이 행 배열이 아니라 `[rows, affectedCount]` 튜플이라 길이가 늘 2 였다. 그래서 "바뀐 행 0개" 판정이 성립하지 않아 동시 요청을 거절하지 못했고 409 도 나지 않았다. 그래프 재추출 잠금도 같은 결함이었다([Graph RAG](CLE-KB-GRAPH.md)). 결과를 읽는 규칙은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 에서 정한다.

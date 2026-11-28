@@ -3,6 +3,7 @@ import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
   Cafe24RateLimitedError,
+  Cafe24TokenRefreshFailedError,
   Cafe24TransportFailedError,
 } from './cafe24-api.client';
 import { IntegrationError } from '../_base/integration-handler-base';
@@ -451,10 +452,14 @@ describe('Cafe24Handler', () => {
 
     it('Cafe24 4xx (404) — routes to error port with CAFE24_404', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      // CLE-T-44T4FQ — 에러 응답에도 호출 제한 헤더가 오고 meta 에 실린다(REQ-CAFENODE-027).
       apiClient.call.mockResolvedValue({
         status: 404,
         body: { error: { code: '404', message: 'Not Found' } },
-        headers: {},
+        headers: { 'x-api-call-limit': '7/40' },
+        callUsage: 7,
+        callRemain: 33,
+        callLimit: '7/40',
         retries: 0,
       });
 
@@ -484,10 +489,89 @@ describe('Cafe24Handler', () => {
       expect(out.response).toEqual({
         error: { code: '404', message: 'Not Found' },
       });
+      expect(result.meta).toMatchObject({
+        statusCode: 404,
+        callUsage: 7,
+        callRemain: 33,
+        callLimit: '7/40',
+      });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({ status: 'failed' }),
       );
+    });
+
+    // CLE-T-8SCV17 — 자동 추종 뒤에도 남은 3xx 는 성공이 아니다. 판정은 `status < 200 || status >= 300` 이고
+    // 404 · 422 · 5xx 밖이라 CAFE24_4XX 로 나간다(CLE-NODE-CAFE24-CONFIG 에러 코드 표).
+    it.each([301, 302, 304])(
+      'Cafe24 %i — routes to error port with CAFE24_4XX',
+      async (status) => {
+        integrationsService.getForExecution.mockResolvedValue(
+          makeIntegration(),
+        );
+        apiClient.call.mockResolvedValue({
+          status,
+          body: null,
+          headers: {},
+          retries: 0,
+        });
+
+        const result = await handler.execute(
+          null,
+          {
+            integrationId: 'id',
+            resource: 'product',
+            operation: 'product_list',
+            fields: { shop_no: 1 },
+          },
+          makeContext(),
+        );
+
+        expect(result.port).toBe('error');
+        const out = result.output as { error: Record<string, unknown> };
+        expect(out.error.code).toBe('CAFE24_4XX');
+        expect(out.error.message).toBe(`Cafe24 API returned ${status}`);
+        expect((out.error.details as Record<string, unknown>).statusCode).toBe(
+          status,
+        );
+        expect((result.meta as Record<string, unknown>).statusCode).toBe(
+          status,
+        );
+        expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-cafe24-1' }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'CAFE24_4XX' }),
+          }),
+        );
+      },
+    );
+
+    // CLE-T-44T4FQ — 설정 에코의 자격 증명 모양 키는 핸들러 출력에서도 가린다(REQ-CAFENODE-030).
+    it('masks credential-like keys inside fields on the config echo', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        body: { products: [] },
+        headers: {},
+        retries: 0,
+      });
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1, apiKey: 'secret' },
+        },
+        makeContext(),
+      );
+
+      expect(result.port).toBe('success');
+      const fields = result.config.fields as Record<string, unknown>;
+      expect(fields.apiKey).toBe('***');
+      expect(fields.shop_no).toBe(1);
     });
 
     it('Cafe24AuthFailedError — error port + CAFE24_AUTH_FAILED', async () => {
@@ -567,6 +651,32 @@ describe('Cafe24Handler', () => {
       expect(result.port).toBe('error');
       const out = result.output as { error: Record<string, unknown> };
       expect(out.error.code).toBe('CAFE24_TRANSPORT_FAILED');
+      expect((result.meta as Record<string, unknown>).statusCode).toBe(0);
+    });
+
+    // CLE-T-DJGSBR — 갱신 실패 전용 타입은 연결 테스트에서만 CAFE24_API_ERROR 다.
+    // 노드 출력은 바꾸지 않아 분류되지 않은 예외와 같이 CAFE24_TRANSPORT_FAILED 로 나간다.
+    it('Cafe24TokenRefreshFailedError — node output stays CAFE24_TRANSPORT_FAILED', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockRejectedValue(
+        new Cafe24TokenRefreshFailedError(500, '{"error":"server_error"}'),
+      );
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeContext(),
+      );
+
+      expect(result.port).toBe('error');
+      const out = result.output as { error: Record<string, unknown> };
+      expect(out.error.code).toBe('CAFE24_TRANSPORT_FAILED');
+      expect(out.error.message).toContain('token refresh failed (500)');
       expect((result.meta as Record<string, unknown>).statusCode).toBe(0);
     });
 

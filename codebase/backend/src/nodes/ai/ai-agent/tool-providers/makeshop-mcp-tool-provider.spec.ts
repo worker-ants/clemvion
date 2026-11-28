@@ -662,6 +662,43 @@ describe('MakeshopMcpToolProvider', () => {
       });
     });
 
+    // CLE-T-8SCV17 — 자동 추종 뒤에도 남은 3xx 는 성공이 아니다(MAKESHOP_4XX).
+    it.each([301, 302, 304])(
+      'maps a %i API result to an error envelope and logs failed usage',
+      async (status) => {
+        await setup();
+        apiClient.call.mockResolvedValue({
+          status,
+          body: null,
+          headers: {},
+          retries: 0,
+        });
+        const res = await provider.execute(
+          makeCall(`mcp_${SID}__get_product`, {}),
+          {
+            config: {},
+            workspaceId: 'ws-1',
+            executionId: 'exec-1',
+            nodeExecutionId: 'ne-1',
+            workflowId: 'wf-1',
+          },
+        );
+        expect(res.status).toBe('error');
+        expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'abcdef1234567890' }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'MAKESHOP_4XX' }),
+          }),
+        );
+        expect(res.mcpErrorDelta).toMatchObject({
+          phase: 'tools/call',
+          code: 'MAKESHOP_4XX',
+          message: `MakeShop API returned ${status}`,
+        });
+      },
+    );
+
     it('client-side MAKESHOP_MISSING_FIELDS 는 mcpErrorDelta 를 보고하지 않는다', async () => {
       await setup();
       const res = await provider.execute(

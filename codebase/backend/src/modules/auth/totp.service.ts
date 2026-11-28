@@ -13,6 +13,7 @@ import * as QRCode from 'qrcode';
 import { createHash, randomBytes } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { AUTH_ERROR_BODIES } from './auth-error-bodies';
 
 const ISSUER = 'Clemvion';
 const RECOVERY_CODE_COUNT = 10;
@@ -62,10 +63,7 @@ function totpNotInitialized(message: string): BadRequestException {
 }
 
 function totpInvalid(): UnauthorizedException {
-  return new UnauthorizedException({
-    code: 'TOTP_INVALID',
-    message: 'The verification code is incorrect.',
-  });
+  return new UnauthorizedException({ ...AUTH_ERROR_BODIES.totpInvalid });
 }
 
 /**
