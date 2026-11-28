@@ -246,6 +246,14 @@ export const integrations: Dict["integrations"] = {
   oauthTimedOutShort: "Authorization timed out. Please try again.",
   oauthFailedShort: "OAuth failed",
   oauthCompletedToast: "OAuth completed. Continue to save.",
+  // OAuth callback popup failure messages by code (CLE-INT-OAUTH-CALLBACK "Error mapping", Task CLE-T-3WGPC0)
+  oauthCallbackDenied: "Authorization was cancelled. Try again to connect.",
+  oauthCallbackStateInvalid: "We could not verify the authorization request. Start the connection again.",
+  oauthCallbackStateExpired: "The authorization request expired. Please try again.",
+  oauthCallbackCodeMissing: "No authorization code was received. Please try again.",
+  oauthCallbackTokenExchangeFailed: "Could not get a token from the service. Please try again later.",
+  oauthCallbackInvalidScope: "Cafe24 rejected the requested scopes. Check the app's scope settings.",
+  oauthCallbackInstallExpired: "This integration expired because its install window passed. Connect it again.",
   reauthorizeBtn2: "Reauthorize",
   // ----- Cafe24 mall_id duplicate pre-detection (2026-05-16) -----
   cafe24DuplicateMallTitle: "This mall ID is already connected",

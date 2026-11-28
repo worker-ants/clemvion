@@ -27,6 +27,12 @@ export interface OAuthCallbackSuccess {
 export interface OAuthCallbackFailure {
   status: 'error';
   provider: string;
+  /**
+   * 실패 코드. 대상 통합이 있으면 그 행의 `last_error.code` 와 같은 값이다. 지원하지 않는 provider 는 `null`.
+   * 화면 문구는 프런트엔드가 이 코드로 고른다(CLE-INT-OAUTH-CALLBACK 「에러 매핑」).
+   */
+  code: string | null;
+  /** 서버 메시지 문자열. 코드를 모르는 옛 프런트엔드도 읽도록 그대로 둔다. */
   error: string;
 }
 
@@ -66,12 +72,14 @@ export function renderCallbackHtml(
           provider: input.result.provider,
           integrationId: input.result.integrationId ?? null,
           previewToken: input.result.previewToken ?? null,
+          code: null,
           error: null,
         }
       : {
           type: 'oauth_callback',
           status: 'error',
           provider: input.provider,
+          code: input.code,
           error: input.error,
         };
 

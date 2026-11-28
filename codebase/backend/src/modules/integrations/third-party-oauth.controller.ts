@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  HttpException,
   Logger,
   Param,
   Query,
@@ -28,6 +29,7 @@ import {
   Cafe24InstallQuery,
   IntegrationOAuthService,
   MakeshopInstallQuery,
+  readErrorCode,
 } from './integration-oauth.service';
 import { renderCallbackHtml } from './services/oauth-callback.template';
 import {
@@ -406,12 +408,12 @@ export class ThirdPartyOAuthController {
     summary: 'OAuth 콜백 처리 (통합 연동)',
     description:
       'OAuth provider 가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다. 사용자 소셜 로그인 콜백(/api/auth/oauth/:provider/callback) 과 별개입니다.\n\n' +
-      '**postMessage payload:** 평면 객체 하나이고 `type: "oauth_callback"` 이 붙습니다. 성공은 `{ type, status: "success", mode, provider, integrationId, previewToken, error: null }` 이고 `previewToken` 은 `mode=new` 일 때만, `integrationId` 는 그 밖의 모드일 때만 값이 있고 나머지는 `null` 입니다. 실패는 `{ type, status: "error", provider, error }` 입니다. 실패의 `error` 는 서버 오류 **메시지 문자열**이고 에러 코드는 payload 에 싣지 않습니다. 코드는 대상 통합을 알 수 있을 때 그 행의 `last_error.code` 에 남습니다(`mode=new` 는 대상 통합이 없어 남기지 않습니다).\n\n' +
+      '**postMessage payload:** 평면 객체 하나이고 `type: "oauth_callback"` 이 붙습니다. 성공은 `{ type, status: "success", mode, provider, integrationId, previewToken, code: null, error: null }` 이고 `previewToken` 은 `mode=new` 일 때만, `integrationId` 는 그 밖의 모드일 때만 값이 있고 나머지는 `null` 입니다. 실패는 `{ type, status: "error", provider, code, error }` 입니다. `code` 는 아래 에러 코드이고 대상 통합을 알 수 있으면 그 행의 `last_error.code` 와 같은 값입니다(`mode=new` 는 대상 통합이 없어 행에 남기지 않지만 payload 에는 싣습니다). 지원하지 않는 provider 는 `code: null` 입니다. `error` 는 서버 오류 **메시지 문자열**입니다. 5xx 예외와 `HttpException` 이 아닌 예외는 원문 대신 고정 문구를 싣고 원문은 서버 로그에만 남깁니다.\n\n' +
       '**응답 HTTP status:**\n' +
       '- 200 — 처리 결과 HTML. 아래 실패도 모두 200 으로 돌려줍니다\n' +
       '- 400 — 지원하지 않는 provider. 같은 콜백 HTML 에 `error: "Unsupported OAuth provider"` 를 싣습니다\n' +
       '- 500 — 서버의 `FRONTEND_URL` / `APP_URL` 이 없거나 구체적인 origin 이 아님. postMessage 없이 안내 문단만 돌려줍니다\n\n' +
-      '**실패 메시지 뒤의 에러 코드:** 대상 통합을 알 수 있는 실패만 그 행의 `last_error.code` 로 남습니다.\n' +
+      '**실패 `code`:** 대상 통합을 알 수 있는 실패만 그 행의 `last_error.code` 로도 남습니다.\n' +
       '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`). state 소비 전이라 기록하지 않음\n' +
       '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` — CSRF state 토큰 누락 · 불일치 (state 소비 전이면 행을 알 수 없어 기록하지 않음)\n' +
       '- `OAUTH_STATE_EXPIRED` — state TTL 이 지남(`OAuth state has expired`)\n' +
@@ -422,8 +424,8 @@ export class ThirdPartyOAuthController {
       '- `ADMIN_REQUIRED` / `EDITOR_REQUIRED` — 커밋 직전 인가 재판정 실패(시작 뒤 요청자가 강등됨)\n' +
       '- `RESOURCE_NOT_FOUND` — 대상 행이 없거나 요청자에게 보이지 않음. 행에 기록하지 않음\n' +
       '- `INTEGRATION_INSTALL_EXPIRED` — state 는 유효하지만 대상 통합이 설치 기한을 넘겨 만료됨(`The install window for this integration has expired`). 행을 되살리지 않고 `last_error` 도 기록하지 않음\n' +
-      '- `OAUTH_CALLBACK_FAILED` — 코드가 없는 예외를 `last_error` 에 기록할 때의 대체 코드(팝업에는 그 예외의 메시지)\n\n' +
-      'frontend 는 `event.data.status` 로 성공 · 실패를 나누고 실패면 `event.data.error` 메시지를 보여 줍니다.',
+      '- `OAUTH_CALLBACK_FAILED` — 코드가 없는 예외의 대체 코드(팝업 `error` 는 고정 문구)\n\n' +
+      'frontend 는 `event.data.status` 로 성공 · 실패를 나누고 실패면 `event.data.code` 로 화면 문구를 고릅니다. 모르는 코드거나 `code` 가 없으면 `event.data.error` 메시지를 보여 줍니다.',
   })
   @ApiParam({
     name: 'provider',
@@ -433,7 +435,7 @@ export class ThirdPartyOAuthController {
   @ApiProduces('text/html')
   @ApiOkResponse({
     description:
-      'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 성공 결과나 실패 메시지 포함)',
+      'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 성공 결과나 실패 코드 · 메시지 포함)',
   })
   @ApiBadRequestResponse({
     description:
@@ -478,6 +480,7 @@ export class ThirdPartyOAuthController {
           {
             status: 'error',
             provider,
+            code: null,
             error: 'Unsupported OAuth provider',
           },
           targetOrigin,
@@ -494,20 +497,67 @@ export class ThirdPartyOAuthController {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(renderCallbackHtml({ status: 'success', result }, targetOrigin));
     } catch (err) {
-      const e = err as {
-        message?: string;
-        response?: { message?: string };
-      };
-      const message = e.response?.message ?? e.message ?? 'OAuth failed';
+      const failure = resolveCallbackFailure(err);
+      if (failure.unexpected) {
+        // 팝업에는 고정 문구만 싣는다. 원문은 서버 로그에만 남긴다(CWE-209).
+        const raw = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `OAuth callback failed (provider=${provider}, code=${failure.code}): ${redactSecrets(raw)}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+      }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(
         renderCallbackHtml(
-          { status: 'error', provider, error: message },
+          {
+            status: 'error',
+            provider,
+            code: failure.code,
+            error: failure.message,
+          },
           targetOrigin,
         ),
       );
     }
   }
+}
+
+/**
+ * 원문을 가린 콜백 실패의 고정 문구. `HttpException` 이 아닌 예외와 5xx `HttpException` 이 쓴다.
+ * 예외 원문은 팝업에 싣지 않는다(CWE-209). 설치 엔드포인트의 `resolveInstallFailure` 와 판정이 같다.
+ */
+export const OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE =
+  'OAuth failed due to an unexpected server error. Please try again later.';
+
+/**
+ * 콜백 예외를 팝업 실패 값으로 바꾼다. `code` 는 `last_error.code` 와 같은 값이다(`readErrorCode`).
+ *
+ * - 4xx `HttpException`: 응답 객체의 `message`(없으면 예외 메시지)를 싣는다. 작성자가 정한 문구다.
+ * - 5xx `HttpException` 과 그 밖의 예외: 고정 문구로 가리고 `unexpected` 를 켠다. 호출부가 원문을 로그에 남긴다.
+ */
+export function resolveCallbackFailure(err: unknown): {
+  code: string;
+  message: string;
+  unexpected: boolean;
+} {
+  const code = readErrorCode(err);
+  if (!(err instanceof HttpException) || err.getStatus() >= 500) {
+    return {
+      code,
+      message: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
+      unexpected: true,
+    };
+  }
+  const body = err.getResponse();
+  const bodyMessage =
+    typeof body === 'object' && body !== null
+      ? (body as { message?: unknown }).message
+      : undefined;
+  const message =
+    typeof bodyMessage === 'string' && bodyMessage.length > 0
+      ? bodyMessage
+      : err.message;
+  return { code, message, unexpected: false };
 }
 
 /**

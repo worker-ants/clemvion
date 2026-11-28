@@ -12,6 +12,8 @@ import {
 } from './third-party-oauth.controller';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { INSTALL_UNEXPECTED_ERROR_MESSAGE } from './install-failure-response';
+import { OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE } from './third-party-oauth.controller';
+import { readCallbackPayload } from './__test-utils__/oauth-callback-payload';
 
 function makeRes() {
   const res = {
@@ -120,6 +122,14 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
     const res = makeRes();
     await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
     expect(res.body as string).toContain('OAuth failed');
+    // 4xx 는 작성자가 정한 문구를 그대로 싣고 코드를 옆에 둔다(last_error.code 와 같은 값).
+    expect(readCallbackPayload(res.body as string)).toEqual({
+      type: 'oauth_callback',
+      status: 'error',
+      provider: 'cafe24',
+      code: 'OAUTH_STATE_MISMATCH',
+      error: 'Invalid or already consumed OAuth state',
+    });
     // The controller no longer reaches into the error for context — recording
     // is the service's responsibility (handleCallbackWithErrorCapture).
     expect(oauthService.markIntegrationCallbackError).not.toHaveBeenCalled();
@@ -130,6 +140,75 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
     const res = makeRes();
     await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
     expect(res.body as string).toContain('OAuth failed');
+    expect(readCallbackPayload(res.body as string)).toMatchObject({
+      code: 'OAUTH_CALLBACK_FAILED',
+      error: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
+    });
+  });
+
+  it('masks the message of a 5xx HttpException and keeps its code', async () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
+      new InternalServerErrorException({
+        code: 'OAUTH_CONFIG_MISSING',
+        message: 'CAFE24_CLIENT_SECRET is not configured',
+      }),
+    );
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    const body = res.body as string;
+    expect(res.statusCode).toBe(200);
+    expect(body).not.toContain('CAFE24_CLIENT_SECRET');
+    expect(readCallbackPayload(body)).toMatchObject({
+      code: 'OAUTH_CONFIG_MISSING',
+      error: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
+    });
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toContain(
+      'CAFE24_CLIENT_SECRET is not configured',
+    );
+    logSpy.mockRestore();
+  });
+
+  it('masks a non-HttpException error and uses the fallback code', async () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
+      new Error('connect ECONNREFUSED 10.0.0.5:5432'),
+    );
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    const body = res.body as string;
+    expect(body).not.toContain('ECONNREFUSED');
+    expect(readCallbackPayload(body)).toMatchObject({
+      code: 'OAUTH_CALLBACK_FAILED',
+      error: OAUTH_CALLBACK_UNEXPECTED_ERROR_MESSAGE,
+    });
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    logSpy.mockRestore();
+  });
+
+  it('does not log a 4xx failure (its message is author-defined)', async () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
+      new BadRequestException({
+        code: 'OAUTH_STATE_EXPIRED',
+        message: 'OAuth state has expired',
+      }),
+    );
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(readCallbackPayload(res.body as string)).toMatchObject({
+      code: 'OAUTH_STATE_EXPIRED',
+      error: 'OAuth state has expired',
+    });
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
   });
 
   it('fails closed when FRONTEND_URL and APP_URL are both missing', async () => {
@@ -167,6 +246,11 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
     );
     expect(res.statusCode).toBe(400);
     expect(res.body as string).toContain('Unsupported OAuth provider');
+    expect(readCallbackPayload(res.body as string)).toMatchObject({
+      status: 'error',
+      code: null,
+      error: 'Unsupported OAuth provider',
+    });
     expect(oauthService.handleCallbackWithErrorCapture).not.toHaveBeenCalled();
   });
 });
