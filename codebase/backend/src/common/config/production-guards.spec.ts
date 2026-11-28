@@ -97,6 +97,32 @@ describe('assertProductionConfig', () => {
     });
   });
 
+  // 거부 문구는 켠 값을 적지 않는다. `1` 로 켠 운영자가 «=true» 문구를 보고 원인을 잘못 읽지 않게 한다.
+  describe.each([
+    [
+      'OAUTH_STUB_MODE',
+      'OAUTH_STUB_MODE 는 NODE_ENV=production 에서 켤 수 없습니다.',
+    ],
+    [
+      'LLM_STUB_MODE',
+      'LLM_STUB_MODE 는 NODE_ENV=production 에서 켤 수 없습니다.',
+    ],
+    [
+      'MCP_ALLOW_INSECURE_URL',
+      'MCP_ALLOW_INSECURE_URL 은 NODE_ENV=production 에서 켤 수 없습니다 (SSRF 방어 우회).',
+    ],
+    [
+      'ALLOW_HTTP_HOOKS',
+      'ALLOW_HTTP_HOOKS 는 NODE_ENV=production 에서 켤 수 없습니다 (알림 웹훅이 평문 http 로 나감).',
+    ],
+  ])('flag %s 의 거부 문구', (flag, expected) => {
+    it.each(['true', '1'])('%p 로 켜도 켠 값을 적지 않은 같은 문구다', (v) => {
+      const message = thrownMessage(prodEnv({ [flag]: v }));
+      expect(message).toBe(`production fail-closed 가드: ${expected}`);
+      expect(message).not.toContain('=true');
+    });
+  });
+
   describe('JWT_SECRET', () => {
     it('throws when unset', () => {
       expect(() =>
