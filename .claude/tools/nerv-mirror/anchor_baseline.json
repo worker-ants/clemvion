@@ -1,69 +1,11 @@
 {
  "links": {
-  "CLE-ACCT-DATA-WS": {
-   "CLE-INT-MANAGE#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29": 3
-  },
   "CLE-ACCT-WS-AUTHZ": {
    "CLE-INT-MANAGE#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29": 1
-  },
-  "CLE-ACCT-WS-MEMBER": {
-   "CLE-INT-MANAGE#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24": 1,
-   "CLE-INT-MANAGE#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29": 4
-  },
-  "CLE-AI-LLM": {
-   "CLE-NODE-INT-COMMON-ERROR#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20": 1
-  },
-  "CLE-API-ERRCODES": {
-   "CLE-INT-OAUTH-REAUTH#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13": 1
-  },
-  "CLE-API-ERRCODES-EXCEPT": {
-   "CLE-INT-OAUTH#남의-개인-설치-대기-행은-409-로-거절한다-2026-10-24": 1
-  },
-  "CLE-API-ERRCODES-INTMGMT": {
-   "CLE-INT-MANAGE#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12": 1,
-   "CLE-INT-OAUTH#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06": 1,
-   "CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29": 1,
-   "CLE-INT-OAUTH-REAUTH#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13": 1
-  },
-  "CLE-API-ERROR": {
-   "CLE-INT-MANAGE#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12": 1
   },
   "CLE-CHAT-CORE-PATCH": {
    "CLE-API-ERROR#25-field-를-실으면-code-도-싣는다-2026-09-11": 1,
    "CLE-API-ERROR#26-top-level-이-이미-특화-코드일-때-2026-09-11": 1
-  },
-  "CLE-CHAT-DATA-FLOW": {
-   "CLE-INT-SECRET-REFS#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04": 2
-  },
-  "CLE-EXEC-STATE-MCPEXPR": {
-   "CLE-INT-MANAGE#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24": 2
-  },
-  "CLE-INT-AUTH": {
-   "CLE-INT-AUTH-COMMERCE#연결-테스트는-401-만-토큰-문제로-본다-2026-11-06": 1
-  },
-  "CLE-INT-SECRET": {
-   "CLE-INT-SECRET-REFS#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04": 2,
-   "CLE-INT-SECRET-REFS#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31": 1,
-   "CLE-INT-SECRET-REFS#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04": 2
-  },
-  "CLE-INT-SECRET-BACKEND": {
-   "CLE-INT-SECRET-REFS#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04": 2,
-   "CLE-INT-SECRET-REFS#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31": 1
-  },
-  "CLE-NODE-HTTP-EXEC": {
-   "CLE-NODE-INT-COMMON-ERROR#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20": 1
-  },
-  "CLE-NODE-INT-COMMON": {
-   "CLE-INT-MANAGE#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29": 2,
-   "CLE-NODE-INT-COMMON-ERROR#거절된-조회는-임시-장치로-건너뛴다-2026-10-25": 1,
-   "CLE-NODE-INT-COMMON-ERROR#연결-시점-판정은-대역표와-우회-플래그를-호출자가-정한다-2026-11-14": 1,
-   "CLE-NODE-INT-COMMON-ERROR#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05": 1
-  },
-  "CLE-NODE-INT-COMMON-ERROR": {
-   "CLE-INT-MCP-CONN#대역표를-ssrf-가드-넷이-함께-쓴다-2026-11-20": 1
-  },
-  "CLE-OBS-AUDIT-CATALOG": {
-   "CLE-INT-MANAGE#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29": 1
   }
  }
 }

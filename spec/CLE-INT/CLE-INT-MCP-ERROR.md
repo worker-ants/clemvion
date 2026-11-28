@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-ERROR"
 title: "MCP 클라이언트 — 에러 처리"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "ccd222135b5f1f6d2fd6adbf1a6931b3cf5ae3c9068b95938fde5b7664ad84f4"
+content_hash: "079af7230e0353a8855fe899f0085f043ddda11a2e05afa5cd057df3d6971ecf"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-22PSME"
 source_paths: []
-mirror_sha256: "2fcbe2d0ae3e53ee8c956a911be6d9dc2f8bd53099c5b83d42c503394f83625a"
-etag: "sha256-db2950619197a53e5ee009769e74d27fae2bfaddd6df2bf52c58791904b7e76f"
+mirror_sha256: "9c6140f71857a6d47e30f6b3564627f10137a5e940c4ddc88db167dcd89e2b6b"
+etag: "sha256-c1ff9ebceb3ae9da13d13ee539529db48ed88e89b0c9ab887735841502212764"
 ---
 ## 개요
 
@@ -70,13 +70,13 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 | `status` | enum | `success` / `failed` |
 | `error` | jsonb? | 실패 때 `{ code, message }`([에러 코드](#에러-코드) 어휘). `message` 는 자격 증명 모양의 문자열을 가린 뒤 2KB 로 자른다. 가리는 대상은 Bearer 토큰, `Authorization` 헤더, URL userinfo(scheme 을 남겨 `scheme://***@host`), bare JWT, 이름이 붙은 `api_key`·`secret`·`token` 계열(`token`·`access_token`·`csrf_token`·`csrfToken`) key-value 등이다. 모두 공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`)로 처리한다. MCP 전용 추가 패턴은 2026-08-17 기준 없다. `mcpDiagnostics.errors[].message` 와 `Integration.last_error` 의 `message` 도 같은 방식(`sanitizeMcpErrorMessage`)이다 |
 | `duration_ms` | int | RPC 호출 단위 소요 시간 |
-| `api_label` | `varchar(128)?` | 내부 MCP 브리지 경로는 카탈로그 키를 채운다(Cafe24 `cafe24.<resource>.<operation>`, MakeShop `makeshop.<resource>.<operation>`). 외부 MCP 서버 경로는 NULL |
+| `api_label` | `varchar(128)?` | 내부 MCP 브리지 경로는 카탈로그 키를 채운다(Cafe24 `cafe24.<resource>.<operation>`, MakeShop `makeshop.<resource>.<operation>`). 외부 MCP 서버 경로는 서버가 알린 원래 도구 이름 |
 | `api_method` | `varchar(8)?` | 내부 MCP 브리지는 operation 의 HTTP 메서드, 외부 MCP 경로는 NULL |
 | `api_path` | `varchar(256)?` | 내부 MCP 브리지는 operation 경로 템플릿, 외부 MCP 경로는 NULL |
 
 `api_*` 세 컬럼의 채우기 규칙과 길이 한도는 [통합 데이터와 흐름](CLE-INT-DATA.md#호출-api-식별-채우기-규칙)이 단일 기준이다.
 
-**API 식별 채우기는 호출하는 쪽의 명시 의무다**: 내부 MCP 브리지 경로는 노드 핸들러의 `IntegrationHandlerBase.logUsage`(api 인자를 자동으로 넘김)를 거치지 않는다. 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)가 `IntegrationsService.logUsage` 를 직접 부르므로 `api` 식별 정보를 직접 채워야 한다. 빠뜨려도 노드 핸들러 테스트는 통과하므로 사각지대가 된다. 채우는 값은 노드 핸들러와 같은 형식(카탈로그 키 + operation 메서드 + operation 경로)이다.
+**API 식별 채우기는 호출하는 쪽의 명시 의무다**: 내부 MCP 브리지 경로는 노드 핸들러의 `IntegrationHandlerBase.logUsage`(api 인자를 자동으로 넘김)를 거치지 않는다. 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)가 `IntegrationsService.logUsage` 를 직접 부르므로 `api` 식별 정보를 직접 채워야 한다. 빠뜨려도 노드 핸들러 테스트는 통과하므로 사각지대가 된다. 채우는 값은 노드 핸들러와 같은 형식(카탈로그 키 + operation 메서드 + operation 경로)이다. 외부 MCP 서버 경로(`McpToolProvider`)도 같은 이유로 도구 이름을 직접 넘긴다.
 
 메타 도구(`list_resources`·`read_resource`·`list_prompts`·`get_prompt`)는 활동 로그에 남기지 않는다. 외부 API 호출이라기보다 MCP 세션 안의 탐색 흐름이고, 매번 남기면 활동 탭의 신호보다 잡음이 커진다. 따로 대시보드가 필요해지면 별도 trace 로 들인다. `tools/list`·`resources/list`·`prompts/list` 같은 `buildTools` 단계의 준비 RPC 도 남기지 않는다.
 
@@ -141,3 +141,11 @@ URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 �
 내부 MCP 브리지 도구는 Cafe24 · MakeShop API 클라이언트를 거쳐 부른다. 클라이언트가 401 갱신 재시도와 403 격하를 노드 실행과 같은 경로로 처리하므로 상태 전환과 알림도 클라이언트의 `markAuthFailed` 한 곳에서 한다. 그래서 노드로 부른 실패와 도구로 부른 실패가 같은 상태 · 같은 `last_error` 코드 · 같은 알림 문구로 남는다. 이 문서의 1~4단계(`logUsage` 의 `MCP_AUTH_FAILED` 전환과 계기 `mcp_call`)는 외부 MCP 서버에만 해당한다([만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required)).
 
 - **기각한 안**: 브리지 도구에도 1~4단계를 적용해 `MCP_AUTH_FAILED` 로 전환하는 안. 같은 통합의 실패가 노드로 부르면 `CAFE24_AUTH_FAILED`, 도구로 부르면 `MCP_AUTH_FAILED` 로 갈리고 알림이 두 번 나갈 수 있다. 구현도 그렇게 되어 있지 않다.
+
+### 외부 MCP 도구 호출의 `api_label` 은 도구 이름이다
+
+결정일: 2026-11-28
+
+전에는 외부 MCP 도구 호출이 `api` 를 넘기지 않아 `api_label` 이 NULL 이었다. NERV Task `CLE-T-22PSME` 에서 사람이 서버가 알린 원래 도구 이름을 남기는 안을 골랐다. 채우기 규칙과 근거는 [통합 데이터 엔티티 「외부 MCP 도구 호출은 `api_label` 에 도구 이름을 남긴다」](CLE-INT-DATA-ENTITY.md#외부-mcp-도구-호출은-api_label-에-도구-이름을-남긴다) 에 있다.
+
+- **기각한 안**: NULL 로 두는 이전 동작. 활동 탭에서 어떤 도구를 불렀는지 알 수 없다.

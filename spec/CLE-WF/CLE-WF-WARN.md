@@ -2,19 +2,19 @@
 id: "CLE-WF-WARN"
 title: "그래프 경고 규칙"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "e40639dc5b8fdeff8f04eec018b5a3c633297425a6331745bbae8d81e6407d36"
+content_hash: "6bfbbea16abe64a67b4b73085eac17c183bcbfd21f5e98a8664770e8f5ca1319"
 read_as: "approved_fallback"
-task: "CLE-T-B7A8B2"
+task: "CLE-T-3WDHJT"
 source_paths: ["spec/conventions/cross-node-warning-rules.md"]
-mirror_sha256: "cf4dc51f376a457d2b3193f83cccfc0288f962d7f56250d967edcd98adb7ea92"
-etag: "sha256-d99ffa8fc8f994e596f0636fc62cd11053b2555f21e8bab8d949f6897134a8a1"
+mirror_sha256: "258f5e3cf7ee3fb546efd4bea56d9a6446d9b85ae03a58f5d1bc6564b222cbf2"
+etag: "sha256-b0b4dc41bfb429bcff66bf5c20cfef9621f3d80e46044089fd8f50dd4398e4db"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/cross-node-warning-rules.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -223,6 +223,8 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 
 노드 하나를 평가하는 mini-DSL 은 쓰임이 압도적으로 많고 표현이 간결하므로 그대로 둔다. 그래프 경고 규칙은 노드 사이 평가가 필요한 경우에만 쓴다.
 
-### 평가 결과에 `params` 를 더한 이유 (2026-06-02)
+### 평가 결과에 `params` 를 더한 이유
+
+결정일: 2026-06-02
 
 규칙 메시지가 `Parallel "${node.label}" ... > cap=${product}` 처럼 노드 레이블과 수치를 실행 시 끼워 넣는 **동적 문자열**이었다. 영문 문자열 전체를 키로 쓰는 기존 `WARNING_KO` 정적 매핑으로는 ko 번역을 할 수 없었다. 끼워 넣은 결과가 매번 달라 키가 성립하지 않는다. 영문 기준 원칙([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md))을 지키면서 번역하려면 **표시 문자열과 보간 값을 나누는 것**이 맞는 유일한 방법이다. 그래서 `message` 는 영문 기준·대체 문구로 두고 보간 값을 `params` 로 내보내 프론트엔드가 `ruleId` 별 로케일 템플릿에 끼워 넣게 했다. 백엔드가 `Accept-Language` 로 서버에서 번역하는 안은 응답에 한국어를 박아 영문 기준 원칙을 깨고 사전을 두 벌 만들므로 기각했다. `params` 는 선택 항목이라 기존 정적 메시지 규칙과 호환된다. 정책·매핑 의무·자동 가드의 기준은 다국어 규약에 맡긴다.

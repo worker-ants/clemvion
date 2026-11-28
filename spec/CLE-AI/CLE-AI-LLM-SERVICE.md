@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM-SERVICE"
 title: "LLM 클라이언트 — 서비스 계층과 모델 목록"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "9312ce894e81979fa8adc725dc65a9c3167456ddf93a2759560ad25a126be811"
+content_hash: "27b26a3add309525f279f04c5ef68ee90900cce2f6621313ca5d3ba56baf1981"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "903206655a4e9e4795f78a5afecd609c2b7c545b02642beed8e96d5bed031099"
-etag: "sha256-e42c83497c5265b5d4168d882cf73c3e22238a0e8e7909524b69a8f887cf0aba"
+mirror_sha256: "6b68703e227db819ddf8f50a6ae2d199114f0a17153a8e40bc2f9a47c6a2d20c"
+etag: "sha256-7e83a41f142e3deb441b29ab4ae361a74b93162a99d231f77a6baa1f94d63353"
 ---
 ## 개요
 
@@ -58,13 +58,13 @@ class LlmService {
 
 `chat` 호출은 `LlmCallOptions` 로 다음을 제어한다.
 
-- `timeoutMs`: 주지 않으면 공통 기본값 10분(`LLM_CHAT_DEFAULT_TIMEOUT_MS = 600_000`)을 건다. `0` 이나 음수를 주면 타임아웃을 걸지 않는다. 0 보다 크면 `withTimeout` race 로 건다. 타임아웃은 `withRetry` 의 시도마다 따로 걸린다. 타임아웃이 난 시도는 다시 하지 않는다. `embed` 는 `timeoutMs` 를 받았을 때만 건다. 근거는 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14) 에 있다.
+- `timeoutMs`: 주지 않으면 공통 기본값 10분(`LLM_CHAT_DEFAULT_TIMEOUT_MS = 600_000`)을 건다. `0` 이나 음수를 주면 타임아웃을 걸지 않는다. 0 보다 크면 `withTimeout` race 로 건다. 타임아웃은 `withRetry` 의 시도마다 따로 걸린다. 타임아웃이 난 시도는 다시 하지 않는다. `embed` 는 `timeoutMs` 를 받았을 때만 건다. 근거는 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다) 에 있다.
 - 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey, apiVersion })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈춘다. OpenAI·Anthropic SDK 는 429 · 5xx · 연결 실패 · 요청 타임아웃을 두 번 더 보낸다. 이 횟수는 네 클라이언트(OpenAI · Azure OpenAI · Local · Anthropic)의 SDK 생성자에 `maxRetries: 2`(`LLM_SDK_MAX_RETRIES`, `clients/sdk-options.ts`)로 고정한다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 재전송을 포함해 최대 약 6분 걸린다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 - `withTimeout` 은 콜백에 넘기는 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 프로바이더 HTTP 요청도 취소되므로 소켓이 남지 않는다(`listModels` 와 같은 방식). 타임아웃을 끄면(`0`) 호출자 `opts.signal` 만 넘긴다. Google 클라이언트는 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 `client.embed` 가 signal 을 받지 않아 이 배선 밖이다.
 - `signal`: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다. 취소되면 SDK 가 바로 throw 하고 재시도 대상이 아니다.
 - `disableInnerRetry`: 호출하는 쪽에 자체 재시도 층(예: 지식 저장소의 `retryWithBackoff`)이 있으면 내부 재시도를 꺼서 호출이 불어나지 않게 한다.
 - 내부 `withRetry` 는 rate limit(HTTP 429 또는 "rate limit") 에만 최대 3회 재시도한다. RFC 7231 `Retry-After` 헤더(delta-seconds 또는 HTTP-date)가 있으면 그 값을 따르되 상한은 60초다. 없으면 지수 백오프를 쓴다. `withRetry` 의 시도마다 SDK 재전송이 따로 일어나므로 두 재시도는 곱해진다. 429 가 이어지면 한 `chat` 호출이 프로바이더에 최대 12번 요청을 보낸다(앱 시도 4번 × SDK 3번).
-- `chatStream` 에는 앱 재시도(`withRetry`)도 앱 타임아웃도 없다. 스트림을 열 때도 도중에도 앱이 다시 시도하지 않는다. OpenAI 계열과 Anthropic 은 스트림을 열 때 위 SDK 재전송만 있다. 열 때의 실패와 도중의 실패는 클라이언트가 스트림 `error` 이벤트로 넘긴다. 스트림을 여는 중에 취소되면 `done`(finishReason=`aborted`)으로 끝난다. 매핑은 [스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 에 있다. 근거는 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14) 에 있다.
+- `chatStream` 에는 앱 재시도(`withRetry`)도 앱 타임아웃도 없다. 스트림을 열 때도 도중에도 앱이 다시 시도하지 않는다. OpenAI 계열과 Anthropic 은 스트림을 열 때 위 SDK 재전송만 있다. 열 때의 실패와 도중의 실패는 클라이언트가 스트림 `error` 이벤트로 넘긴다. 스트림을 여는 중에 취소되면 `done`(finishReason=`aborted`)으로 끝난다. 매핑은 [스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 에 있다. 근거는 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다) 에 있다.
 - 호출하는 쪽이 메시지에 붙인 `source` 마커(WebSocket emit 메타)는 프로바이더로 보내기 전에 떼어 낸다.
 - chat 계열 호출은 끝난 뒤 사용량을 fire-and-forget 으로 기록한다. `chatStream` 은 `done` 이벤트에서만 기록한다. 적재 규칙은 [LLM 사용량 기록](CLE-AI-USAGE.md) 에서 정한다.
 
@@ -88,7 +88,7 @@ class LlmService {
 - Chat 종류 설정만 읽는다.
 - 프로바이더 매핑은 그대로다. Anthropic 클라이언트는 채운 temperature 도 보내지 않는다([인터페이스와 프로바이더 매핑 「Anthropic」](CLE-AI-LLM-IFACE.md#anthropic)).
 
-옵션은 사용자가 모델 설정을 골라 쓰는 호출에서 켠다. 내부 호출은 필요한 값을 직접 정하므로 켜지 않는다([Rationale](#모델-설정-기본-파라미터는-호출-옵션을-켠-곳에만-채운다-2026-11-14)).
+옵션은 사용자가 모델 설정을 골라 쓰는 호출에서 켠다. 내부 호출은 필요한 값을 직접 정하므로 켜지 않는다([Rationale](#모델-설정-기본-파라미터는-호출-옵션을-켠-곳에만-채운다)).
 
 | 호출 | `applyModelDefaults` |
 |------|----------------------|
@@ -116,7 +116,7 @@ class LlmService {
 - 클라이언트 생성이나 probe 가 실패해도 예외를 던지지 않는다. HTTP 200 과 성공 봉투 `{ data: { success: false, message } }` 로 돌려준다. 원본 에러는 서버 로그(warn)에만 남긴다.
 - `message` 는 `sanitizeLlmErrorMessage`(`utils/sanitize-error.util.ts`)가 원본 에러 문구를 보고 고른 고정 문구 여덟 개 가운데 하나다. 갈래는 인증 실패(401), 접근 거부(403), 모델이나 엔드포인트 없음(404), 속도 제한(429), 시간 초과, 연결 거부, 호스트 이름 해석 실패, 그 밖의 실패다. 프로바이더 원문 · 키 · 엔드포인트는 싣지 않는다.
 - 결과 객체에 `code` 는 없다. 통합 연결 테스트의 `IntegrationTestResult` 와 다르다([통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트)). 클라이언트 계층이 실패를 `LLM_RATE_LIMIT` 와 `LLM_CONNECTION_ERROR` 두 갈래로만 나누고 세분화 코드는 미구현이라([에러 처리](CLE-AI-LLM-STREAM.md#에러-처리)), 코드를 실어도 거의 늘 `LLM_CONNECTION_ERROR` 다. 원인 갈래는 `message` 의 고정 문구가 이미 나눠 보여 준다.
-- 설정이 없거나 다른 워크스페이스의 설정이면 404 `MODEL_CONFIG_NOT_FOUND` 에러 봉투로 거절한다. 설정 조회가 `try` 밖에 있어서 같은 컨트롤러의 `:id/models` 와 같은 응답이 나온다([Rationale](#없는-설정의-연결-테스트는-404-로-거절한다-2026-11-14)).
+- 설정이 없거나 다른 워크스페이스의 설정이면 404 `MODEL_CONFIG_NOT_FOUND` 에러 봉투로 거절한다. 설정 조회가 `try` 밖에 있어서 같은 컨트롤러의 `:id/models` 와 같은 응답이 나온다([Rationale](#없는-설정의-연결-테스트는-404-로-거절한다)).
 - rerank 설정을 API 로 직접 부르면 설정 조회는 성공하고 클라이언트 생성이 `try` 안에서 실패한다. 그래서 200 실패 모양이다.
 - 역할 거부(403)와 요청 빈도 초과(429)는 핸들러 앞의 가드가 내므로 에러 봉투다.
 
@@ -157,11 +157,13 @@ class LlmService {
 
 `EmbedResponse`(usage·`dimensions` 메타데이터 반환)는 아직 미구현이다. 그러나 Embedding 연결 테스트의 `dimension` 은 서비스 계층(`LlmService.testConnection`)이 평범한 `embed()` 반환 벡터의 길이(`vectors[0].length`)에서 뽑는다. 따라서 `LLMClient.embed`·`testConnection` 인터페이스를 바꾸지 않고 두 작업은 서로 독립이다. 단수 `dimension`(설정 한 건의 출력 차원)과 복수 `dimensions`(미구현 `EmbedResponse` 메타데이터)의 이름 차이는 의도한 것이다.
 
-### LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)
+### LLM 호출 타임아웃을 호출 경로별로 적는다
+
+결정일: 2026-10-10
 
 AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 당시 클라이언트 계층은 `timeoutMs` 를 받지 않으면 앱 타임아웃을 걸지 않았다. 120초는 일부 SDK 의 요청 타임아웃으로만 걸렸다. 호출하는 쪽 값도 제각각이었다(AI 에이전트 10분, 어시스턴트 문서는 스트리밍 턴에 120초와 `LLM_TIMEOUT`).
 
-2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 그래서 그때 문서는 클라이언트 계층이 호출자가 준 `timeoutMs` 만 걸고 공통 기본값은 두지 않는다고 적었다. 공통 기본값을 둘지는 이 결정에서 따지지 않았다(2026-10-23 정정). `chat` 의 공통 기본값 10분은 그 뒤 2026-11-14 에 정했다([LLM 클라이언트 「LLM 호출의 공통 상한을 정한다」](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14)). 타임아웃을 `LLM_TIMEOUT` 으로 옮기지 않는다는 결정은 지금도 그대로다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 그래서 그때 문서는 클라이언트 계층이 호출자가 준 `timeoutMs` 만 걸고 공통 기본값은 두지 않는다고 적었다. 공통 기본값을 둘지는 이 결정에서 따지지 않았다(2026-10-23 정정). `chat` 의 공통 기본값 10분은 그 뒤 2026-11-14 에 정했다([LLM 클라이언트 「LLM 호출의 공통 상한을 정한다」](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다)). 타임아웃을 `LLM_TIMEOUT` 으로 옮기지 않는다는 결정은 지금도 그대로다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
 
 ### 종류와 상관없이 설정을 찾는 이유
 
@@ -169,7 +171,9 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 
 모듈 순환도 함께 정리했다. 모델 설정 컨트롤러가 부속 엔드포인트를 위해 `LlmService`·`LlmPreviewService` 를 주입하고 `LlmService.clearClientCache` 를 직접 부르면 `LlmModule` 과 `ModelConfigModule` 이 서로 forwardRef 로 물린다. 부속 엔드포인트를 llm 모듈의 `LlmModelConfigController` 로 옮기고(공개 경로는 그대로), 캐시 무효화를 `ModelConfigService.onConfigInvalidated` 옵저버로 뒤집어 한 방향 의존으로 만들었다.
 
-### 연결 테스트 실패는 200 결과 객체로 돌려준다 (2026-11-12)
+### 연결 테스트 실패는 200 결과 객체로 돌려준다
+
+결정일: 2026-11-12
 
 「testConnection」 의 실패 응답 형식은 현행 구현을 적은 것이다. NERV Task `CLE-T-J6TZGK` 에서 정했다.
 
@@ -178,7 +182,9 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 - 저장을 함께 하는 요청은 다르다. 통합 자격 증명 교체는 안에서 연결 테스트를 하지만 실패하면 저장을 거절하므로 에러 봉투로 돌려준다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
 - `code` 를 두지 않은 이유는 「testConnection」 에 적었다. 세분화 코드(`LLM_AUTH_ERROR` 등)를 구현하면 결과 객체에 `code` 를 더하는 것을 다시 본다.
 
-### 모델 설정 기본 파라미터는 호출 옵션을 켠 곳에만 채운다 (2026-11-14)
+### 모델 설정 기본 파라미터는 호출 옵션을 켠 곳에만 채운다
+
+결정일: 2026-11-14
 
 모델 설정 폼은 Chat 설정을 저장할 때 `defaultParams` 를 늘 함께 저장한다. 사용자가 손대지 않아도 `{ temperature: 0.7, max_tokens: 4096 }` 이 들어간다. 그런데 이 값은 어떤 호출에도 쓰이지 않았다. 2026-11-14 에 사람이 다음과 같이 정했다(NERV Task `CLE-T-GG3WPZ`, 질문 `01a1d82b-58be-772f-8828-a39da92c4fcf` 의 1번 답).
 
@@ -195,9 +201,11 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 
 알고 받아들인 영향도 있다. OpenAI · Google 은 max_tokens 를 보내지 않으면 모델 상한까지 출력한다. 이제 설정의 max_tokens(폼 기본값 4096)가 들어가므로 그보다 긴 출력은 잘릴 수 있다. 사람이 이 점을 알고 이 안을 골랐다. 긴 출력이 필요하면 노드의 Max Tokens 나 모델 설정의 값을 올린다.
 
-### 없는 설정의 연결 테스트는 404 로 거절한다 (2026-11-14)
+### 없는 설정의 연결 테스트는 404 로 거절한다
 
-[「연결 테스트 실패는 200 결과 객체로 돌려준다」](#연결-테스트-실패는-200-결과-객체로-돌려준다-2026-11-12) 의 200 은 시험한 결과에 쓴다. 시험할 설정이 없는 요청은 시험 결과가 아니라 요청 오류다. 그래서 설정 조회를 `try` 밖으로 옮기고 없는 설정 · 다른 워크스페이스의 설정을 404 `MODEL_CONFIG_NOT_FOUND` 로 거절한다. 2026-11-14 에 사람이 정했다(NERV Task `CLE-T-RH45H8`, 질문 `01a1d82b-5ad6-7383-af58-c0166d277038` 의 1번 답).
+결정일: 2026-11-14
+
+[「연결 테스트 실패는 200 결과 객체로 돌려준다」](#연결-테스트-실패는-200-결과-객체로-돌려준다) 의 200 은 시험한 결과에 쓴다. 시험할 설정이 없는 요청은 시험 결과가 아니라 요청 오류다. 그래서 설정 조회를 `try` 밖으로 옮기고 없는 설정 · 다른 워크스페이스의 설정을 404 `MODEL_CONFIG_NOT_FOUND` 로 거절한다. 2026-11-14 에 사람이 정했다(NERV Task `CLE-T-RH45H8`, 질문 `01a1d82b-5ad6-7383-af58-c0166d277038` 의 1번 답).
 
 - 같은 컨트롤러의 `:id/models` 는 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다.
 - `POST /api/model-configs/:id/test` 의 Swagger 도 404 를 선언한다.

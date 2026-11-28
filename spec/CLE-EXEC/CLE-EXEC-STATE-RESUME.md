@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RESUME"
 title: "실행 상태 머신과 대기·재개 — 입력 대기와 재개 상태"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "e25f941c7841b6c0d365e032dcab9216928b2739a9ac780f9ede6d502a5a6315"
+content_hash: "08e28d4c7df792e58a659e45edb534149e8b7a2a383f0c9c504230027c6ded6f"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "18fd3d756dab71ff73eb6a93ea01e4578150867a5894ab55bd37b80c611e5f00"
-etag: "sha256-6b3669703da56a3312d9bd7af8eea5b50deda858679a179a7e59189eb5d39dd4"
+mirror_sha256: "1a3306e8061c43393d39dac9ea5d8288bcdb0ec5dd0562d9bd17394bec97ab25"
+etag: "sha256-65b374d8894686e17b21be690ab915dbb903ad692fad4255b67788ca017cea15"
 ---
 ## 개요
 
@@ -85,7 +85,7 @@ Presentation 노드의 `interaction` 과 멀티턴 AI 노드의 `message_receive
 - **자격 증명 제외**: 자격 증명과 컨텍스트 결속 필드는 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 하나씩 열거하는 허용 목록 방식이다.
 - **두 재유도 경로**: 재개할 때 **조작 필드**(`llmConfigId`·`maxTurns`·`conditions`·`presentationTools` 등)는 `node.config` 를 다시 평가해 만든다. **식별 필드**는 호출하는 쪽 컨텍스트에서 다시 만든다. `workflowId` 는 `execution.workflowId`, `nodeId` 는 재개할 노드 행의 `node.id`, 재개 대상 `nodeExecutionId` 는 대기·재시도 노드 실행 행의 PK(`buildRetryReentryState` 옵션), `workspaceId` 는 실행 컨텍스트에서 가져온다. dry-run 여부 `dryRun` 은 실행 컨텍스트의 `variables.__dryRun` 에서 가져온다. `workflowId` 는 실행의 루트 워크플로우라서 서브 워크플로우 안의 노드에서는 그 노드가 속한 워크플로우와 다르다. 노드가 속한 워크플로우가 필요하면 `nodeId` 로 찾는다.
 - **MCP 서버의 표현식 여부**: `_resumeState` · `_resumeCheckpoint` · `_retryState` 는 서버 목록(`mcpServers`)과 표현식 여부 배열 `mcpServerFromExpression` 을 함께 싣는다. 저장 · 판정 규칙, 배열이 없는 옛 체크포인트와 서버 목록이 통째로 없는 체크포인트의 처리는 [MCP 서버 표현식 여부 보존](CLE-EXEC-STATE-MCPEXPR.md) 이 정한다.
-- **스키마 버전**: 체크포인트는 정수 `CHECKPOINT_SCHEMA_VERSION` 을 함께 싣는다. 재개할 때 버전이 없거나(기능 배포 전 행) 현재 코드 버전 이하이면 빠진 필드를 기본값으로 채워 다시 만든다. 현재 코드 버전보다 크면(롤링 배포 중 옛 인스턴스가 새 형식을 받음) 안전하게 만들 수 없으므로 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. MCP 서버의 `mcpServerFromExpression` 처럼 값이 없을 때의 뜻이 정해진 필드는 버전을 올리지 않고 더한다([Rationale](CLE-EXEC-STATE-MCPEXPR.md#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다-2026-10-25), [Rationale](CLE-EXEC-STATE-MCPEXPR.md#표현식-여부를-서버-항목-밖-배열로-옮긴다-2026-11-07)).
+- **스키마 버전**: 체크포인트는 정수 `CHECKPOINT_SCHEMA_VERSION` 을 함께 싣는다. 재개할 때 버전이 없거나(기능 배포 전 행) 현재 코드 버전 이하이면 빠진 필드를 기본값으로 채워 다시 만든다. 현재 코드 버전보다 크면(롤링 배포 중 옛 인스턴스가 새 형식을 받음) 안전하게 만들 수 없으므로 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. MCP 서버의 `mcpServerFromExpression` 처럼 값이 없을 때의 뜻이 정해진 필드는 버전을 올리지 않고 더한다([Rationale](CLE-EXEC-STATE-MCPEXPR.md#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다), [Rationale](CLE-EXEC-STATE-MCPEXPR.md#표현식-여부를-서버-항목-밖-배열로-옮긴다)).
 - **소비**: rehydration 이 `outputData._resumeCheckpoint` 를 읽고 버전을 검사한 뒤 `buildRetryReentryState`(`_retryState` 와 공유)로 `_resumeState` 를 다시 만든다. 핵심 필드가 빠졌으면 기본값으로 채운다. `driveResumeAwaited`·`driveResumeFrame` 이 도착한 재개 페이로드를 `dispatchResumeTurn` 을 거쳐 `handleAiResumeTurn` → `processAiResumeTurn`(한 턴 처리기)에 넘긴다. 체크포인트가 없거나(기능 배포 전 행) 손상됐거나 미래 버전이면 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. 이 정리는 사용자 입력이 도착한 재개(case A)에 적용한다. 크래시 재구동(case B)의 결손 처리는 [크래시 재구동에서 처리 중이던 턴을 다시 돌린다](#크래시-재구동에서-처리-중이던-턴을-다시-돌린다) 를 따른다.
 - **재개 payload 기준**: 재개 큐 `'continue'` 메시지 payload 의 표시 값(폼 제출이면 `{ type: 'form_submitted', formData }`)과 `processAiResumeTurn` 이 이 값으로 나누는 분기는 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#폼-제출-wire-format) 이 기준이다.
 
@@ -151,7 +151,9 @@ sequenceDiagram
 
 읽기 창 자체를 없애는 일(출력 저장과 상태 전이를 한 트랜잭션으로 묶기)은 별도 작업으로 남긴다.
 
-### AI 대화 재개 스냅샷도 대기로 정규화한다 (2026-11-12)
+### AI 대화 재개 스냅샷도 대기로 정규화한다
+
+결정일: 2026-11-12
 
 AI 대화 경로가 재개 스냅샷을 노드 실행 행에 저장하게 됐다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) Rationale 의 2026-11-12 항목, NERV Task `CLE-T-TBJ863`). 그 전에는 재개 턴의 LLM 호출 동안 행에 직전 대기 출력(`outputData.status==='waiting_for_input'`)이 남아 있어 두 판정이 이 행을 대기로 봤다. 저장 뒤에는 출력 상태가 `resumed` 다. 판정을 그대로 두면 실행 상세의 2초 폴링이 대기가 끝났다고 보고 대화 화면을 비운다. 2026-05-23 에 보고된 깜빡임 회귀와 같은 경로다.
 

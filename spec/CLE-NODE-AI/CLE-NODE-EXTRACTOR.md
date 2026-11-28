@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR"
 title: "정보 추출기 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-EXTRACT-001", "REQ-EXTRACT-002", "REQ-EXTRACT-003", "REQ-EXTRACT-004", "REQ-EXTRACT-005", "REQ-EXTRACT-006", "REQ-EXTRACT-007", "REQ-EXTRACT-008", "REQ-EXTRACT-009", "REQ-EXTRACT-010", "REQ-EXTRACT-011", "REQ-EXTRACT-012", "REQ-EXTRACT-013", "REQ-EXTRACT-014", "REQ-EXTRACT-015", "REQ-EXTRACT-016", "REQ-EXTRACT-017", "REQ-EXTRACT-018", "REQ-EXTRACT-019", "REQ-EXTRACT-020", "REQ-EXTRACT-021", "REQ-EXTRACT-022", "REQ-EXTRACT-023", "REQ-EXTRACT-024", "REQ-EXTRACT-025", "REQ-EXTRACT-026", "REQ-EXTRACT-027", "REQ-EXTRACT-028", "REQ-EXTRACT-029", "REQ-EXTRACT-030"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "df0cc624d2752cddf4ecd45190bbf62b989cd64368f73e5cddf954eb773c50c4"
+content_hash: "0245a2d07e93f697561b93b79d2a6828113c09121221dbd33c1f44e2b5f0a0e6"
 read_as: "approved_fallback"
-task: "CLE-T-0VS826"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/4-nodes/3-ai/3-information-extractor.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "be3067647870e0f92bc47bc212adef7a50e7bfdb33eda44efb725d7bb9daf07b"
-etag: "sha256-371016ce7ebbb5c9a538ca17d4cb4f6b6258dafecb43a685646c4588b2d80786"
+mirror_sha256: "9ce7abd8d6d9da3bfe68f34c60d23d483805dc3c6a6ad9a84ca0245890ee048c"
+etag: "sha256-37943bcb81e65c09d4dfce447eeddb620a15a0e93843930b2e1a3cf710028362"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/3-information-extractor.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.4), `spec/4-nodes/_product-overview.md` (§6.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -192,6 +192,8 @@ etag: "sha256-371016ce7ebbb5c9a538ca17d4cb4f6b6258dafecb43a685646c4588b2d80786"
 
 이 노드의 결정 근거는 하위 문서의 Rationale 에 있다. 실행 · 노드 취소 · 메모리 결정은 [실행 로직과 메모리](CLE-NODE-EXTRACTOR-EXEC.md#rationale), 출력 형태 결정은 [출력 구조와 에러](CLE-NODE-EXTRACTOR-OUTPUT.md#rationale) 를 본다.
 
-### 노드 취소는 `error` 포트로 보내지 않는다 (2026-10-31)
+### 노드 취소는 `error` 포트로 보내지 않는다
 
-이 결정의 본문은 [실행 로직과 메모리 §노드 취소는 error 포트로 보내지 않는다](CLE-NODE-EXTRACTOR-EXEC.md#노드-취소는-error-포트로-보내지-않는다-2026-10-31) 로 옮겼다.
+결정일: 2026-10-31
+
+이 결정의 본문은 [실행 로직과 메모리 §노드 취소는 error 포트로 보내지 않는다](CLE-NODE-EXTRACTOR-EXEC.md#노드-취소는-error-포트로-보내지-않는다) 로 옮겼다.

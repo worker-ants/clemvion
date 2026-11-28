@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "401737f392068f889af6e45286ab5660493bb096e2d5839966fc45fb959691d3"
+content_hash: "dc2d02c04636657035d40e28900578469e15492df5e979a119447b242652aa1d"
 read_as: "approved_fallback"
-task: "CLE-T-KKJ2A0"
+task: "CLE-T-GR5DFJ"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "87a761117681029e6e3523f31d8cb1c10a71ed2034527dcb1d5ef66738fd63df"
-etag: "sha256-162bc120df52049a95f9ad32e7e00905becb6f97e15d86c3e642db7389c0ad04"
+mirror_sha256: "d9a66ea9c6f1a1d8210392aaba75905233713cf1987a3362f7820c9b54c401cf"
+etag: "sha256-f14f5a6b4c561b6b24c001f0dee72a9d9a173a2e3652ab756dd5c7b4bdec4d48"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -331,7 +331,7 @@ NERV Task `CLE-T-DM3AXQ` 항목 10 에서 더했다. 트리거 파라미터 검�
 
 결정일: 2026-11-12
 
-NERV Task `CLE-T-HGBHF2` 에서 더했다. [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12) 가 2026-11-12 에 자격 증명 교체의 연결 테스트 실패를 400 `INTEGRATION_TEST_FAILED` 로 두고 테스트 결과 코드를 `details.testCode` 에 싣기로 정했다(NERV Task `CLE-T-J6TZGK`). 이 payload 에는 `field` 가 없어 §2.5 의 대상이 아니다. 값이 에러 코드처럼 생겨 `details.code` 로 읽히기 쉬워서 키 이름을 `testCode` 로 둔 이유와 함께 §2.5 에 예로 적었다. 규칙은 바꾸지 않았다.
+NERV Task `CLE-T-HGBHF2` 에서 더했다. [통합 관리 — 사용처 · 연결 테스트 · 실행 연동](../CLE-INT/CLE-INT-MANAGE-RUN.md#자격-증명-교체의-연결-테스트-실패는-400-이다) 이 2026-11-12 에 자격 증명 교체의 연결 테스트 실패를 400 `INTEGRATION_TEST_FAILED` 로 두고 테스트 결과 코드를 `details.testCode` 에 싣기로 정했다(NERV Task `CLE-T-J6TZGK`). 이 payload 에는 `field` 가 없어 §2.5 의 대상이 아니다. 값이 에러 코드처럼 생겨 `details.code` 로 읽히기 쉬워서 키 이름을 `testCode` 로 둔 이유와 함께 §2.5 에 예로 적었다. 규칙은 바꾸지 않았다.
 
 ### 실행 에러 예시의 필드 이름을 `nodeLabel` 로 고친 이유
 

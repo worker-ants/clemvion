@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AxiosError } from "axios";
+import { toast } from "sonner";
 
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -65,5 +67,47 @@ describe("CreateTeamWorkspaceDialog", () => {
       expect(switchWorkspaceMock).toHaveBeenCalledWith("new-id"),
     );
     expect(mockPush).toHaveBeenCalledWith("/w/new-team/dashboard");
+  });
+
+  async function submitName(name: string) {
+    render(<CreateTeamWorkspaceDialog open onOpenChange={vi.fn()} />, {
+      wrapper: wrapper(),
+    });
+    await userEvent.type(screen.getByLabelText("workspace.overviewName"), name);
+    await userEvent.click(screen.getByText("workspace.createBtn"));
+  }
+
+  it("shows the dictionary wording for a known server code, not the English server message (CLE-T-MBMPX5)", async () => {
+    createTeamMock.mockRejectedValue(
+      new AxiosError(
+        "Request failed with status code 400",
+        "400",
+        undefined,
+        undefined,
+        {
+          status: 400,
+          data: {
+            error: {
+              code: "WORKSPACE_NAME_INVALID",
+              message: "Workspace name must be at least 2 characters.",
+            },
+          },
+        } as never,
+      ),
+    );
+    await submitName("New Team");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "errors.codes.workspaceNameInvalid",
+      ),
+    );
+  });
+
+  it("shows the generic failure wording instead of the axios error text when no response arrives", async () => {
+    createTeamMock.mockRejectedValue(new AxiosError("Network Error"));
+    await submitName("New Team");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("workspace.createGenericFailed"),
+    );
   });
 });

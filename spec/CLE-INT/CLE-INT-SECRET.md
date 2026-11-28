@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 20
+version: 21
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "aa142cf6ab0e8a5db66cefb6ac28bef2ef73ee34a00c23b4d1a377404bc85131"
+content_hash: "b5260a8fdff36a6e07a96a095210092641c2f592f2b67fc66a0269c7fa8efbfb"
 read_as: "approved_fallback"
-task: "CLE-T-ZPT9W7"
+task: "CLE-T-JPSHKZ"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "ca580afa0062a117f49b95788a7d6808dd68c9378110be6dab517f9a088c1a5f"
-etag: "sha256-fd3ac6085ef30283a0eb91206466b230cb211ea8f62cf2f6ec09df993e917399"
+mirror_sha256: "6650893a538124836b40e37ba240f80aae6ec4782bb07c055136f347f0632e33"
+etag: "sha256-30828dbd6d1c7b3ed88fe925383bcc28bcb477780346f4677ee183593543800a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -29,7 +29,7 @@ etag: "sha256-fd3ac6085ef30283a0eb91206466b230cb211ea8f62cf2f6ec09df993e917399"
 범위 밖:
 
 - `secret_store` 테이블 컬럼 정의는 [통합 데이터와 흐름](CLE-INT-DATA.md) 이 소유한다.
-- 사용자 민감 컬럼의 응답 노출 금지는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 이 소유한다. 같은 금지와 같은 근거가 걸리지만 그 컬럼들은 외부 서비스 비밀이 아니고 `secret://` 에 살지 않는다. 이 규약의 관할을 그쪽으로 넓히지 않는다.
+- 사용자 민감 컬럼의 응답 노출 금지는 [계정과 워크스페이스 데이터 흐름 — 사용자 · 인증 엔티티](../CLE-ACCT/CLE-ACCT-DATA-MODEL.md#응답에-싣지-않는-민감-컬럼-7개) 가 소유한다. 같은 금지와 같은 근거가 걸리지만 그 컬럼들은 외부 서비스 비밀이 아니고 `secret://` 에 살지 않는다. 이 규약의 관할을 그쪽으로 넓히지 않는다.
 - 인증 설정(AuthConfig) 응답 마스킹은 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 과 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 소유한다.
 - 봇 토큰 재발급 동작은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), 알림 서명 시크릿 교체 동작은 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 이 소유한다.
 - 트리거 행이 없어지는 경로 목록은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 소유한다.
@@ -74,8 +74,8 @@ etag: "sha256-fd3ac6085ef30283a0eb91206466b230cb211ea8f62cf2f6ec09df993e917399"
 20. 소비 모듈은 원칙상 구체 클래스(`SecretResolverService`)가 아닌 추상 인터페이스에 의존한다. 1차 범위에서는 NestJS DI 편의를 위해 구체 클래스를 직접 주입해도 된다. 구현체가 하나뿐이라 바꿀 일이 없고, abstract class 를 쓰면 injection token 설정이 더 필요하며, `deleteByPrefix` 를 포함한 메서드 시그니처가 아직 안정되지 않았기 때문이다. 백엔드가 둘 이상이 되면 `ISecretResolver` 를 추출하고 소비 모듈의 injection token 과 테스트 mock 을 인터페이스 기반으로 바꾼다. 현재 구현의 소비 모듈은 `triggers`·`chat-channel`·`external-interaction`·`schedules` 다.
 21. `SecretResolver` 인터페이스를 바꾸는 변경은 모든 호출 모듈을 같은 변경에서 함께 고친다.
 22. 새 비밀 종류(예: `oauth-client-secret`)를 더할 때는 [참조 예시](#참조-예시) 표에 새 `name` 행을 더하고, 호출 모듈의 스펙 본문에 참조 형식을 적는다. 리소스 설정에 참조를 두는 슬롯이면 규칙 23 의 거부 대상과 규칙 24 의 읽기 관문(채팅 채널은 `chat-channel-secret-refs.ts`, 알림 서명은 `notification-signing-secret-ref.ts`)에도 더한다. 트리거 원시 `config` 의 경로 목록은 2026-10-31 부터 규칙 23 의 `secret://` 값 검사가 받쳐 준다. 목록에 빠뜨린 슬롯이라도 원시 `config` 로 참조 값을 실으면 400 이다.
-23. 리소스 설정에 두는 시크릿 참조(예: `Trigger.config` 의 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef`)는 서버가 그 리소스 id 로 만들어 쓴다. 요청 본문으로 받지 않는다. 값이 자기 리소스의 참조여도 거부한다. 저장된 참조로 비밀을 쓰는 경로도 저장값 대신 리소스 id 로 참조를 다시 만든다(규칙 24). 트리거에서는 요청 본문의 `config` 키(원시 `config`)를 세 가지 검사로 거른다. 먼저 서버가 소유하는 필드의 경로 목록(시크릿 참조 슬롯 포함)에 든 경로가 있으면 거부한다. 다음으로 원시 `config` 바로 아래에 `notification` · `interaction` · `chatChannel` 키가 있으면 값과 상관없이 거부한다. 마지막으로 원시 `config` 아래 어디든 `secret://` 로 시작하는 문자열 값이 있으면 거부한다. 뒤의 두 검사가 경로 목록을 보완한다. 타입 키 아래의 슬롯은 목록에 없어도 타입 키 거부에 걸린다. 다른 키 아래에 심은 참조는 값 검사에 걸린다. 트리거의 거부 대상 · 순서 · 응답 모양의 정본은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 근거는 [R9 「리소스 설정의 시크릿 참조는 요청 본문으로 받지 않는다」](CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 와 [R16 「원시 `config` 의 타입 키와 `secret://` 값을 막는다」](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31) 에 있다.
-24. 저장된 리소스 설정의 시크릿 참조로 비밀을 읽거나 쓰는 경로는 저장값의 있음 · 없음만 읽고 참조는 그 리소스 id 로 다시 만든다. 트리거에서는 봇 토큰 재발급, 메시지 발송, 인바운드 서명 검증, 트리거 삭제 때의 채널 프로바이더 해제, 알림 서명이다. 채팅 채널 참조는 비어 있지 않은 값이면 있다고 본다. 알림 서명 참조는 `secret://` 형식의 문자열이면 있다고 본다. 트리거 생성과 PATCH 가 알림 서명 시크릿을 정할 때도 이 판정을 쓴다. 있으면 참조를 다시 만들고 없으면 옛 평문을 옮기거나 첫 시크릿을 발급한다. 이 분기의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다. 저장값과 다시 만든 참조를 정확히 비교하는 것은 에러 로그를 남기려는 것이고 쓰는 참조는 저장값과 상관없이 다시 만든 값이다. 로그에 저장값은 싣지 않는다. 읽기 관문은 없는 참조를 붙이지 않고 있는 참조를 지우지 않는다. 봇 토큰 재발급은 새 토큰을 쓰므로 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다. 자기 비밀이 없으면 `resolve` 가 실패해 닫힌다. 그때의 응답은 채팅 채널과 EIA 알림 웹훅 문서가 정한 실패 경로(발송 실패, 인바운드 401, 알림 웹훅 발송 건강도 `degraded`)다. 알림 서명은 참조가 있으면 옛 평문 `signing.secret` 으로 내려가지 않는다. 근거는 [R10 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 에 있다.
+23. 리소스 설정에 두는 시크릿 참조(예: `Trigger.config` 의 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef`)는 서버가 그 리소스 id 로 만들어 쓴다. 요청 본문으로 받지 않는다. 값이 자기 리소스의 참조여도 거부한다. 저장된 참조로 비밀을 쓰는 경로도 저장값 대신 리소스 id 로 참조를 다시 만든다(규칙 24). 트리거에서는 요청 본문의 `config` 키(원시 `config`)를 세 가지 검사로 거른다. 먼저 서버가 소유하는 필드의 경로 목록(시크릿 참조 슬롯 포함)에 든 경로가 있으면 거부한다. 다음으로 원시 `config` 바로 아래에 `notification` · `interaction` · `chatChannel` 키가 있으면 값과 상관없이 거부한다. 마지막으로 원시 `config` 아래 어디든 `secret://` 로 시작하는 문자열 값이 있으면 거부한다. 뒤의 두 검사가 경로 목록을 보완한다. 타입 키 아래의 슬롯은 목록에 없어도 타입 키 거부에 걸린다. 다른 키 아래에 심은 참조는 값 검사에 걸린다. 트리거의 거부 대상 · 순서 · 응답 모양의 정본은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 근거는 [R9 「리소스 설정의 시크릿 참조는 요청 본문으로 받지 않는다」](CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다) 와 [R16 「원시 `config` 의 타입 키와 `secret://` 값을 막는다」](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다) 에 있다.
+24. 저장된 리소스 설정의 시크릿 참조로 비밀을 읽거나 쓰는 경로는 저장값의 있음 · 없음만 읽고 참조는 그 리소스 id 로 다시 만든다. 트리거에서는 봇 토큰 재발급, 메시지 발송, 인바운드 서명 검증, 트리거 삭제 때의 채널 프로바이더 해제, 알림 서명이다. 채팅 채널 참조는 비어 있지 않은 값이면 있다고 본다. 알림 서명 참조는 `secret://` 형식의 문자열이면 있다고 본다. 트리거 생성과 PATCH 가 알림 서명 시크릿을 정할 때도 이 판정을 쓴다. 있으면 참조를 다시 만들고 없으면 옛 평문을 옮기거나 첫 시크릿을 발급한다. 이 분기의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다. 저장값과 다시 만든 참조를 정확히 비교하는 것은 에러 로그를 남기려는 것이고 쓰는 참조는 저장값과 상관없이 다시 만든 값이다. 로그에 저장값은 싣지 않는다. 읽기 관문은 없는 참조를 붙이지 않고 있는 참조를 지우지 않는다. 봇 토큰 재발급은 새 토큰을 쓰므로 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다. 자기 비밀이 없으면 `resolve` 가 실패해 닫힌다. 그때의 응답은 채팅 채널과 EIA 알림 웹훅 문서가 정한 실패 경로(발송 실패, 인바운드 401, 알림 웹훅 발송 건강도 `degraded`)다. 알림 서명은 참조가 있으면 옛 평문 `signing.secret` 으로 내려가지 않는다. 근거는 [R10 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다) 에 있다.
 25. `rotate` 는 기존 행의 `workspace_id` 가 인자와 다르면 거부하고 값과 `workspace_id` 를 바꾸지 않는다. 대조는 행의 값과 인자만 본다. 이 거부 전용 에러 코드는 만들지 않는다. HTTP 응답은 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 예외 메시지는 참조와 워크스페이스 id 가 없는 고정 문구라 화면에 보이는 필드에 저장돼도 내부 위치가 드러나지 않는다. 참조와 두 워크스페이스 id 는 서버 로그에만 남긴다. 반복 배치는 거부된 리소스만 건너뛰고 나머지를 처리한다. 교차 행이 있으면 그 비밀의 진짜 소유자가 하는 재발급도 이 거부로 막힌다. 그때의 처리는 [교차 행 점검과 정리](CLE-INT-SECRET-REFS.md#교차-행-점검과-정리) 에 있다. 근거는 R10 에 있다.
 26. 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 표의 컬럼을 암호화하는 키다. 통합 자격 증명과 인증 설정 자격 증명이 그 표에 든다. 이 키는 마스터키(`ENCRYPTION_KEY`)와 별개다. 키를 만드는 방식과 적용 컬럼의 규범은 그 절에 있다. 운영 환경 가드(`assertProductionConfig`)가 이 키를 거부하는 기준은 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 에 있다. 근거는 [R13 「통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET-BACKEND.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 27. `store` · `rotate` 는 평문이 문자열이 아니거나 빈 문자열이거나 공백만 있으면 거부(throw)하고 행을 만들거나 바꾸지 않는다. 이 거부 전용 에러 코드는 만들지 않는다. HTTP 응답으로 새면 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 예외 메시지는 참조와 워크스페이스 id 가 없는 고정 문구이고 참조는 서버 로그에만 남긴다. 규칙 18 · 25 와 같은 방식이다. 빈 값을 받게 하는 옵션(`allowEmpty`)은 두지 않는다. 근거는 [R18 「store · rotate 는 빈 평문을 거부한다」](CLE-INT-SECRET-BACKEND.md#r18-store--rotate-는-빈-평문을-거부한다-2026-11-06) 에 있다.
@@ -140,11 +140,11 @@ PostgreSQL 에 애플리케이션이 AES-256-GCM 으로 암호화한 값을 둔�
 
 ### R9. 리소스 설정의 시크릿 참조는 요청 본문으로 받지 않는다 (2026-10-04)
 
-→ [시크릿 저장소 — 참조 소유와 교차 행](CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04)
+→ [시크릿 저장소 — 참조 소유와 교차 행](CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다)
 
 ### R10. 저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다 (2026-10-04)
 
-→ [시크릿 저장소 — 참조 소유와 교차 행](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04)
+→ [시크릿 저장소 — 참조 소유와 교차 행](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다)
 
 ### R13. 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 를 마스터키와 따로 두고 production 에서 키 없이 기동하지 않는다 (2026-10-10)
 

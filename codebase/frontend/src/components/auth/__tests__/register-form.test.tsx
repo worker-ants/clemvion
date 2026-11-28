@@ -98,26 +98,35 @@ describe("RegisterForm — invitation token flow", () => {
     expect(screen.queryByText(/초대받으셨어요/)).toBeNull();
   });
 
-  it("shows a 410 'invitation gone' banner and disables submit when token is expired", async () => {
-    mockGetByToken.mockRejectedValue(axiosError(410, { code: "invitation_expired" }));
+  // 코드가 있으면 공용 표의 코드별 사전 문구를 보인다(CLE-T-MBMPX5). 서버 message 는 영문이라 보이지 않는다.
+  it("shows the expired banner from the error code and disables submit when token is expired", async () => {
+    mockGetByToken.mockRejectedValue(
+      axiosError(410, { code: "invitation_expired", message: "This invitation has expired." }),
+    );
 
     render(<RegisterForm invitationToken={VALID_TOKEN} />);
 
     await waitFor(() => expect(mockGetByToken).toHaveBeenCalledWith(VALID_TOKEN));
-    expect(
-      await screen.findByText(/이 초대는 만료되었거나 이미 사용됐어요/),
-    ).toBeDefined();
+    expect(await screen.findByText(/초대가 만료됐어요/)).toBeDefined();
+    expect(screen.queryByText(/This invitation has expired/)).toBeNull();
     // 에러 상태에서는 submit 버튼이 비활성화되어야 한다.
     const submit = screen.getByRole("button", { name: /계정 만들기/ });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("shows a 404 'not found' banner when token is unknown", async () => {
+  it("shows the not-found banner from the error code when token is unknown", async () => {
     mockGetByToken.mockRejectedValue(axiosError(404, { code: "invitation_not_found" }));
     render(<RegisterForm invitationToken={VALID_TOKEN} />);
-    expect(
-      await screen.findByText(/초대 링크를 확인할 수 없어요/),
-    ).toBeDefined();
+    expect(await screen.findByText(/초대를 찾을 수 없어요/)).toBeDefined();
+  });
+
+  it.each([
+    [410, /이 초대는 만료되었거나 이미 사용됐어요/],
+    [404, /초대 링크를 확인할 수 없어요/],
+  ])("falls back to the %s status banner when the body has no code", async (status, text) => {
+    mockGetByToken.mockRejectedValue(axiosError(status));
+    render(<RegisterForm invitationToken={VALID_TOKEN} />);
+    expect(await screen.findByText(text)).toBeDefined();
   });
 
   it("prefills email read-only and shows workspace banner when meta is ready", async () => {
@@ -434,7 +443,7 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
 
     render(<RegisterForm invitationToken={TOKEN} />);
 
-    expect(await screen.findByText(/초대 링크를 확인할 수 없어요/)).toBeDefined();
+    expect(await screen.findByText(/초대를 찾을 수 없어요/)).toBeDefined();
     expect(mockCheckEmail).not.toHaveBeenCalled();
   });
 

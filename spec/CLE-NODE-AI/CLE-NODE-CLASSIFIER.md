@@ -2,19 +2,19 @@
 id: "CLE-NODE-CLASSIFIER"
 title: "텍스트 분류기 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-CLASSIFY-001", "REQ-CLASSIFY-002", "REQ-CLASSIFY-003", "REQ-CLASSIFY-004", "REQ-CLASSIFY-005", "REQ-CLASSIFY-006", "REQ-CLASSIFY-007", "REQ-CLASSIFY-008", "REQ-CLASSIFY-009", "REQ-CLASSIFY-010", "REQ-CLASSIFY-011", "REQ-CLASSIFY-012", "REQ-CLASSIFY-013", "REQ-CLASSIFY-014", "REQ-CLASSIFY-015", "REQ-CLASSIFY-016", "REQ-CLASSIFY-017", "REQ-CLASSIFY-018", "REQ-CLASSIFY-019", "REQ-CLASSIFY-020"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "e2e1cc4584e976804e7b49a9756a603b13a5c676ed687e8acab935bd4f3e3bf5"
+content_hash: "dec7ecbb956f324f2c794960cc46c46d4d2a3bba6406c82264669496e12d339f"
 read_as: "approved_fallback"
-task: "CLE-T-0VS826"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/4-nodes/3-ai/2-text-classifier.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "fb1783ef68bb8839ac50e938c7a2633cdbf8a258c2af2b5a5e18e6adb0eb316b"
-etag: "sha256-7d3d3a9b5098fefb51f7d8a0f46ba9e06c67e1be734f6913e3509d39f03a944d"
+mirror_sha256: "3d6428f15d58dd6bebd741f447499378ea9f0a9feb3f1781c54f45bcd326d145"
+etag: "sha256-c65c2cd91c1e04ad0a3cff2ec9f0e39f93db675897f68f1d82acd427898bb196"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/3-ai/2-text-classifier.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.3), `spec/4-nodes/_product-overview.md` (§6.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -353,7 +353,9 @@ JSON 파싱에 실패하면 부분 문자열 대체 매칭으로 회복하므로
 
 `originalInput` 은 정상(`output.result.originalInput`, 전체)과 에러(`output.error.details.originalInput`, 500자로 자름)를 각각 한 경로로 통일했다. 최상위 `output.originalInput` 은 쓰지 않는다.
 
-### 노드 취소는 `error` 포트로 보내지 않는다 (2026-10-31)
+### 노드 취소는 `error` 포트로 보내지 않는다
+
+결정일: 2026-10-31
 
 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 은 노드 취소 신호로 생긴 취소를 노드가 `AbortError` 로 엔진에 던진다고 정한다. 이 문서는 LLM 호출의 모든 예외를 `error` 포트의 `LLM_CALL_FAILED` 로 보낸다고 적었고 핸들러도 그렇게 했다. 그래서 Parallel 의 cancel-others-on-fail 로 멈춘 분기가 `cancelled` 로 끝나지 않고 에러 포트로 라우팅돼 하류 노드를 실행했다.
 

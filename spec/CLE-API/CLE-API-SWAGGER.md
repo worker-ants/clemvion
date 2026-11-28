@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER"
 title: "OpenAPI 문서화"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "74cf5cbfde4b4c5146a9e1b54f3871c6c5439222902d8c8fec9ee3b2a1b4c9da"
+content_hash: "52f3e653667ef160c4864429269c4b5866f9811e837cce31aa8d6db4a2bf65c2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "4b36ba81ad3adbca2c147261fecdbb2979ff18b833612cbaf56b1796f97baf85"
-etag: "sha256-51079bcd7b10fa7dacf761a59b4c906ed51422a9e5303de866cdfdc6fa2a631f"
+mirror_sha256: "24a9690d8b92fc4cb1dd55a585fe1b554fb3f186be13412f011b2dd773b1588e"
+etag: "sha256-1ade03ad352d84399a76c96261febe00961280e063f9843197292587bb089b27"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,7 +55,7 @@ etag: "sha256-51079bcd7b10fa7dacf761a59b4c906ed51422a9e5303de866cdfdc6fa2a631f"
 14. DTO 필드의 JSDoc 은 공개 OpenAPI 로 나간다. 정정 경위나 리뷰 참조 같은 내부 서사는 `//` 주석에 적는다.
 15. 엔드포인트 `summary` 는 10~20자, `description` 은 50~150자로 쓴다(강제). DTO `description` 은 한 줄 요약을 지향한다(강제 아님).
 16. 저장값과 응답값이 다를 수 있는 필드와 정책으로 거부될 수 있는 요청 필드는 길이와 무관하게 그 사실을 설명에 적는다.
-17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다. 발견 ID · 옛 리뷰 경로 같은 리뷰 인용(Task 키 제외)은 이 목록에 없고 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 정한다. 가드의 강제 범위와 못 보는 것은 Rationale 「공개 문장의 저장소 내부 참조를 왜 가드로 세는가」 에 적는다([설명 문구와 내부 참조](CLE-API-SWAGGER-TEXT.md#공개-문장의-저장소-내부-참조를-왜-가드로-세는가-규칙-17-2026-10-03)).
+17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다. 발견 ID · 옛 리뷰 경로 같은 리뷰 인용(Task 키 제외)은 이 목록에 없고 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 정한다. 가드의 강제 범위와 못 보는 것은 Rationale 「공개 문장의 저장소 내부 참조를 왜 가드로 세는가」 에 적는다([설명 문구와 내부 참조](CLE-API-SWAGGER-TEXT.md#공개-문장의-저장소-내부-참조를-왜-가드로-세는가-규칙-17)).
 
 ## 하위 문서
 

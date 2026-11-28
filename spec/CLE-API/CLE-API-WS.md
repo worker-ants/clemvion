@@ -2,19 +2,19 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "f47a15bd67bc031b0060607649d76757780affefbf3df6d68b89272d42d7aa4a"
+content_hash: "550eb07944a9d8918e2db603784607ce77d2c3ca33194409f8b7ebb788832da5"
 read_as: "approved_fallback"
-task: "CLE-T-YFVEPK"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "b073c43584707df3c1be90fc22ab0020915044ac9fd83054f44ada450f935c38"
-etag: "sha256-a4aeec110faafd6a66e938ac3027a25a64b9d889de4110fe9eff5dc9a40bf59e"
+mirror_sha256: "eb0ff233c51fa370c7ed80f91ee4066aebd4d5575c1fbb277f5f2fe5e4c7afc1"
+etag: "sha256-bd4733578f8ffe4da858072ac1ff668af5fbca896caa5203ac033bc2df22d980"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -68,8 +68,8 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 |---|---|---|---|
 | raw WebSocket 전제 (전송 계층에 구조적으로 맞지 않음) | 서브프로토콜 인증([§2.2](CLE-API-WS-CONN.md#22-인증)), raw close 코드([§8](CLE-API-WS-MSG.md#8-websocket-close-코드-비채택)) | **비채택** | Rationale "raw WebSocket 전제·REST 대체 항목 비채택" |
 | REST 로 충분 (중복 경로 회피) | in-band 토큰 갱신([§2.3](CLE-API-WS-CONN.md#23-토큰-갱신-연결-유지)), WebSocket 실행 시작·중단 명령 | **비채택** | 같은 Rationale |
-| 발화 주체 없음 또는 전송 계층이 이미 채움 | 서버 발신 app ping([§5.2](CLE-API-WS-CONN.md#52-애플리케이션-수준-ping)), `system.maintenance` 발행 | **비채택** | [Rationale 「`system.maintenance` 발행과 서버 발신 app ping 비채택」](CLE-API-WS-CONN.md#systemmaintenance-발행과-서버-발신-app-ping-비채택-2026-09-02) |
-| 실재하는 인가 틈 | 서버 발신 `auth.token_expired` 발행 | **구현됨** (2026-09-02) | [Rationale 「소켓 수명을 토큰 수명에 묶는다」](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02) |
+| 발화 주체 없음 또는 전송 계층이 이미 채움 | 서버 발신 app ping([§5.2](CLE-API-WS-CONN.md#52-애플리케이션-수준-ping)), `system.maintenance` 발행 | **비채택** | [Rationale 「`system.maintenance` 발행과 서버 발신 app ping 비채택」](CLE-API-WS-CONN.md#systemmaintenance-발행과-서버-발신-app-ping-비채택) |
+| 실재하는 인가 틈 | 서버 발신 `auth.token_expired` 발행 | **구현됨** (2026-09-02) | [Rationale 「소켓 수명을 토큰 수명에 묶는다」](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다) |
 
 이 갈래에 남은 미구현은 없다.
 
@@ -98,7 +98,7 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 
 결정일: 2026-09-02
 
-→ [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)
+→ [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다)
 
 ## 미결 사항
 
@@ -144,7 +144,7 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 - 문서를 믿고 구현할 클라이언트가 callback 을 넘겨 기다리면 응답을 받지 못한다. 그래서 문서를 코드에 맞췄다. 이벤트 이름과 payload 필드는 그대로라 지금 클라이언트에는 영향이 없다.
 - [§7.2](CLE-API-WS-MSG.md#72-에러-메시지-형식) 에서 `error` 이벤트 `{ message }` 를 쓰는 경우를 연결 핸드셰이크 에러로 좁혔다. 연결된 소켓도 등록되지 않은 이벤트를 보내면 `error` 이벤트로 `{ code: 'UNKNOWN_TYPE', message }` 를 받는다([§7.1](CLE-API-WS-MSG.md#71-에러-코드)). 범위를 좁히지 않으면 §7.2 가 §7.1 과 어긋난다.
 - **기각한 대안**
-  - 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추기: 프론트엔드(`ws.on('subscribed')` 와 로컬 헬퍼 `emitAndAwaitAckEvent`)와 새 e2e 가 이미 이벤트 wire 에 기대고 있어 호환만 깨진다. 이미 굳은 wire 이름을 바꾸지 않은 판단은 [WebSocket 이벤트와 명령 「`submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)」](CLE-API-WS-EVENTS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유-2026-06-10) 의 폼 제출 ack 이름에도 있다.
+  - 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추기: 프론트엔드(`ws.on('subscribed')` 와 로컬 헬퍼 `emitAndAwaitAckEvent`)와 새 e2e 가 이미 이벤트 wire 에 기대고 있어 호환만 깨진다. 이미 굳은 wire 이름을 바꾸지 않은 판단은 [WebSocket 이벤트와 명령 「`submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유」](CLE-API-WS-EVENTS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유) 의 폼 제출 ack 이름에도 있다.
   - callback 과 이벤트를 함께 보내기(이번 Task 에서 검토만 한 안): 택하지 않은 이유는 지금 callback 을 기다리는 소비자가 없고 응답이 두 번 나가는 표면만 늘기 때문이다.
 
 **NestJS 12 전역 enhancer 장애**
@@ -159,7 +159,7 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 - HTTP 전용 전역 enhancer 는 한 술어로 HTTP 가 아닌 호출을 건너뛴다. 술어는 `isHttpContext`(`common/utils/http-context.ts`) 하나이고 `LoggingInterceptor`·`TransformInterceptor`·`UserThrottlerGuard` 가 이 술어를 쓴다. enhancer 마다 `getType()` 비교를 따로 쓰면 어느 것이 WebSocket 을 거르는지 한눈에 보이지 않는다.
 - 파이프는 NestJS `ExecutionContext` 를 받지 못해 이 술어를 쓰지 못한다. 그래서 `CustomValidationPipe` 는 인자 종류(`ArgumentMetadata.type === 'custom'`)로 가른다. 검증 범위는 §1 에 있다.
 - `JwtAuthGuard` 와 `RolesGuard` 는 고치지 않았다. 두 가드가 소켓 요청을 통과시키는 방식과 `@Roles()` 를 붙이면 모든 요청이 거부되는 이유는 §1 에 있다. 인증 판정은 `handleConnection` 이 맡고 멤버십은 토큰 클레임을 그대로 쓴다.
-- `JwtAuthGuard` 를 `@Public()` 으로 우회하는 것은 2026-09-02 결정 [「소켓 수명을 토큰 수명에 묶는다」](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02) 와 같은 선이다. 그 결정은 명령마다 다시 검증하는 안을 기각했고 만료 집행은 `armExpiryTimers` 하나다.
+- `JwtAuthGuard` 를 `@Public()` 으로 우회하는 것은 2026-09-02 결정 [「소켓 수명을 토큰 수명에 묶는다」](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다) 와 같은 선이다. 그 결정은 명령마다 다시 검증하는 안을 기각했고 만료 집행은 `armExpiryTimers` 하나다.
 - 그 절의 실측 «게이트웨이에 인증 가드 0건» 은 NestJS 12 상향 전(2026-09-02) 기준이다. 지금은 전역 `JwtAuthGuard` 가 게이트웨이 핸들러에도 붙지만 `@Public()` 으로 통과한다.
 - 저장소 가드 `global-enhancer-ws-safety.spec.ts` 가 이 분류를 고정한다. 전역 enhancer 는 «HTTP 가 아니면 건너뜀»(`skips-non-http`) 이나 «WebSocket 핸들러에서 통과하도록 설계됨»(`ws-safe-by-design`) 중 하나로 분류돼야 한다. 지금은 `JwtAuthGuard`·`RolesGuard` 가 뒤쪽이고 나머지 넷이 앞쪽이다. 분류 없이 새 enhancer 를 등록하면 가드가 실패한다. 분류가 사실인지는 WebSocket 호출 모양으로 enhancer 를 직접 불러 확인한다.
 - 그 결과 WebSocket 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건) 하나다. 전역 요청 빈도 제한은 WebSocket 명령을 세지 않는다([§7.1](CLE-API-WS-MSG.md#71-에러-코드)). 이 규칙의 핵심 결정은 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.

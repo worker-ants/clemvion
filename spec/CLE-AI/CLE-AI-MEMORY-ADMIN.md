@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY-ADMIN"
 title: "에이전트 메모리 — 관리 API · 화면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-MEMORY"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-MEMORY"]
 area: "CLE-AI"
-content_hash: "e2ea581ed12f24995cbbb2bb50f6dee97ce1882cf1bcaf91043174f1e5034b0e"
+content_hash: "11bab9ca0e12103abf3d333fba270f2f1686a47e20cf43fb4dde491398f18322"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-N0K4SE"
 source_paths: []
-mirror_sha256: "a53fb66065727217d2ac2c285a15088fc9024a839f5043c9349a5ab8e5a89770"
-etag: "sha256-526997d9553d9e4ea56d4d445f3399ae627487cd253402a065f091c9702c38dc"
+mirror_sha256: "ca53927b7e119220c09c9be8a56f4e4594c7c8e62556fd1be25714ade308f943"
+etag: "sha256-0fa3a0bfd750778d7fb2bd4d46192681f963cf4d056851a193246c7b25d113a4"
 ---
 ## 개요
 
@@ -41,11 +41,11 @@ etag: "sha256-526997d9553d9e4ea56d4d445f3399ae627487cd253402a065f091c9702c38dc"
 
 ## 관리 화면
 
-사이드바의 "Agent Memory" 메뉴로 여는 워크스페이스 수준 관리 화면이다. 경로는 `/w/<slug>/agent-memory` 이고 메뉴 배치는 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 에서 정한다. 왼쪽에 범위 목록, 오른쪽에 고른 범위의 메모리 목록이 있다.
+사이드바의 "에이전트 메모리" 메뉴로 여는 워크스페이스 수준 관리 화면이다. 경로는 `/w/<slug>/agent-memory` 이고 메뉴 배치는 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 에서 정한다. 왼쪽에 범위 목록, 오른쪽에 고른 범위의 메모리 목록이 있다.
 
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 |------|------|---------------|------|
-| 헤더 | 상단 | 제목 "Agent Memory", `[↻ 새로고침]`, 안내 문구 "AI Agent persistent 메모리를 scope 별로 조회/삭제합니다." | 새로고침은 목록을 다시 불러온다 |
+| 헤더 | 상단 | 제목 "에이전트 메모리", `[↻ 새로고침]`, 안내 문구 "AI Agent persistent 메모리를 scope 별로 조회/삭제합니다." | 새로고침은 목록을 다시 불러온다 |
 | 범위 목록 | 왼쪽 | 검색 입력, 행마다 범위 키(예: `cust:42`)·건수·최신 갱신 상대 시각·🗑, "더 보기" | 행을 고르면 오른쪽에 그 범위의 메모리가 나온다. 🗑 은 범위 전체 삭제(편집자 이상) |
 | 메모리 목록 | 오른쪽 | 종류 필터 드롭다운(기본 전체), 건수, 행마다 내용·메모리 종류 배지·상대 시각·🗑, "더 보기" | 🗑 은 단건 삭제(편집자 이상) |
 

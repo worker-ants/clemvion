@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY-PIPELINE"
 title: "에이전트 메모리 — 추출 · 회수 · 정리"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-MEMORY"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-MEMORY"]
 area: "CLE-AI"
-content_hash: "8bc3cbc77aef082b57be071abc1cf8813f8680ba5cf07cc6ab41f99953a87e00"
+content_hash: "62ff85115f44f59f26cf575f0ee8a8ddc00c983920c643ff3a95b871c15008da"
 read_as: "approved_fallback"
-task: "CLE-T-A4RCZ3"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "8bef5aa1edabf2f0a30386af439bff8992bc857d1fbe6a1caf8bcf6b8d2dfaf4"
-etag: "sha256-549d758075398da0d1997a5bde6db2b34bfade33030f21076297bfe8413e5b85"
+mirror_sha256: "41d2b677938f44159231d574437b525971ecb1313ff7ea2eefab70b9282789d0"
+etag: "sha256-567cbf177e443aecb8f762252c45e32ea175f76a22675301bb2a5a7fcf6c150e"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-549d758075398da0d1997a5bde6db2b34bfade33030f21076297bfe8413e5b85"
 - **응답 경로 비차단**: 핸들러는 큐에 넣기까지만 기다리고 추출 LLM 호출은 worker 에서 한다. 회수만 동기이고 추출은 비동기다.
 - **스냅샷 격리**: 기존 `scheduleBackgroundBody` 계열 백그라운드 처리 방식을 따른다. 대화 기록 항목 스냅샷을 shallow-copy 로 떼어 넘기므로 뒤이은 메인 루프의 변경이 백그라운드 작업에 스며들지 않는다.
 - **추출 LLM**: 노드 설정 `extractionModelConfigId` 가 가리키는 Chat 모델 설정을 쓴다. 지정하면 그 설정의 프로바이더·자격 증명·기본 모델로 부르므로 노드의 메인 LLM 과 독립이다(다른 프로바이더의 저렴한 모델도 된다). 폴백 순서는 `extractionModelConfigId` 설정 → `llmConfigId` → `model` → `llmConfig.defaultModel` 이다(`llmConfigId` 가 없으면 워크스페이스 기본 Chat 설정). 추출은 메인 추론보다 단순해서 저렴한 설정을 지정하면 비용을 줄일 수 있다. 필드 결정 이력은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다.
-- **추출 호출**: worker 는 `buildExtractionTranscript(turns)` 로 user·assistant 항목만 남기고(system·tool 제외) `EXTRACTION_SYSTEM_PROMPT` 와 함께 `LlmService.chat` 을 temperature 0, JSON 응답으로 부른다. 추출 모델이 Anthropic 이면 temperature 를 보내지 않으므로 프로바이더 기본값으로 동작한다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 이 호출은 사용량을 쌓고 사용량 귀속은 비운다([LLM 사용량 기록](CLE-AI-USAGE.md)).
+- **추출 호출**: worker 는 `buildExtractionTranscript(turns)` 로 user·assistant 항목만 남기고(system·tool 제외) `EXTRACTION_SYSTEM_PROMPT` 와 함께 `LlmService.chat` 을 temperature 0, JSON 응답으로 부른다. 추출 모델이 Anthropic 이면 temperature 를 보내지 않으므로 프로바이더 기본값으로 동작한다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다)). 이 호출은 사용량을 쌓고 사용량 귀속은 비운다([LLM 사용량 기록](CLE-AI-USAGE.md)).
 - **임베딩 설정**: 저장 임베딩과 회수 임베딩은 반드시 같은 설정(같은 모델·차원·엔드포인트)을 써야 한다. 다르면 cosine 검색이 무의미해지거나 400 에러가 난다. 어느 모델 설정을 쓰는지는 정의가 갈린다. [미결 사항](CLE-AI-MEMORY.md#미결-사항) 참조.
 - **저장 형태**: 추출한 사실·선호 하나를 `content` 로, 그 임베딩을 `LlmService.embed`(`inputType='document'`)로 만들어 메모리 범위 키와 함께 저장한다. 메모리 종류는 `metadata.kind` 로 나눈다. 지식 저장소와 같은 `LlmService.embed` 경로를 쓴다.
 - **지시문 저장 차단**: 저장(`saveMemories`) 전에 명백한 지시문 패턴에 걸리는 항목은 저장하지 않고 버린다(경고 로그). 패턴은 결정적 정규식 목록이다(예: ignore/disregard previous, you are now, system prompt, new instructions:, "이전 지시 무시"). 명백한 패턴만 걸러 정상 사실·선호를 잘못 막는 일을 줄인다. 이 필터는 보조 방어다([메모리 주입 경계](#메모리-주입-경계)).

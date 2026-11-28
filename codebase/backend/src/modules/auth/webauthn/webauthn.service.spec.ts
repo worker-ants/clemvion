@@ -33,6 +33,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
+import { AUTH_ERROR_BODIES } from '../auth-error-bodies';
 
 const mockedGenerateRegOpts = generateRegistrationOptions as jest.Mock;
 const mockedVerifyRegResp = verifyRegistrationResponse as jest.Mock;
@@ -404,8 +405,7 @@ describe('WebAuthnService', () => {
         .catch((err_: unknown) => err_);
       expect(err).toBeInstanceOf(ConflictException);
       expect((err as ConflictException).getResponse()).toEqual({
-        code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-        message: 'This authenticator is already registered.',
+        ...AUTH_ERROR_BODIES.webauthnCredentialExists,
       });
       expect(credentialRepo.save).not.toHaveBeenCalled();
       expect(userRepo.update).not.toHaveBeenCalled();
@@ -438,8 +438,7 @@ describe('WebAuthnService', () => {
           .catch((err_: unknown) => err_);
         expect(err).toBeInstanceOf(ConflictException);
         expect((err as ConflictException).getResponse()).toEqual({
-          code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-          message: 'This authenticator is already registered.',
+          ...AUTH_ERROR_BODIES.webauthnCredentialExists,
         });
       },
     );

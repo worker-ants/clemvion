@@ -161,8 +161,11 @@ A successful response is preserved verbatim on `output.response` — downstream 
 
 ### On failure
 
-- 4xx/5xx → `port='error'`, `output.error.code` = `CAFE24_404` / `CAFE24_422` / `CAFE24_4XX` / `CAFE24_5XX`.
-- 401/403 → `CAFE24_AUTH_FAILED` and the integration auto-transitions to `error(auth_failed)`. Reauthorize from the integration detail page. For a Private app, that also means clicking Test Run in Cafe24 Developers, as in section 5) above.
+- Any non-2xx response (3xx / 4xx / 5xx) → `port='error'`, `output.error.code` = `CAFE24_404` / `CAFE24_422` / `CAFE24_4XX` / `CAFE24_5XX`. A 3xx still left after following redirects becomes `CAFE24_4XX`.
+- 401/403 → `CAFE24_AUTH_FAILED` and the integration auto-transitions to `error`. If the 403 came from missing scopes, the status reason is `insufficient_scope`; otherwise it is `auth_failed`. The code is `CAFE24_AUTH_FAILED` either way, so check the reason on the integration detail page.
+  - `insufficient_scope`: the **Scope** tab lists the missing scopes. Select them and click **Request scopes**.
+  - `auth_failed`: click **Reauthorize** on the **Security** tab.
+  - For a Private app, either case also means clicking Test Run in Cafe24 Developers, as in section 5) above.
 - 429 (rate limit) → the wrapper waits per the response header and retries up to 2 times. If it still fails, `CAFE24_RATE_LIMITED`.
 - Network errors → `CAFE24_TRANSPORT_FAILED`.
 

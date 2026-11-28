@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA-INDEX"
 title: "데이터 모델 개요 — 인덱스 전략"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT-DATA"
 ancestors: ["CLE-VISION", "CLE-PLAT", "CLE-PLAT-DATA"]
 area: "CLE-PLAT"
-content_hash: "adb9d673c7ebf206a759c36feff9e7b605a002dc8bec2bfb40d38ddbe4f04a7a"
+content_hash: "5fca77865e2ee03c325d12428738694d5b00138653ceaf6998c48e32dc5bd3ab"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "6450e57958cf7aa4335b8fe53bcc58ff262a57416ec6897774e96a2ed351ed99"
-etag: "sha256-a23f1b7657f6c520c45c7ca04c322b662091c1f97b9c2ed51de708b05c85ebe5"
+mirror_sha256: "893f8acf551199687a5cc29d4eaf90640d019cda908e34648c8aef7b3d615e4d"
+etag: "sha256-3ebc5f9fad93b2fe43b4fc352721d118ad9e7f15a90bb58c6ce0a26f19c4177e"
 ---
 ## 개요
 
@@ -48,7 +48,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 
 | 테이블 | 인덱스 | 목적과 근거 |
 | --- | --- | --- |
-| Workspace | `(owner_id)` UNIQUE WHERE `type = 'personal'` | 개인 워크스페이스는 소유자당 1개다. DB 가 강제하고 앱(find-or-create)이 이중으로 막는다. 팀 워크스페이스는 한 사용자가 여럿 가질 수 있어 부분 UNIQUE 다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). CONCURRENTLY, V109 |
+| Workspace | `(owner_id)` UNIQUE WHERE `type = 'personal'` | 개인 워크스페이스는 소유자당 1개다. DB 가 강제하고 앱(find-or-create)이 이중으로 막는다. 팀 워크스페이스는 한 사용자가 여럿 가질 수 있어 부분 UNIQUE 다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#개인-워크스페이스-유일성은-부분-유니크-인덱스로-강제한다)). CONCURRENTLY, V109 |
 | WorkspaceMember | `(user_id)` | 사용자별 워크스페이스 목록(`GET /workspaces`). UNIQUE `(workspace_id, user_id)` 는 선두가 달라 테이블을 훑었다. FK `ON DELETE CASCADE` 도 이 인덱스를 쓴다. CONCURRENTLY, V129 |
 | RefreshToken | `(user_id, family_id)` WHERE `is_revoked = false` | 사용자별 활성 로그인 세션 조회 |
 | LoginHistory | `(user_id, created_at DESC)` | 사용자별 로그인 이력 조회. V040 |

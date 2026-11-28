@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP-EXEC"
 title: "MakeShop 노드 — 실행 로직"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-MAKESHOP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-MAKESHOP"]
 area: "CLE-NODE-INT"
-content_hash: "0b73b3c16bb837eebc3b02f0c2778807c4705a10caf8fba5406e1a52154d22bf"
+content_hash: "fa61c401b85bb2063d478f6b5d03c3b1dfb78b0a5609f8011dcdbf523da1ee6e"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-W50N35"
 source_paths: []
-mirror_sha256: "b80a38230d5044e097c8bd1e65ddc9d9f7a2f09c0af93c5f86cf80a0035700d1"
-etag: "sha256-ab43c20dd37e531fde76b95ced8d5d70d99df905df6ec49b7e1c0009b4fed4e9"
+mirror_sha256: "60946068e22704f071438cd7db0abf9d2a861c125f58352273d53162f4cc686c"
+etag: "sha256-6f3fc3b06ee5326de82b55d5da1ae436d6a6b41cf6bf87566489c58bc1b7c774"
 ---
 ## 개요
 
@@ -137,15 +137,19 @@ Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
 
 이 결정은 카탈로그를 근거로 했다. 실측은 아직 하지 못했다(2026-10-10 기준, [미결 사항](CLE-NODE-MAKESHOP.md#미결-사항)). 실측에서 `offset` 이 먹으면 (2) 의 근거가 사라지므로 다시 검토한다. 원래 요구사항은 "페이지네이션 입력을 보여 주고 그 값을 query 로 보낸다" 였고, 2026-10-10 에 변환 · 에코 원래 값 · 경계값 · 거절 · `fields` 우선순위 · 사전 검증 · 설정 화면 동작 규칙을 두었다.
 
-### 활동 로그 범위 (2026-10-10, 2026-10-24)
+### 활동 로그 범위
+
+결정일: 2026-10-10
 
 원래 요구사항은 "호출이 끝나면 성공·실패와 관계없이 활동 로그를 1건 남긴다" 였다. 2026-10-10 에 통합을 해소한 뒤(당시 표현) 끝난 실행으로 범위를 좁히고 노드 취소 신호로 끝난 호출은 남기지 않는다고 더했다. 해소 전 실패의 기록은 당시 알려진 결함(Task CLE-T-PTC4SF)이었고 2026-11-05 에 고쳤다.
 
-2026-10-24 에 «통합을 해소한 뒤» 를 «통합을 얻은 뒤» 로 바꿨다. «해소» 는 3단계 전체(조회와 유형 · 연결 상태 확인)를 가리켜 유형 불일치와 미연결로 끝난 실행이 빠지는 것처럼 읽혔다. 두 실패는 통합을 얻은 뒤의 실패라 기록한다. 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다.
+2026-10-24 에 «통합을 해소한 뒤» 를 «통합을 얻은 뒤» 로 바꿨다. «해소» 는 3단계 전체(조회와 유형 · 연결 상태 확인)를 가리켜 유형 불일치와 미연결로 끝난 실행이 빠지는 것처럼 읽혔다. 두 실패는 통합을 얻은 뒤의 실패라 기록한다. 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다) Rationale 에 있다.
 
-2026-11-19 기준으로 HTTP Request · Cafe24 · MakeShop · Database Query 네 노드가 실행 취소로 끝난 호출을 남기지 않는 같은 규칙을 따른다. 근거는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10)에 있다.
+2026-11-19 기준으로 HTTP Request · Cafe24 · MakeShop · Database Query 네 노드가 실행 취소로 끝난 호출을 남기지 않는 같은 규칙을 따른다. 근거는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다)에 있다.
 
-### dry-run 판정과 활동 로그 (2026-10-23)
+### dry-run 판정과 활동 로그
+
+결정일: 2026-10-23
 
 2026-10-23 에 dry-run 판정 요구사항을 «GET 이 아니거나 예외 목록에 있으면» 으로 바꾸고 dry-run 모의 출력의 활동 로그 제외 요구사항을 더했다.
 

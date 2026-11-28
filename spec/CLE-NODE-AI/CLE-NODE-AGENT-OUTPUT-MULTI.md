@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT-MULTI"
 title: "AI 에이전트 노드 출력 — 멀티턴"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT-OUTPUT"]
 area: "CLE-NODE-AI"
-content_hash: "cf2835f4282f1b224c205dd6ed0768763dc16b11ac1177acc67914e14884a667"
+content_hash: "7d9f51877bf00ef2be75b32fd5ed05d8b2ecbecf01fb1e7f0451c04ad5a2138f"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "5d64585a23621cdef6104066a1c5dc4c9e71be26b2872bb0f2062264f96ee97c"
-etag: "sha256-177ccfa1f9777de2bd4d6ceb8ddd88b02ce828c748c0bc796abfedd07a1c8ba2"
+mirror_sha256: "8f59852b5a30b2676b79389f40560316ed6c3c4d6ca1c3a94198de6c71eb6c24"
+etag: "sha256-72176de83c9823707a8d5c8d78c0423fcda654669e80761dec70112b1ce6d294"
 ---
 ## 개요
 
@@ -360,11 +360,15 @@ LLM 이 조건 도구를 불렀을 때다. 형태는 단일 턴 조건 매칭과
 - 다운스트림도 막기(처음 구현 유지): 재시도로 대화를 살린 뒤 나머지 분기를 따로 재실행해야 한다. "한 노드만 살리고 나머지 흐름은 그대로" 라는 재시도의 목적과 맞지 않는다.
 - 별도 `execution.retry_last_turn_and_resume` 명령으로 나누기: 사용자가 두 재시도를 골라야 하는 부담이 생긴다. 재시도의 본질은 늘 "그 노드를 살리고 워크플로우를 정상 진행" 이라 나눌 이유가 없다.
 
-### 멀티턴 에러 예시도 구현에 맞춘다 (2026-11-05)
+### 멀티턴 에러 예시도 구현에 맞춘다
+
+결정일: 2026-11-05
 
 멀티턴 에러 예시도 단일 턴 에러와 같은 기준으로 구현 값에 맞췄다. 멀티턴도 같은 분류 함수(`extractAiTurnErrorPayload`)를 거치며, 이 함수는 `details` 위에 `retryable` · `retryAfterSec` 만 얹고 `provider` · `statusCode` 를 만들어 넣지 않는다. 2026-11-01 정리([단일 턴 §Rationale](CLE-NODE-AGENT-OUTPUT-SINGLE.md#rationale))가 단일 턴 절만 고쳐 멀티턴 예시에 두 키가 남아 있었다.
 
-### AI 대화 경로도 재개 스냅샷을 낸다 (2026-11-12)
+### AI 대화 경로도 재개 스냅샷을 낸다
+
+결정일: 2026-11-12
 
 form · buttons 경로만 `resumed` 스냅샷을 내던 계약을 사람 결정으로 AI 에이전트와 정보 추출기의 대화 턴 경로에도 적용했다.
 

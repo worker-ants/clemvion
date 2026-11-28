@@ -2,19 +2,19 @@
 id: "CLE-EXEC-PREVIEW-RENDER"
 title: "대화 미리보기 — 시각 매핑과 데이터 소스"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-PREVIEW"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-PREVIEW"]
 area: "CLE-EXEC"
-content_hash: "e1a1ed6930d93953bf6bd14a216c61ebddcf854644e439f7f9186269949ec807"
+content_hash: "80513e5cd9760724ab0f1bb0a8cbaf1a86326ba9fb951b76568489d3249dc903"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "6ec3ca83373798ae2e8eb7b06f26ce908ae487ea45a62fc111c92d18215b6058"
-etag: "sha256-a053129e3168a236be8312c90f47c19b626fab2e3497415671cfb87dbc8885c3"
+mirror_sha256: "4e46860a514361fc57e70e390e8b62912dd421f3f20208fbe9f2aa48dbd5e575"
+etag: "sha256-e1cf52a01a54f8047632c36eb76d71e158bde732fbd7d04da14bc2bd65a449bc"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-a053129e3168a236be8312c90f47c19b626fab2e3497415671cfb87dbc8885c3"
 1. `data.retryable === true` 다.
 2. 항목에 `nodeExecutionId` 가 있다. 이 값은 마지막 턴 재시도 명령(`execution.retry_last_turn`)의 payload 키다([대화 스레드 §`system_error` 데이터](../CLE-IX/CLE-IX-THREAD.md#system_error-데이터)). 실시간 이벤트로 만든 store 항목에만 있고 내역 화면이 `output.error` 로 합성한 항목에는 없다([데이터 소스](#데이터-소스)).
 
-현재 구현(`conversation-inspector.tsx`)은 이 두 조건에 더해 재시도 명령 콜백(`onRetry`)이 연결돼 있는지도 확인한다. 실시간 `system_error` 는 AI 에이전트 노드(`ai_agent`)이고 store 에 대화가 이미 있을 때만 붙인다(`use-execution-events.ts` 의 `isMultiTurnAiContext`). AI 에이전트 단일 턴의 실패(출력의 설정 에코 `config.mode` 가 `single_turn`)에는 store 에 앞선 대화가 있어도 붙이지 않는다. 근거는 [Rationale](#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01) 에 있다. 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도 상태(`_retryState`)를 만들지 않는다. 그래서 정보 추출기 실패에는 실시간 `system_error` 가 붙지 않고 버튼도 없다. 이 노드 유형 조건이 없으면 버튼을 눌렀을 때 `RETRY_STATE_NOT_FOUND` 가 난다. 정보 추출기에 마지막 턴 재시도를 들일지는 [정보 추출기 §미결 사항](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#미결-사항) 에서 다룬다.
+현재 구현(`conversation-inspector.tsx`)은 이 두 조건에 더해 재시도 명령 콜백(`onRetry`)이 연결돼 있는지도 확인한다. 실시간 `system_error` 는 AI 에이전트 노드(`ai_agent`)이고 store 에 대화가 이미 있을 때만 붙인다(`use-execution-events.ts` 의 `isMultiTurnAiContext`). AI 에이전트 단일 턴의 실패(출력의 설정 에코 `config.mode` 가 `single_turn`)에는 store 에 앞선 대화가 있어도 붙이지 않는다. 근거는 [Rationale](#단일-턴-실패에는-system_error-를-붙이지-않는다) 에 있다. 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도 상태(`_retryState`)를 만들지 않는다. 그래서 정보 추출기 실패에는 실시간 `system_error` 가 붙지 않고 버튼도 없다. 이 노드 유형 조건이 없으면 버튼을 눌렀을 때 `RETRY_STATE_NOT_FOUND` 가 난다. 정보 추출기에 마지막 턴 재시도를 들일지는 [정보 추출기 §미결 사항](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#미결-사항) 에서 다룬다.
 
 ## 세 가지 구분 신호
 
@@ -178,7 +178,9 @@ LLM 프로바이더가 content 를 어떤 모양으로 보내든(Anthropic `null
 
 ## Rationale
 
-### 단일 턴 실패에는 `system_error` 를 붙이지 않는다 (2026-11-01)
+### 단일 턴 실패에는 `system_error` 를 붙이지 않는다
+
+결정일: 2026-11-01
 
 AI 에이전트 단일 턴이 실패하면 대화 미리보기 목록에 `system_error` 줄을 붙이지 않는다. 실패는 오류 탭과 노드 결과의 `output.error` 로 보인다. 단일 턴의 LLM 호출 실패가 `error` 포트 출력으로 바뀌어(NERV Task `CLE-T-ZHBMAC`) 단일 턴 실패 출력에도 `output.error` 가 실리게 되면서 이 경우를 따로 정했다.
 

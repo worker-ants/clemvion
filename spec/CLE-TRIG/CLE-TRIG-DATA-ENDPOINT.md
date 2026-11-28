@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-ENDPOINT"
 title: "트리거 데이터와 흐름 — 웹훅 경로 예약"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "0bcac4b51f8532091c86e1b2453fb818b2ba5f1fe6fb2616b65688600fafe775"
+content_hash: "8ef1700ed7e59f6617d7ecb5ce47968702c0d6ba8cca2b2e2158a0c1642261c3"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "f9ff7b4eb76be5054178285791f3e40ba9415eebef26913070cde01c711a3774"
-etag: "sha256-380d04b6182de57f889b5d39b835f9c341bc443bcef39f13800129724353565b"
+mirror_sha256: "bed91665b712f2b51c973dc6067520211f1a0a8099f19d6b97bbfcd8d140de5a"
+etag: "sha256-c18d8caa4e822463e73c0bbdcb97654f4bc7e132982a4dfdfd18082a43e4bbd9"
 ---
 ## 개요
 
@@ -55,7 +55,7 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 결정(2026-09-18 사용자):
 
 - 유일성을 전역으로 바꾼다. `(endpoint_path) UNIQUE WHERE endpoint_path IS NOT NULL` 이 V002 의 UNIQUE 를 바꾼다(V132). 기각한 대안: 비유일 보조 인덱스 + 앱 수준 중복 검사 + 가장 오래된 행 선택. 마이그레이션 위험은 없지만 동시 요청 경합을 DB 가 막지 못한다.
-- 기존 중복은 나중 것에 새 UUID 를 준다(V131). 경로가 같은 묶음마다 가장 먼저 만든 트리거(`created_at`, 같으면 `id`)만 경로를 유지하고 나머지는 `gen_random_uuid()` 로 새 경로를 받는다. 복사는 원본보다 나중에만 생길 수 있어서다. 바뀐 트리거는 id·워크스페이스 id·채팅 채널 여부만 NOTICE 로 남긴다(경로는 비밀 키라 로그에 남기지 않는다). 정상 경로로는 워크스페이스 사이 중복이 생기지 않으므로(복제·가져오기는 트리거를 옮기지 않는다, [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)) 중복이 있다면 복사 등록의 흔적이다. 기각한 대안: 중복이 있으면 마이그레이션을 실패시키는 것. 데이터를 몰래 바꾸지 않지만 배포가 막힌다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#개인-워크스페이스-유일성은-부분-유니크-인덱스로-강제한다) 의 「개인 워크스페이스 유일성은 부분 유니크 인덱스로 강제한다」 는 같은 상황에서 배포를 멈추는 쪽을 골랐다(V108). 그쪽에서 중복을 자동으로 정리하려면 워크스페이스 행을 지우거나 하위 행을 옮겨야 한다. 행을 지우면 CASCADE 로 하위 데이터까지 사라진다. 여기 정리는 경로만 새 값으로 바꾸고 트리거 행을 남긴다.
+- 기존 중복은 나중 것에 새 UUID 를 준다(V131). 경로가 같은 묶음마다 가장 먼저 만든 트리거(`created_at`, 같으면 `id`)만 경로를 유지하고 나머지는 `gen_random_uuid()` 로 새 경로를 받는다. 복사는 원본보다 나중에만 생길 수 있어서다. 바뀐 트리거는 id·워크스페이스 id·채팅 채널 여부만 NOTICE 로 남긴다(경로는 비밀 키라 로그에 남기지 않는다). 정상 경로로는 워크스페이스 사이 중복이 생기지 않으므로(복제·가져오기는 트리거를 옮기지 않는다, [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)) 중복이 있다면 복사 등록의 흔적이다. 기각한 대안: 중복이 있으면 마이그레이션을 실패시키는 것. 데이터를 몰래 바꾸지 않지만 배포가 막힌다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#개인-워크스페이스-유일성은-부분-유니크-인덱스로-강제한다) 의 「개인 워크스페이스 유일성은 부분 유니크 인덱스로 강제한다」 는 같은 상황에서 배포를 멈추는 쪽을 골랐다(V108). 그쪽에서 중복을 자동으로 정리하려면 워크스페이스 행을 지우거나 하위 행을 옮겨야 한다. 행을 지우면 CASCADE 로 하위 데이터까지 사라진다. 여기 정리는 경로만 새 값으로 바꾸고 트리거 행을 남긴다.
 - 새 경로를 받은 트리거가 채팅 채널이면 프로바이더에 등록된 URL 은 옛 경로 그대로다. SQL 은 프로바이더 API 를 부를 수 없다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 의 「PATCH 는 비밀을 쓰지 않는다」 가 «`endpointPath` 변경의 웹훅 재등록을 끊는다» 며 기각한 안(`chatChannel` PATCH 에서 `setupChannel` 을 부르지 않는 안)을 흉내 내지 않고 NOTICE 에 `chat_channel=true` 를 남겨 배포 운영자가 그 소유자에게 채널 설정을 다시 저장하게 한다. 재등록은 정상 경로(다시 저장 → `setupChannel`)로 일어난다(V132 헤더의 운영 절차). `setupChannel` 은 같은 설정으로 다시 불러도 된다([채팅 채널 어댑터 규약 「setupChannel 멱등의 뜻」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#setupchannel-멱등의-뜻)). 채팅 채널 상태 컬럼은 쓰지 않는다. `degraded` 는 외부 API 호출 실패만 뜻하지 않는다. 분당 한도 초과([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 의 「분당 한도 초과분은 재발송 큐 대신 건너뛰고 degraded 로 표시한다」)와 다른 워크스페이스의 워크플로우([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」)도 원인이다. 원인 목록은 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 2026-10-05 에 다시 보았고 판단은 그대로 둔다(NERV Task `CLE-T-K9S0TE`). `degraded` 는 다음 발송이나 채널 설정이 성공하면 `healthy` 로 돌아가므로([채팅 채널 데이터와 흐름 「채널 건강도」](../CLE-CHAT/CLE-CHAT-DATA.md#채널-건강도)) «소유자가 채널 설정을 다시 저장해야 한다» 는 신호로 쓰기에 맞지 않는다. 또 일회성 정리 SQL 이 상태 컬럼을 쓰면 서버의 갱신 경로 밖에서 상태가 바뀐다. 그 사이 옛 경로로 오는 프로바이더 요청은 먼저 만든 쪽이 받는다. 그쪽이 채팅 채널이면 그 트리거의 비밀로 서명을 검증해 401 로 거부되고([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 「인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」 (d)), 공개 웹훅이면 경로를 아는 누구든 직접 POST 할 수 있는 URL 이라 새로 열리는 표면이 아니다. 마이그레이션 전에도 이 묶음은 조회가 한 행만 골라 한쪽만 받고 있었다.
 
 정리(`DO` 블록)는 트랜잭션 문장이고 교체는 `CONCURRENTLY` 라 한 파일에 둘 수 없다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)). V131 과 V132 사이에 복사가 끼어들면 V132 가 중복 키로 실패하고 새 인덱스가 invalid 로 남는다. 그래도 옛 인덱스는 valid 그대로라 보호가 줄지 않는다. V131 본문을 수동으로 다시 돌린 뒤 V132 를 다시 실행하면 첫 DROP 이 잔재를 치우고 성공한다(실측). 그 절차는 V132 헤더에 있다.

@@ -5,6 +5,7 @@ export {
   Cafe24AuthFailedError,
   Cafe24RateLimitedError,
   Cafe24TransportFailedError,
+  Cafe24TokenRefreshFailedError,
   Cafe24IncompleteCredentialsError,
 } from './cafe24-api.client';
 export * from './metadata/index';

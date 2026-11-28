@@ -15,6 +15,7 @@ import {
 } from './totp.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { AUTH_ERROR_BODIES } from './auth-error-bodies';
 
 // RFC 6238 Appendix B 표준 TOTP 테스트 벡터 (SHA1, 20-byte ASCII
 // "12345678901234567890" → base32). T=59s → 8자리 94287082 → 6자리 287082.
@@ -358,10 +359,7 @@ describe('TotpService', () => {
    * (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
    */
   describe('verifyForDisable', () => {
-    const TOTP_INVALID = {
-      code: 'TOTP_INVALID',
-      message: 'The verification code is incorrect.',
-    };
+    const TOTP_INVALID = { ...AUTH_ERROR_BODIES.totpInvalid };
 
     it('유효한 TOTP 코드면 통과한다', async () => {
       usersService.findById.mockResolvedValue(

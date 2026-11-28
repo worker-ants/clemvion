@@ -9,7 +9,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
-import { extractApiMessage, type ApiErrorBody } from "@/lib/api/errors";
+import {
+  serverErrorMessage,
+  type ServerErrorKeyTable,
+} from "@/lib/api/server-error-messages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +25,14 @@ import {
 } from "@/components/ui/card";
 import { useT, useLocale } from "@/lib/i18n";
 import { getPasswordStrength } from "@/lib/utils/password";
+
+/**
+ * 재설정 실패는 400 `VALIDATION_ERROR` 하나다(무효 · 만료 토큰, 비밀번호 규칙 위반). 원인을 가를 수 없어 링크 만료와
+ * 비밀번호 규칙을 함께 안내하는 이 화면의 문구를 공용 표보다 먼저 고른다(NERV Task CLE-T-7QQPK7).
+ */
+const RESET_ERROR_OVERRIDES: ServerErrorKeyTable = {
+  VALIDATION_ERROR: "auth.resetPassword.rejected",
+};
 
 interface ResetPasswordFormProps {
   token: string;
@@ -86,11 +97,17 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
       toast.success(t("auth.resetPassword.passwordChanged"));
       setTimeout(() => router.push("/login"), 3000);
     } catch (err) {
-      // 실패는 모두 400 VALIDATION_ERROR 라 코드로 원인을 가를 수 없다. 봉투의 문구를 그대로 보인다.
-      const error = err as AxiosError<ApiErrorBody>;
-      const message =
-        extractApiMessage(error) ?? t("auth.resetPassword.genericFailed");
-      toast.error(message);
+      // 실패는 모두 400 VALIDATION_ERROR 라 코드로 원인을 가를 수 없다. 링크 만료와 비밀번호 규칙을 함께 안내한다.
+      // 서버 `message` 는 영문이라 보이지 않는다(NERV CLE-UI-I18N-BACKEND 규칙 5, Task CLE-T-7QQPK7).
+      const error = err as AxiosError;
+      toast.error(
+        serverErrorMessage(
+          err,
+          t,
+          t("auth.resetPassword.genericFailed"),
+          RESET_ERROR_OVERRIDES,
+        ),
+      );
       // 만료 · 무효 토큰도 같은 코드라 서버가 거부한 모든 경우에 재요청 링크를 보인다(REQ-SIGNIN-035).
       // 응답을 받지 못했으면 토큰 문제인지 알 수 없으므로 보이지 않는다.
       setServerRejected(Boolean(error.response));

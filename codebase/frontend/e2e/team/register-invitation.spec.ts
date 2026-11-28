@@ -131,10 +131,9 @@ test.describe("Register page — invitation token flow", () => {
 
     await page.goto(`/register?invitationToken=${VALID_TOKEN}`);
 
+    // 초대 코드는 공용 코드 매핑에 있어 화면의 상태 코드 폴백 대신 코드별 사전 문구가 보인다.
     await expect(
-      page.getByText(
-        /확인할 수 없어요|not recognized/i,
-      ),
+      page.getByText(/초대를 찾을 수 없어요|Invitation not found/i),
     ).toBeVisible();
   });
 

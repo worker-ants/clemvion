@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 21
+version: 22
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "a2d536328fa79bd1c1e07673448536be2d100cdf37ad303532372cef930f4125"
+content_hash: "e1050755e2dbe4ba6fb645462ea69d0712d5b9057dfce4bc9b14b71c5a984324"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-3WDHJT"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "bf2a2328d992147e9da83e0c7bbbfbdb21b17f960872c8a349b7384c6ff72138"
-etag: "sha256-a62ededc6eabe1826d86e37d31fc1219359dc7b1de0fe563f2577d0c1747c697"
+mirror_sha256: "a557be9e6e69403f2122bb054043d1d1b960d0029523352157f104c843cc28dd"
+etag: "sha256-717413de5e71cba911901e89b01014365a756b74d6739eaede7589c2bdd0c43a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -224,4 +224,4 @@ OAuth 응답 본문에 토큰 일부가 섞일 수 있다. 그래서 `last_error
 
 키가 바뀌어 복호화하지 못한 인증 설정은 재생성과 편집 `PATCH` 로 고쳐지지 않았다. 표식에 새 값을 넣어 저장하면 원래 저장값이 그대로 다시 저장되기 때문이었다. NERV Task `CLE-T-SAMVX8` 이 재생성은 표식을 버리고 새 config 를 만들고, 편집은 표식에 config 를 병합하지 않게 고쳐서 이 항목을 미결에서 걷었다. 정본은 [외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성) 과 [「편집」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#편집) 이다.
 
-transformer 의 동작은 바꾸지 않았다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 응답 `config` 에 표식을 그대로 싣고 통합의 `credentialsStatus` 같은 상태 표시로 바꾸지 않는 결정은 [외부 호출 인증 설정 「복호화 불가 표식을 응답에 그대로 둔다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다. 그래서 이 문서의 표식 정의와 용어 사전 「복호화 불가 표식」 은 바꾸지 않았다.
+transformer 의 동작은 바꾸지 않았다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 응답 `config` 에 표식을 그대로 싣고 통합의 `credentialsStatus` 같은 상태 표시로 바꾸지 않는 결정은 [외부 호출 인증 설정 「복호화 불가 표식을 응답에 그대로 둔다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#복호화-불가-표식을-응답에-그대로-둔다) 에 있다. 그래서 이 문서의 표식 정의와 용어 사전 「복호화 불가 표식」 은 바꾸지 않았다.

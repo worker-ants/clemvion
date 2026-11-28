@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY-EVENTS"
 title: "EIA 알림 웹훅 — 이벤트와 payload"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "7e27198a872df165789dcc9c16e7afcff4cd02fcf48527d6500e9879fa529336"
+content_hash: "565555601efad4c0a050a622eee7610077fb2c8bb130fda6e829588eb1032404"
 read_as: "approved_fallback"
-task: "CLE-T-P0W82J"
+task: "CLE-T-B4VSS9"
 source_paths: []
-mirror_sha256: "07888cb34a058460ed65dc5d63363d9856da7c9711300b7c3d22599105fdc5cc"
-etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
+mirror_sha256: "2bcbcaf1dffe5132f4dabff6713eab57aa023cab9b7f220ad21cc0c75ba7d1c7"
+etag: "sha256-ff082bf8f0001fc7cb0ef072f858489b807060ce8d53afd733551cf6ee0aed37"
 ---
 ## 개요
 
@@ -56,7 +56,6 @@ etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
 | `status` | 세 가지 | 구현됨 | `completed` \| `failed` \| `cancelled` |
 | `error` | `failed`, `cancelled`(시스템 취소만) | 구현됨 | `{ code, message, nodeId, details? }`. `code`·`nodeId` 는 `null` 일 수 있다. `failed` 는 모든 경로에서 객체다(`toTerminalErrorPayload` 로 일원화). `cancelled` 는 `{ code, message }` 를 손으로 만들어 `nodeId`·`details` 가 없다 |
 | `result.cancelledBy` | `cancelled` | 구현됨 | 종결 발행 타입이 필수 필드로 강제한다. 세 이벤트의 필수 필드는 모두 타입이 강제한다 |
-| `result.outputs` | `completed` | 미구현(Planned) | 발행 직전에 데이터가 있지만 payload 에 넣지 않는다 |
 | `durationMs` | 세 가지 | 구현됨 | 밀리초. 알 수 없으면 `null`(형제 `error.code` 와 같은 부재 표현). 엔티티를 읽지 않는 취소 경로는 UPDATE 문 안에서 SQL 로 계산해 `RETURNING` 으로 받아 싣는다(DB 와 전송 값이 같다). `markQueueWaitTimeout` 의 값은 큐 대기 시간이다(`started_at` 이 admission 전 시각). WebSocket 문서는 같은 값을 `duration` 으로 적는다. 이름만 다르고 같은 값이다 |
 
 `finalNodeId`·`finalPort`·`nodeCount`·`failedNodeId` 는 싣지 않는다. 엔진에 그런 개념 자체가 없다. 풍부한 종결 데이터가 필요하면 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 의 상태 조회를 쓴다.
@@ -147,7 +146,7 @@ etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
 
 ### `execution.completed`
 
-`status` 와 `durationMs` 를 싣는다. `result.outputs` 는 아직 싣지 않는다.
+`status` 와 `durationMs` 를 싣는다.
 
 ```jsonc
 // 알림 웹훅 요청 본문 기준. SSE 는 payload 래퍼 없이 안쪽 객체가 그대로 온다
@@ -160,7 +159,6 @@ etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
   "timestamp":   "ISO8601",
   "payload": {
     "status": "completed",
-    // result.outputs: Planned
     "durationMs": 4242
   }
 }
@@ -223,13 +221,18 @@ etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
 
 - `finalNodeId`·`finalPort`·`nodeCount`·`failedNodeId` 는 엔진에 개념 자체가 없다(발행 로직 0건). 설계된 적 없는 필드를 문서만 약속하고 있었다. 되살리지 않는다.
 - `error.code` 를 억지로 채우는 대체 코드는 넣지 않는다. 의미 없는 코드가 의미 있는 코드와 같은 자리에 섞이면 수신 측이 가를 수 없기 때문이다. 그래서 "코드 없음" 을 부재로 전한다. 부재 표현은 형제 필드 `nodeId` 와 같은 `null` 이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 부재 표현에서 키 생략과 택일하고 근거를 남긴다).
+- `execution.completed` 의 `result.outputs` 도 약속에서 거뒀다(사용자 결정 질문 21 A, NERV Task `CLE-T-10WN9G`). 이 필드를 읽는 소비자가 없다. 실행 결과(`outputData`)는 실행 상태 조회의 `result` 가 이미 가려서 내보낸다([EIA 수신 API — 상태 조회와 토큰 갱신](CLE-EIA-INBOUND-STATUS.md)). 종결 이벤트는 SSE 의 64 KiB 한도에서 빠져 있어 큰 출력을 실으면 한도 밖으로 커진다. 그래서 출력은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 의 상태 조회로 받는다.
 - 필드 집합 등을 이 문서 한 곳에만 두는 이유는 [EIA 알림 웹훅 「정본을 한 곳에 둔다」](CLE-EIA-NOTIFY.md#정본을-한-곳에-둔다) 에 있다.
 
-### 시스템 취소 `error.message` 를 필수로 적는다 (2026-11-05)
+### 시스템 취소 `error.message` 를 필수로 적는다
+
+결정일: 2026-11-05
 
 시스템 취소 경로는 모두 `{ code, message }` 를 손으로 만들고 `message` 에 정적 상수 문자열을 넣는다([`execution.cancelled` 행동 계약](#executioncancelled-행동-계약)). 선택으로 적으면 수신 측이 실제로 생기지 않는 부재를 처리해야 한다. [채팅 채널 어댑터 규약 — 이벤트와 데이터 타입](../CLE-CHAT/CLE-CHAT-ADAPTER-TYPES.md) 의 TypeScript 변형도 `error?: { code: string; message: string }` 으로 `message` 를 필수로 적는다. 그 문서는 어긋나면 이 문서를 따른다고 정해 두었다.
 
-### 입력 대기 알림에 인터랙션 블록을 싣는다 (2026-11-20)
+### 입력 대기 알림에 인터랙션 블록을 싣는다
+
+결정일: 2026-11-20
 
 - 결정은 사용자가 2026-11-20 에 내렸다(NERV 질문 `01a1f7b5-8d68-71ef-83ba-8662bcdcd173`, Task `CLE-T-BZH1XK`). 알림 웹훅 수신 측이 202 응답을 받은 호출자와 다를 수 있어 알림만으로 실행을 이어 갈 수 있게 한다. 알림 웹훅을 순수 통보로 한정한 결정([EIA 알림 웹훅 「EIA 알림 웹훅 응답으로 인터랙션을 받지 않는다」](CLE-EIA-NOTIFY.md#eia-알림-웹훅-응답으로-인터랙션을-받지-않는다))은 그대로다. 인터랙션 결과는 여전히 알림의 응답 본문으로 받지 않고 인바운드 API 로만 받는다. 이 블록은 요청 본문에 그 진입 정보를 실을 뿐이다.
 - **알림마다 새 토큰을 발급한다**: 서버는 202 응답의 토큰 원문을 저장하지 않아 다시 실을 수 없다. 저장했더라도 대기가 길어지면 만료 시간이 이미 지나 있다. 새로 발급하면 대기마다 만료 시간이 다시 시작한다. 발급한 jti 는 웹훅 응답의 토큰과 같은 실행 토큰 행으로 남고 실행이 끝나면 함께 폐기된다. 종료 폐기와 알림 발급이 엇갈려 행이 남으면 분 단위 종료 토큰 정리 작업(`terminal-revoke-reconcile`, [External Interaction API 요구사항](CLE-EIA.md#요구사항))이 다시 폐기한다([EIA 데이터와 흐름 — 토큰 발급과 인바운드 명령](CLE-EIA-DATA-TOKEN.md)).
@@ -239,6 +242,8 @@ etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
 - **발급이 실패해도 알림은 보낸다**: 입력 대기 사실 자체가 수신 측에 필요한 정보다. 블록이 빠진 알림은 엔드포인트를 직접 만들면 쓸 수 있다.
 - **웹채팅 위젯 유휴 회수가 늦어질 수 있다**: 회수는 실행 토큰 행의 가장 늦은 만료 시각을 기준으로 한다. 공개 웹훅 트리거가 입력 대기 알림을 구독하면 알림마다 새 토큰이 생겨 회수가 최대 1시간 늦어진다. 그 시간 동안 알림 수신 측이 유효한 토큰을 가지고 있으므로 회수를 미루는 것이 맞다.
 
-### 첫 AI 대기의 디버그 필드 이름을 바꾼다 (2026-11-20)
+### 첫 AI 대기의 디버그 필드 이름을 바꾼다
+
+결정일: 2026-11-20
 
 첫 AI 입력 대기 이벤트는 최상위에 `turnDebug`(객체 `{ llmCalls, metadata }`)를 실었다. `nodeOutput.meta.turnDebug`(배열)와 이름이 같아 둘을 헷갈리게 했다. 저장소 밖 소비처는 보이지 않아 지우는 안도 있었지만 외부 wire 라 지우지 않고 `initialTurnDebug` 로 이름만 바꿨다(NERV Task `CLE-T-3SMSHG`, 21차 조율 세션에서 사용자가 2026-11-20 권장안으로 받았다). 알림 웹훅 · SSE 로는 `llmCalls` 가 빠진 `{ metadata }` 만 나가므로 외부 수신 측이 이 키를 읽었다면 새 이름으로 바꿔야 한다. 이 문서는 그 필드를 외부 계약으로 정하지 않는다. 두 이름을 함께 두고 구분 문구만 다는 안은 충돌을 굳히므로 기각했다.

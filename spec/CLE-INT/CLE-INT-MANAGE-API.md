@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
 content_hash: "736d3c7c8e820bf7f987623532e4e7804b44592f65188f55915d758086763912"
 read_as: "approved_fallback"
-task: "CLE-T-S25D5H"
+task: "CLE-T-M2FG35"
 source_paths: []
-mirror_sha256: "58e1b7c1bf02141c2075a04769d3290eea4ac50917bf97419b3196ad7686b255"
-etag: "sha256-ac9cc86174e236cadaddd21f08b12cf64d2807a386f59f085f1adf3d411a29d8"
+mirror_sha256: "10b22eaf820dde88dd65d538ce5cae694b20adf770fa9b70151b82b887d5301f"
+etag: "sha256-7c0386eaaeb630456a9337a135657e498ef9965e9295a34d347d8004f76437fb"
 ---
 ## 개요
 

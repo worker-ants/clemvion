@@ -2,19 +2,19 @@
 id: "CLE-RESEARCH-COMPETITORS-ASSESS"
 title: "경쟁 분석: n8n · Flowise — 강점과 약점"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-RESEARCH-COMPETITORS"
 ancestors: ["CLE-VISION", "CLE-RESEARCH", "CLE-RESEARCH-COMPETITORS"]
 area: "CLE-RESEARCH"
-content_hash: "227895733a1eaee0fdf2281faa78687ee2ff5b6daa53369346d4308da272a420"
+content_hash: "5627def4af9e47d9ac7201a8cb4b104ead74f4900cf5620c788191dd1817da8f"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "d54984ccfd9c052bbf88628a12ccc7d32f719438accb0baaba30e6527c00775f"
-etag: "sha256-582ca8977c6cb5ec77bebf6da5d050771bf5203584bdb00cfdaaba33a3fe0553"
+mirror_sha256: "2faeb4d2d9d374ff760e1a0e024d773f04b25c8661bef54688fcdfa18fec8ea4"
+etag: "sha256-3418eb0401ce4ff407ee94b959537094e95f0edbeb0fe4ad0f9d02b0aced1905"
 ---
 ## 개요
 
@@ -90,6 +90,8 @@ v1 이 놓친 강점이다. n8n · Dify 커뮤니티 에디션보다 앞선다.
 
 ## Rationale
 
-### 강점에서 동시 로그인 세션 제한을 뺐다 (2026-10-10)
+### 강점에서 동시 로그인 세션 제한을 뺐다
+
+결정일: 2026-10-10
 
 원문은 「인증 깊이」 강점에 동시 세션 수 제한을 함께 적었다. 2026-10-10 에 코드를 확인하니 한 사용자의 로그인 세션 수를 세거나 한도를 넘는 로그인 세션을 끊는 코드가 없었다. 그래서 강점 문장에서 이 기능을 빼고 **현재** 표시로 미구현 상태를 적었다. 이 판단은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항과 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 구현 상태에 맞췄다. 구현은 후속 NERV Task `CLE-T-VBQV4H` 로 추적한다.

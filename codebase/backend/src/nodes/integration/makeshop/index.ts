@@ -5,6 +5,7 @@ export {
   MakeshopAuthFailedError,
   MakeshopRateLimitedError,
   MakeshopTransportFailedError,
+  MakeshopTokenRefreshFailedError,
   MakeshopIncompleteCredentialsError,
 } from './makeshop-api.client';
 export { MakeshopModule } from './makeshop.module';
