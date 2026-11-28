@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-INVITE"
 title: "워크스페이스와 멤버 — 초대"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "60205b12620e361e13bc619a8a56bbf7c6c4d7c148a739c27cb1e14859494612"
+content_hash: "25d6f3e43f7c742b1f0dd7baaec824f208b981466367524c880f9ac0bf5f4767"
 read_as: "approved_fallback"
-task: "CLE-T-86E38Q"
+task: "CLE-T-W1JP66"
 source_paths: []
-mirror_sha256: "ae77b87c70ca824d1f0ec75f5037cfeacad97ddd7eb2a7455af16c2b8580489a"
-etag: "sha256-d97849ee8391e2c1d168fc0cf404289b1b679941d8d9dee8a62e584c5026909a"
+mirror_sha256: "679e360baa4aa05ac110d0c1dc2e1f286f061ba1fbf379e263b7eec2eae09004"
+etag: "sha256-0fa29f8af235744a123c649d7a0795cf304ae29f17d7508f132890b63b2df428"
 ---
 ## 개요
 
@@ -76,7 +76,7 @@ sequenceDiagram
 
 수락 페이지는 로그인 이메일과 토큰 이메일을 대소문자를 구분하지 않고 비교한다. 두 값을 소문자로 바꿔 비교하고 앞뒤 공백은 지우지 않는다. 서버 수락과 같은 규칙이다. 서버는 로그인 이메일을 소문자로 바꿔 비교하고 토큰 이메일은 소문자로 저장돼 있다.
 
-두 이메일이 다르면 수락 페이지에 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내와 «다른 계정으로 로그인» 버튼만 보여 준다. 이 버튼을 누르면 로그아웃한 뒤 복귀 경로에 이 수락 페이지를 담은 로그인 화면으로 간다. 로그인 화면 주소의 형식은 [라우트 가드와 로그인 뒤 이동 「로그인 뒤 이동」](CLE-ACCT-SESSION-ROUTE.md#로그인-뒤-이동) 이 정한다. 다른 계정으로 로그인하면 이 수락 페이지로 돌아온다. 복귀 경로를 지정한 로그아웃 규칙은 [세션과 토큰 「로그아웃」](CLE-ACCT-SESSION.md#로그아웃) 이 정한다.
+두 이메일이 다르면 수락 페이지에 "이 초대는 {{email}} 에게 발송되었어요. 해당 계정으로 로그인해 주세요." 안내와 «다른 계정으로 로그인» 버튼만 보여 준다. 이 버튼을 누르면 로그아웃한 뒤 복귀 경로에 이 수락 페이지를 담은 로그인 화면으로 간다. 로그인 화면 주소의 형식은 [라우트 가드와 로그인 뒤 이동 「로그인 뒤 이동」](CLE-ACCT-SESSION-ROUTE.md#로그인-뒤-이동) 이 정한다. 다른 계정으로 로그인하면 이 수락 페이지로 돌아온다. 복귀 경로를 지정한 로그아웃 규칙은 [세션과 토큰 「로그아웃」](CLE-ACCT-SESSION.md#로그아웃) 이 정한다.
 
 수락 페이지 경로는 `/invitations/accept?token=<초대 토큰>` 이다(쿼리 파라미터 `token`). 화면은 슬러그 경로 `app/(main)/w/[slug]/invitations/accept/**` 에 있다. 슬러그 없는 `/invitations/accept` 로 들어오면 옛 경로 흡수 라우트가 쿼리를 그대로 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)).
 
