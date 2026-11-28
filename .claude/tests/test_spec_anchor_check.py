@@ -34,6 +34,8 @@ WORKFLOW = _harness.REPO_ROOT / ".github" / "workflows" / "spec-link-checks.yml"
 FRONTEND = _harness.REPO_ROOT / "codebase" / "frontend"
 
 anchor_check = _harness.load_module_by_path("anchor_check_under_test", TOOL_DIR / "anchor_check.py")
+spec_heading = _harness.load_module_by_path(
+    "spec_heading_under_test", _harness.REPO_ROOT / ".claude" / "hooks" / "_lib" / "spec_heading.py")
 slug_ranges = _harness.load_module_by_path("slug_ranges_under_test", TOOL_DIR / "slug_ranges.py")
 
 
@@ -112,6 +114,33 @@ class HeadingsTest(unittest.TestCase):
 
     def test_inline_backticks_after_fence_marker_is_not_a_fence(self):
         self.assertEqual(anchor_check.headings("``` a ` b\n# c\n"), ["c"])
+
+
+class FenceParityTest(unittest.TestCase):
+    """코드 블록 울타리 판정이 `_lib/spec_heading.py` 와 같은 입력에서 같은 제목 줄을 고르는지 본다."""
+
+    # 닫는 울타리 길이 · 문자 · info 백틱 · 닫히지 않은 울타리 · 들여쓰기 경계를 모두 건드린다.
+    BODIES = [
+        "## 2026-01-01 밖\n",
+        "```\n## 2026-01-02 안\n```\n## 2026-01-03 밖\n",
+        "~~~\n## 2026-01-04 안\n```\n## 2026-01-05 안\n~~~\n## 2026-01-06 밖\n",
+        "````\n```\n## 2026-01-07 안\n```\n````\n## 2026-01-08 밖\n",
+        "``` a`b\n## 2026-01-09 밖(울타리 아님)\n",
+        "   ```\n## 2026-01-10 안\n   ```  \n## 2026-01-11 밖\n",
+        "    ```\n## 2026-01-12 밖(들여쓰기 코드)\n",
+        "```\n## 2026-01-13 닫히지 않음\n",
+        "```\n```x\n## 2026-01-14 안(닫는 울타리 아님)\n```\n",
+    ]
+
+    def test_same_date_headings_outside_fences(self):
+        for body in self.BODIES:
+            ours = [raw for raw in anchor_check.headings(body) if spec_heading._DATE.search(raw)]
+            lib = [line for line in spec_heading.date_headings(body)]
+            # `date_headings` 는 닫히지 않은 울타리 안의 날짜 제목도 센다(보수적). 그 경우만 다르다.
+            unclosed = body.count("```") % 2 == 1 and "닫히지 않음" in body
+            if unclosed:
+                continue
+            self.assertEqual([l.lstrip("# ").strip() for l in lib], [o.strip() for o in ours], body)
 
 
 class LinksTest(unittest.TestCase):

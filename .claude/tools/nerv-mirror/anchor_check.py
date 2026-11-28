@@ -43,6 +43,7 @@ import sys
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import unquote
 
 HERE = Path(__file__).resolve().parent
@@ -51,6 +52,17 @@ import pull  # noqa: E402  (같은 폴더의 미러 도구)
 from slug_ranges import removed  # noqa: E402  (github-slugger 가 지우는 글자 표)
 
 BASELINE = HERE / "anchor_baseline.json"
+
+# 문서 키 → (`대상키#앵커` → 끊긴 링크 개수). 기준선 파일과 같은 꼴이다.
+Baseline = dict[str, dict[str, int]]
+
+
+class Broken(NamedTuple):
+    """끊긴 링크 한 건."""
+    src: str  # 링크가 있는 문서 키
+    line: int  # 미러 파일 줄 번호
+    ref: str  # `대상키#앵커`
+    why: str
 
 _HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(?P<text>.*?))?(?:[ \t]+#+)?[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
@@ -154,7 +166,7 @@ def anchor_links(body: str) -> list[tuple[int, str]]:
     return found
 
 
-def broken_links(spec_root: Path) -> list[tuple[str, int, str, str]]:
+def broken_links(spec_root: Path) -> list[Broken]:
     """(링크가 있는 문서 키, 미러 파일 줄 번호, `대상키#앵커`, 이유) — 끊긴 링크를 문서 · 줄 순서로."""
     bodies: dict[str, str] = {}
     offsets: dict[str, int] = {}  # 파일 줄 번호 = 본문 줄 번호 + frontmatter 줄 수
@@ -173,7 +185,7 @@ def broken_links(spec_root: Path) -> list[tuple[str, int, str, str]]:
             slugs[key] = heading_slugs(bodies[key])
         return slugs[key]
 
-    out = []
+    out: list[Broken] = []
     for src in sorted(bodies):
         for body_no, target in anchor_links(bodies[src]):
             no = body_no + offsets[src]
@@ -188,25 +200,25 @@ def broken_links(spec_root: Path) -> list[tuple[str, int, str, str]]:
                 continue
             ref = f"{key}#{anchor}"
             if key not in bodies:
-                out.append((src, no, ref, "대상 문서가 미러에 없다"))
+                out.append(Broken(src, no, ref, "대상 문서가 미러에 없다"))
             elif unquote(anchor) not in slugs_of(key):
-                out.append((src, no, ref, "대상 문서에 그 제목이 없다"))
+                out.append(Broken(src, no, ref, "대상 문서에 그 제목이 없다"))
     return out
 
 
-def count(broken: list[tuple[str, int, str, str]]) -> dict[str, dict[str, int]]:
+def count(broken: list[Broken]) -> Baseline:
     out: dict[str, Counter] = {}
     for src, _, ref, _ in broken:
         out.setdefault(src, Counter())[ref] += 1
     return {src: dict(c) for src, c in out.items()}
 
 
-def load_baseline(path: Path = BASELINE) -> dict[str, dict[str, int]]:
+def load_baseline(path: Path = BASELINE) -> Baseline:
     data = json.loads(path.read_text(encoding="utf-8"))
     return {src: {ref: int(n) for ref, n in refs.items()} for src, refs in data["links"].items()}
 
 
-def judge(broken: list[tuple[str, int, str, str]], baseline: dict[str, dict[str, int]]
+def judge(broken: list[Broken], baseline: Baseline
           ) -> tuple[list[str], list[str]]:
     """(실패 줄, 알림 줄)."""
     now = count(broken)
@@ -229,11 +241,11 @@ def judge(broken: list[tuple[str, int, str, str]], baseline: dict[str, dict[str,
     return fails, notes
 
 
-def updated(broken: list[tuple[str, int, str, str]], baseline: dict[str, dict[str, int]]
-            ) -> dict[str, dict[str, int]]:
+def updated(broken: list[Broken], baseline: Baseline
+            ) -> Baseline:
     """줄어든 값만 반영한 기준선. 새 항목을 더하지 않고 값을 늘리지 않는다."""
     now = count(broken)
-    out: dict[str, dict[str, int]] = {}
+    out: Baseline = {}
     for src, refs in baseline.items():
         for ref, base in refs.items():
             n = min(base, now.get(src, {}).get(ref, 0))
@@ -242,7 +254,7 @@ def updated(broken: list[tuple[str, int, str, str]], baseline: dict[str, dict[st
     return out
 
 
-def write_baseline(links: dict[str, dict[str, int]], path: Path = BASELINE) -> None:
+def write_baseline(links: Baseline, path: Path = BASELINE) -> None:
     data = {"links": {src: dict(sorted(refs.items())) for src, refs in sorted(links.items())}}
     path.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
