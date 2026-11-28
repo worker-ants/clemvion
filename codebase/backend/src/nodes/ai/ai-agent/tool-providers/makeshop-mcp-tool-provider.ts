@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { isHttpFailureStatus } from '../../../integration/_base/http-failure-status.util.js';
 import {
   ToolCall,
   ToolDef,
@@ -522,26 +523,27 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
             : undefined,
       });
 
+      // 2xx 밖은 모두 실패다. 자동 추종 뒤에도 남은 3xx 도 에러로 본다(CLE-T-8SCV17).
+      const isHttpFailure = isHttpFailureStatus(result.status);
+
       // Usage log — success awaits; fail is fire-and-forget.
       if (ctx.nodeExecutionId && ctx.workflowId) {
         await this.integrationsService.logUsage(integration, {
           nodeExecutionId: ctx.nodeExecutionId,
           workflowId: ctx.workflowId,
-          status: result.status >= 400 ? 'failed' : 'success',
+          status: isHttpFailure ? 'failed' : 'success',
           durationMs: Date.now() - startedAt,
-          error:
-            result.status >= 400
-              ? {
-                  code: this.codeForStatus(result.status),
-                  message: `MakeShop API returned ${result.status}`,
-                }
-              : null,
+          error: isHttpFailure
+            ? {
+                code: this.codeForStatus(result.status),
+                message: `MakeShop API returned ${result.status}`,
+              }
+            : null,
           api: apiInfo,
         });
       }
 
-      const status: 'success' | 'error' =
-        result.status >= 400 ? 'error' : 'success';
+      const status: 'success' | 'error' = isHttpFailure ? 'error' : 'success';
       // spec §8.1 — MakeShop API 4xx/5xx 는 서버측 call-phase 실패 → errors[] 누적.
       const mcpErrorDelta: McpDiagnosticError | undefined =
         status === 'error'

@@ -825,6 +825,44 @@ describe('Cafe24McpToolProvider', () => {
       });
     });
 
+    // CLE-T-8SCV17 — 자동 추종 뒤에도 남은 3xx 는 성공이 아니다(CAFE24_4XX).
+    it.each([301, 302, 304])(
+      'API %i 는 실패로 기록하고 mcpErrorDelta(CAFE24_4XX)를 보고한다',
+      async (status) => {
+        const { sid, integration } = await setup();
+        apiClient.call.mockResolvedValue({
+          status,
+          body: null,
+          headers: {},
+          retries: 0,
+        });
+        const res = await provider.execute(
+          makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
+          {
+            config: {},
+            workspaceId: 'ws-1',
+            executionId: 'exec-1',
+            nodeExecutionId: 'ne-1',
+            workflowId: 'wf-1',
+          },
+        );
+        expect(res.status).toBe('error');
+        expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: integration.id }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'CAFE24_4XX' }),
+          }),
+        );
+        expect(res.mcpErrorDelta).toEqual({
+          integrationId: integration.id,
+          phase: 'tools/call',
+          code: 'CAFE24_4XX',
+          message: `Cafe24 API returned ${status}`,
+        });
+      },
+    );
+
     it('client-side CAFE24_MISSING_FIELDS 는 mcpErrorDelta 를 보고하지 않는다', async () => {
       const { sid } = await setup();
       const res = await provider.execute(
