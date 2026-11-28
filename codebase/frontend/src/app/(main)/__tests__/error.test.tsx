@@ -64,7 +64,7 @@ describe("(main)/error.tsx", () => {
       <MainError error={httpError(403)} reset={vi.fn()} />,
     );
     expect(mockReplace).not.toHaveBeenCalled();
-    expect(getByText("접근 권한이 없습니다")).toBeInTheDocument();
+    expect(getByText("접근 권한이 없어요")).toBeInTheDocument();
   });
 
   it("maps a generic throw to the server error page", () => {
@@ -72,6 +72,6 @@ describe("(main)/error.tsx", () => {
       <MainError error={new Error("unexpected")} reset={vi.fn()} />,
     );
     expect(mockReplace).not.toHaveBeenCalled();
-    expect(getByText("문제가 발생했습니다")).toBeInTheDocument();
+    expect(getByText("문제가 생겼어요")).toBeInTheDocument();
   });
 });

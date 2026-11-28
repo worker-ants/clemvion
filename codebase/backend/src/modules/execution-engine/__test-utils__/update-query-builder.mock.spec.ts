@@ -40,6 +40,13 @@ describe('makeUpdateQb', () => {
     expect(order).toEqual(['Execution']);
   });
 
+  it('onUpdate 를 주면 update 가 target 을 정한 뒤 그 qb 로 부른다', () => {
+    const seen: string[] = [];
+    const qb = makeUpdateQb({}, undefined, (q) => seen.push(q.target));
+    qb.update(NodeExecution);
+    expect(seen).toEqual(['NodeExecution']);
+  });
+
   it('체인은 늘 qb 를 돌려주고 관찰 함수에 인자를 넘긴다', () => {
     const set = jest.fn();
     const qb = makeUpdateQb({ set });
@@ -93,6 +100,20 @@ describe('installTxUpdateBuilders', () => {
       ]) as Promise<unknown[]>;
     await expect(pick()).resolves.toEqual([b.execQb, b.nodeQb]);
     await expect(pick()).resolves.toEqual([b.execQb, b.nodeQb]);
+  });
+
+  it('한 트랜잭션에서 qb 를 세 번째로 달라고 하면 원인을 적은 Error 를 던진다', async () => {
+    const b = installTxUpdateBuilders(makeService(), {
+      execution: { affected: 1 },
+    });
+    await expect(
+      b.tx(async (m: { createQueryBuilder: () => unknown }) => {
+        m.createQueryBuilder();
+        m.createQueryBuilder();
+        m.createQueryBuilder();
+      }),
+    ).rejects.toThrow(/준비한 qb 는 2개인데 createQueryBuilder\(\) 를 3번째로/);
+    expect(b.managerCqb).toHaveBeenCalledTimes(3);
   });
 
   it('nodeExecution 을 생략하면 affected 1 이고 콜백이 던지면 tx 가 reject 한다', async () => {

@@ -2,6 +2,20 @@ import type { Locale } from "@/lib/i18n";
 import { resolveCafe24OperationLabel } from "@/lib/node-definitions/cafe24-extras";
 import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-extras";
 
+/** 카탈로그 dict 가 있는 provider 표. 접두와 라벨 조회 함수를 한곳에 둔다. provider 를 더할 때 여기만 고친다. */
+const CATALOG_PROVIDERS: ReadonlyArray<{
+  prefix: string;
+  resolve: (locale: Locale, key: string) => string;
+}> = [
+  { prefix: "makeshop.", resolve: resolveMakeshopOperationLabel },
+  { prefix: "cafe24.", resolve: resolveCafe24OperationLabel },
+];
+
+/** 키의 접두에 맞는 provider 를 찾는다. 카탈로그 키가 아니면 undefined. */
+function findCatalogProvider(key: string) {
+  return CATALOG_PROVIDERS.find((p) => key.startsWith(p.prefix));
+}
+
 /**
  * `<provider>.<resource>.<operation>` catalog key 를 사람 친화 라벨로 변환한다.
  * provider prefix 로 flat catalog dict 를 직접 lookup 한다:
@@ -20,13 +34,25 @@ export function tryTranslateLabel(
   catalogKey: string,
   locale: Locale,
 ): string | null {
-  if (catalogKey.startsWith("makeshop.")) {
-    const label = resolveMakeshopOperationLabel(locale, catalogKey);
-    return label === catalogKey ? null : label;
+  const provider = findCatalogProvider(catalogKey);
+  if (!provider) return null;
+  const label = provider.resolve(locale, catalogKey);
+  return label === catalogKey ? null : label;
+}
+
+/**
+ * 활동 탭 API 칸에 굵게 보일 라벨 글자.
+ *  - 카탈로그 키(`cafe24.*` · `makeshop.*`)는 {@link tryTranslateLabel} 로 바꾼다. dict 에 없으면 null 이라
+ *    endpoint 한 줄로 넘긴다.
+ *  - 카탈로그가 없는 통합의 라벨은 그대로 쓴다. 외부 MCP 서버의 도구 호출이 `apiLabel` 에 도구 이름을 싣는다
+ *    (CLE-INT-DATA-ENTITY 「호출 API 식별 채우기 규칙」).
+ */
+export function resolveActivityApiLabel(
+  labelKey: string,
+  locale: Locale,
+): string | null {
+  if (findCatalogProvider(labelKey)) {
+    return tryTranslateLabel(labelKey, locale);
   }
-  if (catalogKey.startsWith("cafe24.")) {
-    const label = resolveCafe24OperationLabel(locale, catalogKey);
-    return label === catalogKey ? null : label;
-  }
-  return null;
+  return labelKey;
 }

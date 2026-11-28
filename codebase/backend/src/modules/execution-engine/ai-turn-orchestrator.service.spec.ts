@@ -1104,21 +1104,12 @@ describe('AiTurnOrchestrator', () => {
 
     // 가드의 나머지 두 항(`payload === null` · `typeof payload !== 'object'`). 위 케이스는
     // 세 번째 항(`type` 이 문자열이 아님)만 탄다(CLE-T-WKESFB).
-    it('malformed payload(null) → TypeError 없이 warn + re-park(PARK_RELEASED)', async () => {
-      // `typeof null === 'object'` 라 첫 항이 빠지면 둘째 항을 지나 셋째 항의
-      // `null.type` 접근에서 TypeError 가 난다. 항 순서를 바꿔 셋째 항을 앞에 둬도 같다.
-      const { warnSpy, result } = await driveResumeTurn(null);
-      const hasWarn = warnSpy.mock.calls.some((args) =>
-        String(args[0]).includes('malformed continuation payload'),
-      );
-      expect(hasWarn).toBe(true);
-      expect(typeof result).toBe('symbol');
-      warnSpy.mockRestore();
-    });
-
-    // 원시값은 둘째 항이 빠져도 셋째 항(`'x'.type` 은 undefined)에 걸린다. 둘째 항만 걸러
-    // 내는 입력은 `type` 문자열을 단 함수다(`typeof` 가 'function' 이라 객체가 아니다).
+    // - null: `typeof null === 'object'` 라 첫 항이 빠지면 둘째 항을 지나 셋째 항의
+    //   `null.type` 접근에서 TypeError 가 난다. 항 순서를 바꿔 셋째 항을 앞에 둬도 같다.
+    // - 원시값은 둘째 항이 빠져도 셋째 항(`'x'.type` 은 undefined)에 걸린다. 둘째 항만 걸러
+    //   내는 입력은 `type` 문자열을 단 함수다(`typeof` 가 'function' 이라 객체가 아니다).
     it.each<[string, unknown]>([
+      ['null', null],
       ['문자열', 'ai_end_conversation'],
       ['숫자', 42],
       ['불리언', true],
@@ -1127,7 +1118,7 @@ describe('AiTurnOrchestrator', () => {
         Object.assign(() => undefined, { type: 'ai_end_conversation' }),
       ],
     ])(
-      'malformed payload(비객체: %s) → warn + re-park(PARK_RELEASED)',
+      'malformed payload(%s) → TypeError 없이 warn + re-park(PARK_RELEASED)',
       async (_label, payload) => {
         const { warnSpy, result } = await driveResumeTurn(payload);
         const hasWarn = warnSpy.mock.calls.some((args) =>
