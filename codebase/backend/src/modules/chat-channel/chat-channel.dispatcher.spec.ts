@@ -415,6 +415,37 @@ describe('toChatChannelEvent — durationMs 전파', () => {
   });
 });
 
+// `execution.completed` 는 `result` 를 싣지 않는다(NERV Task CLE-T-34CP7Q).
+// 실행 출력(`result.outputs`) 약속을 거둔 뒤로 완료 이벤트의 필드는 `status` · `durationMs`
+// 뿐이다([채팅 채널 어댑터 타입](CLE-CHAT-ADAPTER-TYPES#eiaevent)). 옛 이벤트가 `result` 를
+// 실어 와도 채널 이벤트로 옮기지 않는다.
+describe('toChatChannelEvent — execution.completed 에 result 가 없다', () => {
+  const mk = (extra: object) =>
+    toChatChannelEvent({
+      executionId: 'exec-done',
+      eventType: 'execution.completed',
+      seq: 3,
+      payload: {
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        timestamp: '2026-11-28T00:00:00.000Z',
+        status: 'completed',
+        durationMs: 10,
+        ...extra,
+      },
+    } as unknown as ExecutionChannelEvent);
+
+  it.each([
+    ['result 가 없는 이벤트', {}],
+    ['옛 result.outputs 를 실은 이벤트', { result: { outputs: { a: 1 } } }],
+  ])('%s — 채널 이벤트에 result 키를 만들지 않는다', (_label, extra) => {
+    const eia = mk(extra);
+    expect(eia).not.toBeNull();
+    expect(eia).not.toHaveProperty('result');
+    expect(eia).toMatchObject({ type: 'execution.completed', durationMs: 10 });
+  });
+});
+
 // §7.5 / 방안 D — execution.cancelled 의 payload.error (RESUME_*) 전파.
 // 채널 어댑터가 graceful 세션 만료 안내로 분기하려면 error.code 가 EIA 이벤트로
 // 전달돼야 한다. 일반 cancel (사용자 /cancel 등) 에는 error 미포함.
@@ -1182,7 +1213,7 @@ describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정
   }
 
   it.each([
-    ['execution.completed', { status: 'completed', result: {} }],
+    ['execution.completed', { status: 'completed' }],
     [
       'execution.failed',
       { status: 'failed', error: { code: 'NODE_FAILED', message: 'x' } },
