@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-INSTALL"
 title: "OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "7195c231c875dc6fb4b58239f2e70393b2efdad3965aa22388f92358b6e011d6"
+content_hash: "8fa1df76904d7c8baa3b07d95c6341c3759ce5330b7699d87b9e16bfbba6bd1d"
 read_as: "approved_fallback"
-task: "CLE-T-KKJ2A0"
+task: "CLE-T-22PSME"
 source_paths: []
-mirror_sha256: "161983a9a71a58129cf914cb23edf6b2d5d293c9d0ccdf843a3d31839e4b2a64"
-etag: "sha256-6f6a21e735a7c6e7a9df5a6702289f2aaf59518aab7ec39a6ef53ae6b3131a3a"
+mirror_sha256: "cbb45e840b3de243ce33c532f1917635374874923055277b21513928e264670e"
+etag: "sha256-15b82bf4ae3f503ce0449976823b2c3571217bc48fc03004d235b3b488ce7df8"
 ---
 ## 개요
 
@@ -53,10 +53,10 @@ sequenceDiagram
    {
      "service": "cafe24",
      "mode": "new",
-     "mall_id": "myshop",
-     "app_type": "private",
-     "client_id": "...",
-     "client_secret": "...",
+     "mallId": "myshop",
+     "appType": "private",
+     "clientId": "...",
+     "clientSecret": "...",
      "scopes": ["mall.read_product", "..."]
    }
    ```
@@ -74,14 +74,14 @@ sequenceDiagram
 ### MakeShop
 
 1. **사전 입력**: `Client ID`, `Client Secret`(파트너센터 앱 등록 때 발급). 하나라도 비어 있으면 폼 검증 에러로 막는다. `shop_uid` 는 이 단계에서 입력하지 않는다. ShopStore 설치 redirect 의 파라미터로 온다.
-2. **제출**: `POST /api/integrations/oauth/begin`(본문 `{ "service": "makeshop", "mode": "new", "client_id": "...", "client_secret": "...", "scopes": [...] }`). 응답은 `{ "mode": "makeshop_pending_install", "integrationId": "...", "appUrl": "https://<host>/api/3rd-party/makeshop/install/:installToken", "callbackUrl": "...", "scope": "..." }` 이고 통합이 토큰 없이 설치 대기로 생긴다.
+2. **제출**: `POST /api/integrations/oauth/begin`(본문 `{ "service": "makeshop", "mode": "new", "clientId": "...", "clientSecret": "...", "scopes": [...] }`). 응답은 `{ "mode": "makeshop_pending_install", "integrationId": "...", "appUrl": "https://<host>/api/3rd-party/makeshop/install/:installToken", "callbackUrl": "...", "scope": "..." }` 이고 통합이 토큰 없이 설치 대기로 생긴다.
 3. **설치 안내 화면**: Cafe24 Private 설정 안내와 같은 복사 UX(라벨, 모노스페이스 URL, 복사 버튼)로 `App URL`·`Redirect URI` 를 파트너센터 앱 설정에 등록하라고 안내한다.
 4. **자동 조회**: Cafe24 Private 7번과 같다(3초 간격, 연결됨이면 토스트와 상세 이동, 10분 soft timeout, 설치 기한이 지나 만료되면 조회를 멈추고 `integrations.makeshopPendingExpired` 로 안내).
 5. 사용자가 ShopStore 에서 앱을 설치하면 MakeShop 이 App URL 을 `?shop_uid=...&timestamp=...&action_type=install&hmac=...` 로 부른다. HMAC 검증 뒤 인가, 콜백을 거쳐 `pending_install → connected` 가 된다.
 6. 설치 대기가 아닌 통합의 App URL 이 다시 불리면(ShopStore 재설치 포함) 상세 화면으로 302 하고 그 통합의 자격 증명과 상태는 그대로 둔다. MakeShop 에는 재설치 대기 표시가 없다. MakeShop 통합의 복구는 삭제 후 재등록이다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)).
 
 - 설치 HMAC 은 `client_secret` 으로 만든 HMAC-SHA256 이고 ±5분 재사용 방어를 한다. Cafe24 Private 과 같은 방식이며 설치 토큰 capability 모델, rate limit, nonce 보호를 다시 쓴다. MakeShop HMAC 메시지 구성(정렬, 인코딩)은 코드에 `VERIFY` 로 표시돼 있어 운영 전에 공식 문서로 확정해야 한다([MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md)).
-- **설치 안내 화면의 에러 표시**: 콜백 실패로 기록된 사유 중 알려진 다섯 개(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope`·`hmac_verification_failed`)만 i18n 문구로 매핑한다. 모르는 사유는 일반 메시지로 보인다. HMAC 상세나 토큰 교환 trace 같은 백엔드 원문을 사용자에게 보이지 않는다. `hmac_verification_failed` 는 상태 사유가 아니라서 이 문구가 실제로 보이는 경우는 없다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다([HMAC 검증 실패는 상태 사유로 남기지 않는다](CLE-INT-STATUS.md#hmac-검증-실패는-상태-사유로-남기지-않는다)). 이 매핑을 지우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다.
+- **설치 안내 화면의 에러 표시**: 콜백 실패로 기록된 사유 중 알려진 네 개(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope`)만 i18n 문구로 매핑한다. 모르는 사유는 일반 메시지로 보인다. HMAC 상세나 토큰 교환 trace 같은 백엔드 원문을 사용자에게 보이지 않는다. HMAC 검증 실패는 상태 사유가 아니라서 매핑하지 않는다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다([HMAC 검증 실패는 상태 사유로 남기지 않는다](CLE-INT-STATUS.md#hmac-검증-실패는-상태-사유로-남기지-않는다)). 내는 경로가 없던 `hmac_verification_failed` 매핑은 2026-11-28 에 지웠다(NERV Task `CLE-T-22PSME`).
 - MakeShop 에는 Cafe24 의 설치 토큰 불일치 회복(`tryRecoverByMallId`)이 없다. 조회에 실패하면 바로 404 다.
 
 ## 설치 엔드포인트 (App URL)
@@ -91,7 +91,7 @@ sequenceDiagram
 | GET | `/api/3rd-party/cafe24/install/:installToken` | Cafe24 Private App URL. Cafe24 개발자 센터의 «테스트 실행» 과 쇼핑몰 관리자의 «앱으로 가기» 가 같은 주소를 부른다. 통합이 설치 대기이거나 유효한 재설치 대기 표시가 있으면 OAuth 인가로, 그 밖이면 프런트엔드 상세 화면으로 redirect 한다 |
 | GET | `/api/3rd-party/makeshop/install/:installToken` | MakeShop App URL. 쿼리 `shop_uid`, `timestamp`, `action_type`, `hmac`. 통합이 설치 대기면 OAuth 인가로, 그 밖이면 프런트엔드 상세 화면으로 redirect 한다 |
 
-- `:installToken` 은 begin 응답의 22자 설치 토큰이다. 설치 토큰은 통합이 살아 있는 동안 지속되는 식별자다. 예외는 begin 이 설치 대기 행을 다시 쓰면서 새로 발급할 때다. Cafe24 Private 은 `client_id`·`client_secret` 을 바꿔 다시 쓰거나 설치 토큰이 없는 옛 행일 때, MakeShop 은 설치 토큰이 없는 행일 때다. 조건은 [`oauth/begin` 요청과 응답](CLE-INT-OAUTH-BEGIN.md#oauthbegin-요청과-응답) 이 정한다. 콜백 성공에서 NULL 로 지우지 않는다.
+- `:installToken` 은 begin 응답의 22자 설치 토큰이다. 설치 토큰은 통합이 살아 있는 동안 지속되는 식별자다. 예외는 begin 이 설치 대기 행을 다시 쓰면서 새로 발급할 때다. Cafe24 Private 은 begin 요청의 `clientId`·`clientSecret` 을 바꿔 다시 쓰거나 설치 토큰이 없는 옛 행일 때, MakeShop 은 설치 토큰이 없는 행일 때다. 조건은 [`oauth/begin` 요청과 응답](CLE-INT-OAUTH-BEGIN.md#oauthbegin-요청과-응답) 이 정한다. 콜백 성공에서 NULL 로 지우지 않는다. 설치 기한이 지나 만료되면 지운다([상태 모델 「전이별 세부」](CLE-INT-STATUS-MODEL.md#전이별-세부)).
 - 식별 절차: 설치 토큰으로 한 행을 찾고 그 행의 `client_secret` 으로 HMAC 을 한 번 검증한다.
 
 가드는 이 순서로 건다.
@@ -177,7 +177,7 @@ capability 토큰 가정은 설치 토큰을 추측할 수 없다는 암호학�
 
 Cafe24 개발자 센터에 등록한 App URL 은 첫 설치(«테스트 실행»)와 설치 뒤 이동(쇼핑몰 관리자의 «앱으로 가기») 두 진입점에서 불린다. 둘째는 나중에 발견한 요구사항이다. 옛 정의는 콜백 성공 때 설치 토큰을 NULL 로 지워, «앱으로 가기» 가 404 `CAFE24_INSTALL_INVALID_TOKEN` 이 됐다. 그래서 설치 토큰을 통합이 살아 있는 동안 보존하고 설치 처리가 상태로 나눠 설치 대기는 OAuth 인가로, 나머지는 `${FRONTEND_URL}/integrations/<id>` 로 보낸다. 사용자가 그 통합의 상태와 진단을 바로 볼 수 있어 `${FRONTEND_URL}/` 보다 낫다. HMAC 검증은 두 분기 모두 유지한다. 이 변경 전에 토큰이 이미 NULL 이 된 연결됨 통합은 마이그레이션하지 않았다. Private 사용자가 적고 재등록이 마이그레이션보다 싸며 토큰을 다시 발급해도 결국 «테스트 실행» 부터 다시 해야 한다. 24시간 만료에서는 사용자가 새 통합을 등록해야 하므로 토큰을 여전히 지운다.
 
-2026-10-10(Task CLE-T-NNENG8)부터 설치 대기가 아니어도 유효한 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)가 있으면 OAuth 인가로 보낸다. 보존한 설치 토큰이 있어서 가능한 분기다. 설치 토큰이 없는 옛 행은 이 경로도 쓸 수 없어 삭제 후 재등록으로 복구한다.
+2026-10-10(Task CLE-T-NNENG8)부터 설치 대기가 아니어도 유효한 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)가 있으면 OAuth 인가로 보낸다. 보존한 설치 토큰이 있어서 가능한 분기다. 설치 토큰이 없는 옛 행은 이 경로도 쓸 수 없어 삭제 후 재등록으로 복구한다. 설치 기한이 지나 만료된 행도 설치 토큰을 지우므로 이 흐름에서 빠진다. 그 행은 지우지 않고 같은 상점을 새로 등록한다.
 
 ### 설치 토큰 불일치 회복 흐름
 
