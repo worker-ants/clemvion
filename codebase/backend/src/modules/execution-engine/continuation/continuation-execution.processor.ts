@@ -60,13 +60,12 @@ export const CONTINUATION_DELIVERY_CLAIM: Readonly<
  *
  * 처리 흐름 (spec §7.5):
  * - 임의 인스턴스의 worker 가 job pick up.
- * - 로컬 `pendingContinuations` Map 키 hit → 즉시 resolve (fast path,
- *   동일 인스턴스가 publisher 였던 케이스 + 같은 인스턴스가 worker 픽업).
- * - 키 miss → §7.5 rehydration slow path:
+ * - 재개 경로는 §7.5 rehydration 하나다(park 가 늘 코루틴을 해제하므로 in-memory
+ *   resolver 가 없다):
  *     · 재개 진입 원자 claim (waiting_for_input → running, affected=0 → discard)
  *     · NodeExecution.outputData 에서 체크포인트 로드
  *     · ExecutionContext 재구성
- *     · waitForX() 재진입 + 즉시 resolver 호출
+ *     · 대기 노드의 resume 처리기에 payload 전달
  *     · 그래프 순회 재개
  *
  * 실패 처리 (spec §7.5 표):

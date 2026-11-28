@@ -24,9 +24,8 @@ import {
  *
  * 라우팅 원칙 (spec §7.4 Rationale): **모든 진입점 항상 enqueue**.
  * 자기 인스턴스가 host 인 경우에도 BullMQ 경유 (sticky fast-path 도입 안 함).
- * Worker (continuation-execution.processor.ts) 가 pick up 후 로컬
- * `pendingContinuations` Map 키 hit 면 즉시 resolve, miss 면 §7.5
- * rehydration 경로.
+ * Worker (continuation-execution.processor.ts) 가 pick up 후 §7.5
+ * rehydration 경로로 재개한다(in-memory resolver 는 없다).
  */
 export type ContinuationType =
   | 'continue'

@@ -32,20 +32,15 @@ import type {
  * (`AiTurnEngineDriver` / `InteractionEngineDriver` / `RetryEngineDriver`) 주입받는다.
  * 런타임 바인딩(`ENGINE_DRIVER` useExisting)·동작은 불변 — 컴파일 타임 가시성만 좁힌다.
  * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이며,
- * step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시한다.
+ * step4 멤버는 impl 측과 대칭으로 `@internal` 을 명시한다.
  *
- * 현재 멤버 수(2026-07-26 3차 라운드 실측, 2026-11-07 배치 갱신): `EngineDriver`
- * distinct **15** (Core 2 + Interaction 2 + ReentryState 1 + AiTurn 자체 5 +
- * Retry 자체 5), `AiTurnEngineDriver` 합계 **10**. CLE-T-J6GRJ9 에서
- * `markNodeCancelled` 를 AiTurn 에서 Interaction 으로 옮겼다(멤버 수 불변). ai-review WARNING #1(3차 라운드) 로
- * `assertActiveExecutionAndSaveNodeExec`(4차 라운드에 `tryLockActiveExecution
- * AndSaveNodeExec` 로 개명 — 아래 참조) 가 추가돼 이전 라운드의 14/9 에서
- * 다시 갱신됐다. `execution-engine.md ## Rationale` §C-1 의 수치는 아직
- * 12/7 로 stale — `spec-update-node-cancellation-shutdown-classification.md`
- * #7 보강 8번 항목이 이제 15/10 을 목표로 정정 위임돼 있다(코드/spec 이 서로
- * 다른 값으로 갈라지지 않도록, plan 문서도 이번 라운드에 함께 갱신).
- * 4차 라운드 개명은 멤버 **수**를 바꾸지 않는다(rename-only) — 위 수치는
- * 그대로 유효하다.
+ * 멤버 목록의 정본은 이 파일의 타입 정의다. 주석과 스펙에는 멤버 수를 적지 않는다
+ * (CLE-EXEC-ENGINE Rationale 도 같은 기준이다). 멤버를 더하거나 옮길 때는:
+ *   1. 그 멤버를 실제로 호출하는 소비자의 부분 인터페이스에 둔다. 둘 이상이 쓰면
+ *      공통 부모(`CoreEngineDriver` · `ReentryStateDriver`)로 올린다.
+ *   2. `ExecutionEngineService` 에 같은 시그니처를 구현한다. step4 멤버처럼 엔진
+ *      내부 전용이면 양쪽에 `@internal` 을 단다.
+ *   3. 합집합 `EngineDriver` 는 `extends` 로만 묶으므로 따로 고치지 않는다.
  */
 export interface CoreEngineDriver {
   /**

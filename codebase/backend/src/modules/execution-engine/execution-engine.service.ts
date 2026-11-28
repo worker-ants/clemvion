@@ -1191,21 +1191,11 @@ export class ExecutionEngineService
   }
 
   /**
-   * 다중 인스턴스 환경에서 사용자 입력 (form / button / ai-message / cancel)
-   * 은 어느 인스턴스로도 들어올 수 있다. ContinuationBusService 가 모든
-   * 인스턴스로 메시지를 fan-out 하고, 로컬 `pendingContinuations` Map 에
-   * 키가 있는 인스턴스만 실제 resolve 를 수행한다 (호스팅 인스턴스).
-   *
-   * Map 에 키가 없는 인스턴스는 silent skip — 같은 메시지를 두 곳에서
-   * 처리하지 않도록 보장한다.
-   */
-  /**
    * Phase 2 — BullMQ Worker (continuation-execution.processor.ts) 가 호출하는
    * dispatch entry. spec/5-system/4-execution-engine.md §7.5.
    *
-   * Fast path: 로컬 `pendingContinuations` Map 에 키가 있으면 즉시 resolve.
-   * Slow path: 키 miss + WAITING_FOR_INPUT 상태 유효 시 §7.5 rehydration
-   *   경로 진입 (rehydrateAndResume).
+   * 재개 경로는 §7.5 rehydration(`rehydrateAndResume`) 하나뿐이다. park 가 늘
+   * 코루틴을 해제하므로 어느 인스턴스에도 깨울 in-memory resolver 가 없다.
    *
    * sentinel wrap (spec §10.9 — 'continue' 의 `{type:'form_submitted',formData}`)
    * 은 caller (continueExecution) 가 wrap 한 채로 전달되므로 본 메서드는
@@ -1583,20 +1573,17 @@ export class ExecutionEngineService
   }
 
   /**
-   * §7.5 Resume after Restart (rehydration) — slow path 본체.
+   * §7.5 Resume after Restart (rehydration) — 단일 재개 경로의 본체.
    *
-   * Phase 2.3a — 진짜 재개 로직. BullMQ Worker 가 user input 을 받은 시점에
-   * 로컬 `pendingContinuations` 에 키가 없다면 (instance restart 또는 다른
-   * 인스턴스가 publisher 였던 경우) 본 메서드가:
+   * BullMQ Worker 가 사용자 입력을 받으면 어느 인스턴스에서든 본 메서드가:
    *   1. Execution / NodeExecution / Node 정의의 invariant 검증
    *   2. `rehydrateContext` — execution_node_log 의 완료 노드 순서와
    *      NodeExecution.outputData 로 ExecutionContext (nodeOutputCache /
    *      executedNodes / variables) 재구성
-   *   3. `resumeFromCheckpoint` — 그래프 순회 재개. 적절한 waitForX 메서드를
-   *      직접 호출 (executeNode 우회 — 기존 NodeExecution row 가 이미
-   *      WAITING_FOR_INPUT). setImmediate 로 등록된 pending resolver 를
-   *      payload 와 함께 즉시 fire 해 waitForX 의 await 가 풀린다. 이후
-   *      그래프 traversal 을 평소대로 진행.
+   *   3. `resumeFromCheckpoint` — 그래프 순회 재개. executeNode 를 거치지 않고
+   *      (기존 NodeExecution row 가 이미 WAITING_FOR_INPUT) 도착 payload 를
+   *      `dispatchResumeTurn` 으로 노드 타입별 resume 처리기에 넘긴 뒤 그래프
+   *      traversal 을 평소대로 진행.
    *
    * **알려진 한계** (spec §7.5 의 RESUME_INCOMPATIBLE_STATE 사례):
    * - Multi-turn AI 노드의 `_resumeState` 는 보안상 DB 에 저장되지 않으므로
@@ -1610,7 +1597,7 @@ export class ExecutionEngineService
    * - `RESUME_FAILED` — 일반 런타임 실패. BullMQ attempts 소진 dead-letter.
    *
    * @param payload — sentinel/format wrapped 사용자 입력 (form_submitted,
-   *                  button_click, ai_message 등). waitForX 가 unwrap.
+   *                  button_click, ai_message 등). resume 처리기가 unwrap.
    */
   private async rehydrateAndResume(
     executionId: string,
@@ -2203,15 +2190,14 @@ export class ExecutionEngineService
   }
 
   /**
-   * Phase 2.3a — §7.5 resume body. 재구성된 context 로 waitForX 직접 invoke 후
-   * 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
+   * Phase 2.3a — §7.5 resume body. 재구성된 context 로 대기 노드의 resume 처리기를
+   * 부른 뒤 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
    * 구조와 동일 — 차이점:
    *   - graph state 를 새로 build (재시작 후 in-memory 자료 소실)
    *   - reachability 와 executedNodes 를 rehydrated state 로 seed
    *   - executeNode 우회: 기존 NodeExecution row 가 이미 WAITING_FOR_INPUT
-   *     이므로 새 row 를 만들지 않고 waitForX 만 호출
-   *   - setImmediate polling (최대 50회) 으로 pendingContinuations resolver
-   *     등록을 대기 후 payload fire (waitForX 등록 완료 tick 에 실행)
+   *     이므로 새 row 를 만들지 않고 `driveResumeAwaited` 가 payload 를
+   *     `dispatchResumeTurn` 으로 바로 넘긴다
    */
   private async resumeFromCheckpoint(
     savedExecution: Execution,
@@ -4142,7 +4128,7 @@ export class ExecutionEngineService
 
     // Workspace 격리: target workflow 가 호출자와 다른 workspace 면 차단 (W-6).
     // context.variables.__workspaceId 는 runExecution 이 부모 workflow.workspaceId
-    // 로 주입한다 (line 1238 참고).
+    // 로 주입한다 (`runExecution` 의 initialVariables 참고).
     const callerWorkspaceId =
       (context.variables?.__workspaceId as string | undefined) || undefined;
     const targetWorkflow = await this.workflowRepository.findOneBy({
@@ -7840,7 +7826,7 @@ export class ExecutionEngineService
       parentNodeExecution?.outputData,
     );
 
-    // workspaceId 는 `context.variables.__workspaceId` 에 저장된다 (line 1210
+    // workspaceId 는 `context.variables.__workspaceId` 에 저장된다 (`runExecution`
     // 의 initialVariables). 옛 코드가 `context.expressionContext.workspaceId`
     // 를 읽었지만 이 경로에는 아무도 쓰지 않아 항상 빈 문자열이 되었고,
     // 결과적으로 dispatchFailureNotification 의 `if (!data.workspaceId) return;`

@@ -151,11 +151,9 @@ export class RetryTurnService {
    *
    * **재진입 구현 완료**: `applyRetryLastTurn` 이 `_retryState` → `_resumeState`
    * shape 변환 후 `processAiResumeTurn`(AiTurnOrchestrator 경유, turn-park
-   * 단발 처리 + 계속되면 `PARK_RELEASED` re-park)으로 재진입. INFO#1: 이전
-   * "재진입 미완 갭" 주석은 현 구현을 반영해 삭제함. W3 정정(ai-review 7R): 옛
-   * `runAiConversationLoop` 장수 루프 replay 는 exec-park D6 로 이미 제거됐다
-   * — 아래 "재진입 절차" 목록 참조. 남은 문서화된 갭은 downstream graph
-   * traversal (성공 후 후속 노드 재개) — `applyRetryLastTurn` 의 docstring 참조.
+   * 단발 처리 + 계속되면 `PARK_RELEASED` re-park)으로 재진입한다. 성공 종결이면
+   * `resumeGraphAfterRetry` 가 downstream 노드로 그래프를 이어 간다. 절차 전체는
+   * `applyRetryLastTurn` 의 「재진입 절차」 목록에 있다.
    */
   async retryLastTurn(
     executionId: string,
@@ -836,45 +834,21 @@ export class RetryTurnService {
     // 실패하면 Execution 이 `failed` 인 채로 `failRetryExecution(FAILED)` 에 도달한다.
     // (상태머신은 자기 전이를 금지하므로 `canTransition` 에 맡기면 여기서 걸린다.)
     if (live.status === target) {
-      // ai-review CRITICAL (2026-07-27, 2차 라운드) — 상태만 같을 뿐 **이번 시도의
-      // lifecycle 필드는 새 값**이다. 재진입이 즉시 재실패하면 `error` 는 이번 실패
-      // 메시지이고 `finishedAt`/`durationMs` 도 갱신돼야 하는데, 여기서 그냥 `true` 를
-      // 반환하면 그 값들이 조용히 버려진다 — WS 는 새 에러를 emit 하는데 REST
-      // 재조회는 최초 실패 메시지를 돌려주는 불일치가 생기고 소요시간도 축소 보고된다.
-      // (무가드 `save()` 였던 이전 코드에는 없던 회귀다.)
-      //   상태는 그대로 두고 lifecycle 컬럼만 **관측한 상태를 조건으로** 건다 —
-      //   그 사이 동시 cancel 이 상태를 바꿨다면 0행 매칭으로 조용히 무효화된다.
+      // 상태가 같아도 lifecycle 필드는 이번 시도의 값이라 그냥 `true` 를 돌려주지
+      // 않는다. 쓰는 방식은 target 마다 다르다.
       //
-      // ai-review CRITICAL #1 (2026-07-27, 3차 라운드) — "0행이 실제로 가능한가":
-      // terminal(COMPLETED/FAILED/CANCELLED) 은 통상 outgoing 전이가 없어 이
-      // guarded UPDATE 가 항상 매칭될 것처럼 보이지만, FAILED → RUNNING 전이는
-      // `allowRetryReentry` opt-in 으로 예외 허용된다 (state/state-machine.ts 의
-      // ALLOWED_TRANSITIONS 주석 + `canTransition` 의 `allowRetryReentry` 분기;
-      // 호출부는 ai-turn-orchestrator.service.ts 가 받은 opts 를 그대로 넘긴다). 즉 동시
-      // retry 재진입이 위 SELECT 와 이 UPDATE 사이에 row 를 FAILED → RUNNING 으로
-      // 옮기면 `andWhere('status = :status', { status: target })` 가 0행에
-      // 매칭된다 — 그때 무조건 `true` 를 반환하면 DB 는 RUNNING(새 턴 진행 중)인데
-      // caller 가 종결 이벤트를 발행하는 "사후 오시그널" 이 된다(이 PR 이 닫으려던
-      // 결함 클래스 그 자체). `affected` 를 확인해 아래 두 분기와 대칭 처리한다.
-      //
-      // ai-review CRITICAL #1 (2026-07-27, 4차 라운드) — CANCELLED 재진입은 위 두
-      // 라운드가 세운 "이번 시도 값이 최신 진실" 전제가 성립하지 않는다. `stop()`
-      // 이 사용자가 Stop 을 누른 정확한 시각(T1)을 이미 이 guarded UPDATE 로
-      // 커밋했는데, AI 턴은 다음 turn 경계(`assertExecutionNotCancelled`)에서야
-      // 취소를 감지하므로 여기 도달했을 때 `execution.finishedAt` 은 그보다 늦은
-      // 재진입 catch 시각(T2)이다. FAILED 처럼 무조건 새 값을 쓰면
-      // `finalizeCancelledExecution`(execution-engine.service.ts)의 `??` 병합과
-      // 어긋나 그 JSDoc 이 명시하는 §2.3 계약("stop 이 쓴 finishedAt/durationMs 가
-      // 보존된다")을 이 경로만 깬다. SELECT(`live`)~UPDATE 사이 창을 신뢰하지
-      // 않기 위해(WARNING #3 ABA 계열과 같은 이유) 앱 레벨 `??` 병합이 아니라
-      // UPDATE 문 자체의 SQL `COALESCE` 로 "그 순간의" DB 값을 재평가한다 — 이미
-      // 있으면(NOT NULL) 보존하고, 처음이면(NULL, 레이스로 이 경로가 최초
-      // 관측자가 되는 극단 케이스) 이번 값을 쓴다. `error` 는 SET 절에서 아예
-      // 제외한다 — W16(취소 시 error 미저장)과 동일 원칙이고, 덤으로 이전 시도의
-      // stale `execution.error` 가 취소 row 에 재기록되는 문제(testing WARNING #1)
-      // 도 함께 닫는다. FAILED/COMPLETED 분기(else, 아래)는 2R CRITICAL 수정
-      // 그대로 무조건 새 값을 쓴다 — 재진입이 다시 실패한 경우 이번 시도의
-      // error/finishedAt/durationMs 가 최신 진실이기 때문이다(되돌리지 않는다).
+      // - 모든 분기는 관측한 상태(`status = target`)를 조건으로 건다. FAILED → RUNNING
+      //   은 `allowRetryReentry` 로 열려 있어서(state/state-machine.ts) 동시 재진입이
+      //   SELECT 와 UPDATE 사이에 행을 옮기면 0행이 된다. 그때 `true` 를 돌려주면 DB 는
+      //   RUNNING 인데 caller 가 종결 이벤트를 낸다. 그래서 `affected` 를 확인한다.
+      // - CANCELLED: `stop()` 이 이미 이 UPDATE 로 Stop 시각을 커밋했다. 여기 도달한
+      //   `execution.finishedAt` 은 그보다 늦은 catch 시각이다. 그래서 SQL `COALESCE`
+      //   로 그 순간의 DB 값을 보존하고, NULL 일 때만 이번 값을 쓴다(§2.3 "stop 이 쓴
+      //   finishedAt/durationMs 가 보존된다", `finalizeCancelledExecution` 의 `??` 병합과
+      //   같은 계약). `error` 는 SET 에서 뺀다. 취소 시 error 를 쓰지 않는 원칙(W16)이고,
+      //   이전 시도의 stale `execution.error` 가 취소 행에 다시 쓰이지 않는다.
+      // - FAILED/COMPLETED(else): 재진입이 다시 실패했으면 이번 시도의
+      //   error/finishedAt/durationMs 가 최신이므로 무조건 새 값을 쓴다.
       if (target === ExecutionStatus.CANCELLED) {
         const result = await this.executionRepository
           .createQueryBuilder()
