@@ -94,6 +94,7 @@ export const integrations: Dict["integrations"] = {
   reauthorizeBtn: "Reauthorize",
   reauthorizeDisabledPendingInstall:
     "You can't reauthorize an integration that hasn't finished installing. Complete the install first.",
+  statusInstallTimedOutDetail: "Install timed out — register the store again",
   reauthorizeDisabledInstallTimeout:
     "This integration expired because the install timed out, so it can't be reauthorized. You can register the same store again without deleting this one. If the name is taken, use a different name.",
   reauthorizeDisabledNoAppUrl:

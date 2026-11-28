@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils/cn";
+import { translate, useT, type TFunction } from "@/lib/i18n";
 import type { IntegrationDto } from "@/lib/api/integrations";
 import {
   isInstallTimedOut,
@@ -26,7 +27,18 @@ export interface StatusView {
   subLabel?: string;
 }
 
-export function computeStatus(integration: IntegrationDto): StatusView {
+/** Fallback used by callers outside React (tests, utilities): English copy. */
+const translateEn: TFunction = (key, params) => translate("en", key, params);
+
+/**
+ * @param t - Translate function for the localized parts of the view. Only the
+ *            install-timeout detail is localized for now (Task CLE-T-PSQQ34);
+ *            the other labels stay English literals. Defaults to English.
+ */
+export function computeStatus(
+  integration: IntegrationDto,
+  t: TFunction = translateEn,
+): StatusView {
   const expiresSoon = isExpiringSoon(integration.tokenExpiresAt);
 
   if (integration.credentialsStatus === "needs_reauth") {
@@ -69,7 +81,7 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       dotClassName: "bg-yellow-500",
       tone: "warn",
       detail: isInstallTimedOut(integration)
-        ? "Install timed out — register the store again"
+        ? t("integrations.statusInstallTimedOutDetail")
         : undefined,
     };
   }
@@ -229,7 +241,8 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ integration, className }: StatusBadgeProps) {
-  const view = computeStatus(integration);
+  const t = useT();
+  const view = computeStatus(integration, t);
   return (
     <span
       className={cn(

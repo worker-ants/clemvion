@@ -13,7 +13,8 @@ export const INSTALL_TIMEOUT_REASON = "install_timeout";
  * its install deadline passed. Such a row lets go of its store, so the user
  * registers the same store again without deleting it (a reused name still
  * conflicts). It checks `status` as well as `statusReason`, the same condition
- * as the server's `hasReleasedStoreSlot` (`integration-oauth.service.ts`,
+ * as the server's `hasReleasedStoreSlot`
+ * (`codebase/backend/src/modules/integrations/cafe24-store-rows.ts`,
  * REQ-INTOAUTH-068). If one changes, change the other. Every surface that
  * branches on the install timeout (disabled reasons, status badge, pending
  * steps) uses this. NERV CLE-INT-OAUTH, Task CLE-T-YMF05E.
