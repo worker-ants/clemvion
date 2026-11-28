@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM-UI"
 title: "Telegram 어댑터 — 노드 UI 매핑"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-TELEGRAM"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-TELEGRAM"]
 area: "CLE-CHAT"
-content_hash: "2a97a19bed098fa2fc194f71df1d025dc708c789183b11144b7365b7ee8e3f8e"
+content_hash: "096d1c1382502ac6301f26797d01c90ba62c241d9c2bb18ac119d305c74e2455"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "84062f2ac73a5b33d7db034367eb1208c42a020a2e304fd04ceebe0b0fa6fb65"
-etag: "sha256-4743bcfb7cdcacca5d58ce4a1727148b183669b4af4aa4fb0a0a09b53b97aa09"
+mirror_sha256: "7610d2d8b3d8259b2684536e5c7e58280b0e118838e8ab5b5507588896c0b823"
+etag: "sha256-b8849c3ecc46d8b8f001da138b92e12e15dbfe0746f5bf062cd280dd4ba8f3a8"
 ---
 ## 개요
 
@@ -150,7 +150,9 @@ LLM 응답은 일반 Markdown 이지만 Telegram MarkdownV2 는 추가 escape(`_
 
 검토한 다른 선택은 처리한 클릭처럼 키보드까지 지우는 안이다. 다시 누르면 처리될 클릭까지 막혀 택하지 않았다.
 
-### 이어짐 접미사의 괄호를 escape 하고 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)
+### 이어짐 접미사의 괄호를 escape 하고 나누는 경계를 줄바꿈 · 공백 경계로 적는다
+
+결정일: 2026-11-19
 
 접미사 `\n_(continued…)_` 의 괄호는 MarkdownV2 예약 문자라 escape 하지 않으면 Telegram 이 `400 can't parse entities` 로 조각을 거절한다. 그래서 escape 한 17자를 붙인다(NERV Task `CLE-T-V4GYE4`). 보이는 글은 Slack · Discord 와 같다.
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-PATCH"
 title: "채팅 채널 — 봇 토큰 변경 경로와 PATCH 차단"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "93b62d32b348d6c448c67142b6b6cb23d36a1b0a92dbc03006d2fe3780999fda"
+content_hash: "7abf79a35ce273de0c870a71c961eefc0fe23d0651ec8ef77ea6b0b93e6c2b88"
 read_as: "approved_fallback"
-task: "CLE-T-NXPWZZ"
+task: "CLE-T-5JZX38"
 source_paths: []
-mirror_sha256: "3e2af0a1288e1f10f856826df4675d30185ea18c836614071133528ddb78c946"
-etag: "sha256-9815ebb46765e4b16c6ec65ade52a842bd18b19b294d03477a78383425a8b202"
+mirror_sha256: "5a813edf7b86930dfb14378844e3366e77916fa8c6f252b00bcb2e2d1d6a7945"
+etag: "sha256-c6d22aaa934e28cb59eb1ddbdda7df7bef2b9a7d984e2a8e988f40417d7672bc"
 ---
 ## 개요
 
@@ -71,7 +71,7 @@ PATCH 로 토큰 값을 바꾸면 다음 피해가 생긴다. (a) 외부 프로�
 
 두 제약은 R-CC-21(PATCH 는 비밀을 받지 않는다)에서 저절로 따라 나온 것이라 새 결정이 아니다. 나중에 붙이기를 막지 않으면 `setupChannel` 이 반드시 실패하고, 그 실패가 외부 API 호출 실패의 흡수 정책([채널 건강도](CLE-CHAT-CORE-RENDER.md#채널-건강도))에 묻혀 `chatChannelHealth='degraded'` 로 200 이 된다. 사용자에게는 저장된 것처럼 보이는데 봇은 죽어 있게 된다. 명시적 400 이 이 조용한 실패를 막는다.
 
-최상위 코드는 기존 `VALIDATION_ERROR` 를 다시 쓰므로 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 새로 올릴 코드는 없다. `details[].code` 는 두 경우 모두 `INVALID_FIELD` 다([에러 응답과 클라이언트 처리 「2.5 `field` 를 실으면 `code` 도 싣는다 (2026-09-11)」](../CLE-API/CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11)). 최상위가 이미 도메인 코드인 자리(`authConfigId` 의 `AUTH_CONFIG_NOT_FOUND`)의 판정은 [에러 응답과 클라이언트 처리 「2.6 top-level 이 이미 특화 코드일 때 (2026-09-11)」](../CLE-API/CLE-API-ERROR.md#26-top-level-이-이미-특화-코드일-때-2026-09-11) 의 판별 기준을 따르며 이 두 경우와 관계없다.
+최상위 코드는 기존 `VALIDATION_ERROR` 를 다시 쓰므로 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 새로 올릴 코드는 없다. 두 거부는 단일 object 라 `details.code` 이고 두 경우 모두 `INVALID_FIELD` 다([에러 응답과 클라이언트 처리 「2.5 `field` 를 실으면 `code` 도 싣는다」](../CLE-API/CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다)). 최상위가 이미 도메인 코드인 자리(`authConfigId` 의 `AUTH_CONFIG_NOT_FOUND`)의 판정은 [에러 응답과 클라이언트 처리 「2.6 top-level 이 이미 특화 코드일 때」](../CLE-API/CLE-API-ERROR.md#26-top-level-이-이미-특화-코드일-때) 의 판별 기준을 따르며 이 두 경우와 관계없다.
 
 요청 본문의 원시 `config` 로도 두 제약을 우회할 수 없다. 원시 `config` 에 `chatChannel` 키가 있으면 값과 상관없이 `400 VALIDATION_ERROR` 다. `details.field` 모양은 [차단 필드와 details.field 모양](#차단-필드와-detailsfield-모양) 표의 셋째 · 넷째 행과 같다.
 

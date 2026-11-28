@@ -2,10 +2,6 @@
  "links": {
   "CLE-ACCT-WS-AUTHZ": {
    "CLE-INT-MANAGE#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29": 1
-  },
-  "CLE-CHAT-CORE-PATCH": {
-   "CLE-API-ERROR#25-field-를-실으면-code-도-싣는다-2026-09-11": 1,
-   "CLE-API-ERROR#26-top-level-이-이미-특화-코드일-때-2026-09-11": 1
   }
  }
 }

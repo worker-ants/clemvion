@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-API"
 title: "Discord 어댑터 — API 호출과 UI 매핑"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "d78dd5c791c01642dfe128876667793ec686ecfafbb2ce4e9ab08959c76196dc"
+content_hash: "ba6a4ae0cf2aad9834a464a4663e38f239d598f1753723ed6166fb284bed5550"
 read_as: "approved_fallback"
-task: "CLE-T-B9CRCF"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "f607232f7d359172501120690a27bd73eb055126fe898b290a67e3cc88884238"
-etag: "sha256-053b3244a660eb571e6c509e3446dfb910dcd7bd61ee77a3a0203223dc273a6c"
+mirror_sha256: "becb8008dbc01da754c763871451df8f91ad3b8d95aa92e2b4911d0f73d95779"
+etag: "sha256-467ae21a4e796a6c30dc24610526c19a831bb6194f287fe3cb9ddb59dcef4a33"
 ---
 ## 개요
 
@@ -247,7 +247,9 @@ v1 Interactions Webhook 전용(R-D-3)의 결과다. Discord 파일 업로드는 
 
 Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구현 한계로 지원하지 않는다. Form 에 `unsupportedProviders: ["discord"]` 같은 필드를 더하면 Form 이 프로바이더 한계를 알아야 하는 의존성 역전이 생긴다. file 필드를 자동으로 외부 저장소 URL 입력으로 바꾸면 사용자 의도와 다르게 동작해 헷갈린다. 추상화를 앞세우고 프로바이더 한계는 프로바이더 문서의 Rationale 에 적으며, 구현 단계에서 경고 UI 로 안내한다.
 
-### 멘션 알림은 escape 하지 않고 allowed_mentions 로 막는다 (2026-11-14)
+### 멘션 알림은 escape 하지 않고 allowed_mentions 로 막는다
+
+결정일: 2026-11-14
 
 **배경**: Template 본문과 AI 응답(`execution.ai_message`)에는 `{{ }}` 표현식이나 LLM 응답을 거쳐 사용자 입력이 섞일 수 있다. 그 안의 `@everyone` · `@here` · `<@id>` · `<@&id>` 는 멘션 알림을 울린다. 그런데 렌더러는 두 본문을 그대로 보냈다(NERV Task `CLE-T-FQTQ7K`).
 
@@ -257,9 +259,11 @@ Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구�
 
 **모든 발송에 붙이는 이유**: 렌더러에서 메시지 종류마다 붙이면 새 메시지 종류나 새 발송 경로가 생길 때 빠질 수 있다. 채널 메시지는 모두 클라이언트의 `postChannelMessage` 를 거치므로 그 한 곳에서 `withDiscordMentionsDisabled` 로 보장한다. 인터랙션 응답 본문(`{ type: 4 }`)은 이 함수를 거치지 않고 웹훅 HTTP 응답으로 나가므로 응답을 만드는 공용 빌더 하나(`buildDiscordEphemeralMessageResponse`)로 모은다(2026-11-14, NERV Task `CLE-T-VE7QVM`). `{ type: 6 }` 과 `{ type: 9 }` 응답에는 메시지가 없어 붙일 곳이 없다. 두 빌더 안에서 처리하므로 어댑터 함수와 렌더러 인터페이스는 더하지 않았다.
 
-**기각한 대안**: Template 본문만 막고 AI 응답은 후속 작업으로 미루는 안과 `{{ }}` 치환값만 막는 안은 Slack 과 같은 이유로 기각했다([Slack 어댑터 — Web API 와 노드 UI 매핑 「Template 본문과 AI 응답을 escape 해 멘션을 막는다 (2026-11-14)」](CLE-CHAT-SLACK-OUTBOUND.md#template-본문과-ai-응답을-escape-해-멘션을-막는다-2026-11-14)).
+**기각한 대안**: Template 본문만 막고 AI 응답은 후속 작업으로 미루는 안과 `{{ }}` 치환값만 막는 안은 Slack 과 같은 이유로 기각했다([Slack 어댑터 — Web API 와 노드 UI 매핑 「Template 본문과 AI 응답을 escape 해 멘션을 막는다」](CLE-CHAT-SLACK-OUTBOUND.md#template-본문과-ai-응답을-escape-해-멘션을-막는다)).
 
-### continued 접미사도 2000자 한도 안에 넣는다 (2026-11-14)
+### continued 접미사도 2000자 한도 안에 넣는다
+
+결정일: 2026-11-14
 
 예전 구현은 마지막이 아닌 조각에 본문 2000자를 담고 접미사 `\n_(continued…)_`(15자)를 더해 2015자 조각을 보냈다. Discord 는 2000자를 넘는 `content` 를 거부할 수 있다. 그래서 접미사까지 포함해 조각마다 2000자 안에 넣는다(NERV Task `CLE-T-ZGF71P`). 코드 블록을 닫고 다시 연 표식도 같은 2000자 안에 넣는다(NERV Task `CLE-T-RYXCFX`).
 

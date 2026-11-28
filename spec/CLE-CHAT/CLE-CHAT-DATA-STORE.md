@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-STORE"
 title: "채팅 채널 데이터와 흐름 — 저장 모델과 상태"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "f42d6b056cdc8206a3afe94129363a9fb487acd84ef5e0b1dbbb0a670714a3ea"
+content_hash: "c16ee433c57e620aaec1e6dc991ca79791f5dae99e96e79cc035e470d11f0b5b"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "19e650c869b430d1d7d48a1d55881ad16cca63cd84843a86178fc91b9d2d9b69"
-etag: "sha256-e5b62dea8f3d768bfd2fa5f64eb5c6d7178e55d1a15534962eff1060c1ffd541"
+mirror_sha256: "40c5f30f3f4beb639d8a977d1b0a56527aaf9ae18266c19362502a75b69753a9"
+etag: "sha256-f895f5e35fb831136a77711274f99dcfb2b2151bee60b7de21ea139c62392b8d"
 ---
 ## 개요
 
@@ -117,7 +117,7 @@ pub/sub 채널 이름은 키 공간과 따로라 같은 접두의 `chat-channel:
 |---|---|
 | `unknown` | 컬럼 기본값. 아직 setup·발송 결과가 없다 |
 | `healthy` | setup·재발급 성공 때, 또는 한 디스패치에서 보낸 메시지가 있고 그 디스패치에 실패가 없을 때 올린다(`chat_channel_last_error=null`). 인바운드 처리가 성공해도 올리지 않는다 |
-| `degraded` | 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 인바운드에서 생기는 원인(분당 한도 초과, 워크플로우 없음, `/cancel` 과 재개 명령의 큐 적재 실패)은 이미 `degraded` 면 다시 쓰지 않는다. 그래서 `chat_channel_last_error` 에는 먼저 `degraded` 가 된 원인의 문구가 남는다. 트리거를 자동으로 끄지 않는다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). 다음 성공 때 다시 `healthy` |
+| `degraded` | 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 인바운드에서 생기는 원인(분당 한도 초과, 워크플로우 없음, `/cancel` 과 재개 명령의 큐 적재 실패)은 이미 `degraded` 면 다시 쓰지 않는다. 그래서 `chat_channel_last_error` 에는 먼저 `degraded` 가 된 원인의 문구가 남는다. 트리거를 자동으로 끄지 않는다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). 위 `healthy` 행의 조건을 채우면 다시 `healthy` |
 
 ## 구현 위치
 
@@ -147,7 +147,9 @@ Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가
 
 기각한 대안은 `DEL` 을 그대로 두는 것이다. 만료 뒤 새로 잡힌 선점을 지우는 경합이 남는다. 롤링 배포 중 옛 버전이 `'1'` 로 잡은 선점은 새 버전이 지우지 못하고 30초 TTL 로 풀린다. 그 사이 다시 온 `/start` 하나가 `ignored` 로 끝날 수 있지만 배포 중에만 생기는 일이다.
 
-### `chat_channel_health` 의 공용 DB 타입 검토 문구를 거둔다 (2026-10-17)
+### `chat_channel_health` 의 공용 DB 타입 검토 문구를 거둔다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-EMB0YG` 의 승인본 동기화다. 이 문서는 `chat_channel_health` 와 `notification_health` 를 공용 DB 타입으로 합치는 것을 나중에 검토한다고 적었다. 두 컬럼은 이미 같은 방식으로 값을 막는다. 둘 다 `VARCHAR(16)` 이고 세 값만 받는 CHECK 제약이 있다(마이그레이션 V059 · V062). 이 저장소의 마이그레이션에서 Postgres enum 타입(`CREATE TYPE`)은 V001 에만 있다. 검토를 맡은 Task 도 없었다. 그래서 검토 문구를 지우고 지금 저장 형태를 [트리거 컬럼](#트리거-컬럼) 에 적었다.
 

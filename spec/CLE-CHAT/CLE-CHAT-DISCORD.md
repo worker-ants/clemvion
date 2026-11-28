@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "aa66ad08035dd9b9c6021cc2f6b9d93e1e2049209502a077660e45171d2c9b00"
+content_hash: "25249938718a58d983326c94f5bbd7913a55f72196084baf9d5ce79531d7258f"
 read_as: "approved_fallback"
-task: "CLE-T-BDHBKG"
+task: "CLE-T-18C572"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "b209bbf1c78f0d33986678fa04d6ea0a731bae9dec62bdf8549753b058abe7cc"
-etag: "sha256-12cb7cad97c83bbae3ea0ad02908f5c48c934201ff823083be1453aad09ac7da"
+mirror_sha256: "d72e008c977733d1e947c801594bda5e3cad2526333c1a96cd0ff995a9c7b39a"
+etag: "sha256-fd4f1f46c7376b4f969a4d3530d57fd62dcf5d1df11c7e721b01ad416022b95f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -161,23 +161,31 @@ Gateway 도입은 사용자 요청이 있을 때 v2 후보로 진입한다.
 
 1차 범위 정책([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-017)과 맞다. guild 채널은 여러 사용자가 있어 대화 매핑이 깨진다. guild 봇 UX 는 v2 여러 사용자 대화와 함께 간다.
 
-### REQ-DISCORD-010 의 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)
+### REQ-DISCORD-010 의 나누는 경계를 줄바꿈 · 공백 경계로 적는다
+
+결정일: 2026-11-19
 
 「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 요구사항 문장을 두고 뜻만 정했던 결정을 뒤집었고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.
 
-### R-D-13 DM 밖 인터랙션에는 채널 메시지로 안내하지 않는다 (2026-11-19)
+### R-D-13 DM 밖 인터랙션에는 채널 메시지로 안내하지 않는다
+
+결정일: 2026-11-19
 
 사람 결정이다(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`, NERV Task `CLE-T-800D2Q`·`CLE-T-T8ZTG8`). Discord v1 은 일반 메시지 이벤트를 받지 않으므로 DM 밖에서 오는 것은 인터랙션뿐이다. 슬래시 명령에는 본인에게만 보이는 즉시 응답으로 `groupChatRefusal` 안내가 닿는다(REQ-DISCORD-007). 컴포넌트 클릭과 모달 제출에는 안내 없이 `{ type: 6 }` 으로 답한다. 채널에 안내를 보내려면 봇에게 그 채널의 쓰기 권한이 있어야 한다. 채널 전체에 보이는 글이라 다른 구성원에게 소음도 된다. 채널에 안내 메시지를 보내는 것은 Telegram 그룹뿐이다.
 
 기각한 대안은 Slack·Discord 에도 채널 메시지로 안내를 보내는 안이다. 권한과 소음 때문에 고르지 않았다.
 
-### R-D-14 활성 실행이 없는 /cancel 은 즉시 응답에 안내를 싣는다 (2026-11-19)
+### R-D-14 활성 실행이 없는 /cancel 은 즉시 응답에 안내를 싣는다
+
+결정일: 2026-11-19
 
 사람 결정이다(NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`, NERV Task `CLE-T-A78V0M`). 아무 안내가 없으면 사용자는 취소가 됐는지 알 수 없다. 슬래시 명령에는 이미 본인에게만 보이는 즉시 응답이 있어 그 내용만 바꾸면 채널에 글을 더 쓰지 않는다. 트리거가 꺼져 있으면 update 를 해석하지 않으므로 수신 문구 그대로다.
 
 기각한 대안은 즉시 응답을 «요청을 받았습니다.» 로 두고 DM 에 안내를 따로 보내는 안이다. 응답이 둘이 되고 내용이 엇갈려 고르지 않았다.
 
-### DM 밖 슬래시 명령 규칙을 REQ-DISCORD-007 로 모은다 (2026-11-19)
+### DM 밖 슬래시 명령 규칙을 REQ-DISCORD-007 로 모은다
+
+결정일: 2026-11-19
 
 NERV Task `CLE-T-R9FX1K` 의 문구 정리이고 동작은 그대로다. DM 밖 규칙이 REQ-DISCORD-007·031·036·037 에 나뉘어 어느 규칙이 먼저인지 읽히지 않아 REQ-DISCORD-007 에 모았다.
 

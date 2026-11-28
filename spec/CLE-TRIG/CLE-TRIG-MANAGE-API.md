@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-API"
 title: "트리거 관리 — API 와 PATCH 계약"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "921f00a681eeadb0b4e8d007bc84136c45c172f10d1180c786cda9d62b9052ef"
+content_hash: "9173e8473e54532fe2edd2b085bcf8d5692e7c409a3d19d481da1d6ca60de8d6"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-QVW8QS"
 source_paths: []
-mirror_sha256: "a6667e49663cc521773e98ac125cc7ae3e4c43d71a932c5f050e116b1437b27a"
-etag: "sha256-5024f52a7aeba78ebee40170bad9a463d4691bbb3a72aca7a410d57e6cebd2c6"
+mirror_sha256: "62f08d6bd79e8b1c27f8929dce7287c6aa5a076ee07cee555f5d2f21369057e7"
+etag: "sha256-be78c54f5015e7acc0ae68f14521cb08f696a653c1614da17446d4973d490574"
 ---
 ## 개요
 
@@ -44,19 +44,19 @@ etag: "sha256-5024f52a7aeba78ebee40170bad9a463d4691bbb3a72aca7a410d57e6cebd2c6"
 
 ### PATCH 본문 계약
 
-`PATCH /api/triggers/:id` 본문은 다음 부분 갱신 키를 모두 선택으로 top-level 에서 받는다.
+`PATCH /api/triggers/:id` 본문은 다음 부분 갱신 키를 모두 선택으로 top-level 에서 받는다. `name` · `isActive` · `endpointPath` 의 `null` 은 400 `VALIDATION_ERROR` 다(`@IsOptionalNonNull`). 값을 두려면 키를 생략한다.
 
 | 키 | 규칙 |
 |----|------|
 | `name` | 트리거 이름 |
 | `isActive` | 활성 상태 |
 | `endpointPath` | 엔드포인트 경로. v4 UUID |
-| `authConfigId` | 인증 설정 연결. `null` 을 받는다. 소속 검증은 백엔드 `triggers.service` 가 `authConfigsService.findById(id, workspaceId)` 로 한다. 호출자 워크스페이스의 인증 설정이 아니면(없거나 다른 워크스페이스 소속이면 둘을 구분하지 않음) 400 `AUTH_CONFIG_NOT_FOUND`, `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) |
+| `authConfigId` | 인증 설정 연결. `null` 을 받는다. 소속 검증은 백엔드 `triggers.service` 가 `assertAuthConfigInWorkspace(authConfigId, workspaceId)` 로 한다. 호출자 워크스페이스의 인증 설정이 아니면(없거나 다른 워크스페이스 소속이면 둘을 구분하지 않음) 400 `AUTH_CONFIG_NOT_FOUND`, `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) |
 | `config` | 그 밖의 JSONB 키. 트리거 설정 잠금 안에서 다시 읽은 행의 `config` 위에 `config` 바로 아래 키 단위로 병합한다(아래 원시 `config` 항목). 타입 키(`notification` · `interaction` · `chatChannel`), 시크릿 참조 · 평문 필드와 서버가 만든 값, `secret://` 로 시작하는 값은 받지 않는다(아래). `config` 자체가 `null` 이면 보내지 않은 것으로 보고 저장된 `config` 를 바꾸지 않는다. 조회 응답의 `config` 에는 저장된 타입 키가 들어 있어 그대로 되보내면 400 이다. 타입 설정은 [타입 필드](../CLE-GLOSSARY-TRIG.md)로 보낸다 |
 | `notification` / `interaction` / `chatChannel` | EIA 알림 웹훅 · 인터랙션 · 채팅 채널 설정. `config.*` 아래가 아니라 [타입 필드](../CLE-GLOSSARY-TRIG.md)로 받는다. 원시 `config` 아래로 보내면 400 이다(아래). 백엔드 `triggers.service`(`mergeExternalConfig`)가 `config` JSONB 안의 같은 이름 키로 합친다. 키를 보내면 그 객체를 통째로 교체한다. 부분 병합이 아니므로 사용자가 정하는 필드는 전체를 다시 보내야 한다. 서버가 만든 값(`interaction.triggerToken`, `notification.signing.secretRef`, 채팅 채널의 시크릿 참조)은 요청으로 받지 않고 서버가 정한다(아래). `notification` · `interaction` 에 `null` 을 보내면 설정 해제로 보고 `config` 에서 그 키를 지운다. `null` 을 저장하지는 않는다. `chatChannel` 의 `null` 은 생략과 같게 보고 저장된 값을 그대로 둔다. 기준은 `update-trigger.dto.ts` 와 `triggers.service.ts mergeExternalConfig` 다 |
 
 - 인라인 인증 키(`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`)는 없다. 웹훅 인증은 `authConfigId` 연결로만 받는다.
-- 채팅 채널의 비밀은 PATCH 로 바꿀 수 없다. `chatChannel.botTokenRef`(ref), `chatChannel.botToken`(평문), `chatChannel.inboundSigning`, `inboundSigningPlaintext` 를 바꾸려 하면 400 `VALIDATION_ERROR` 다. 봇 토큰은 재발급 API(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)로만 바꾼다. 거부 응답의 모양과 이 규칙의 기준은 [채팅 채널 §봇 토큰 변경 단일 경로](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 다. Slack signing secret·Discord public key 회전 API 는 v1 에 정의되지 않았다.
+- 채팅 채널의 비밀은 PATCH 로 바꿀 수 없다. `chatChannel.botTokenRef` · `inboundSigningRef`(ref), `chatChannel.botToken`(평문), `chatChannel.inboundSigning`, `inboundSigningPlaintext` 를 바꾸려 하면 400 `VALIDATION_ERROR` 다. 봇 토큰은 재발급 API(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)로만 바꾼다. 거부 응답의 모양과 이 규칙의 기준은 [채팅 채널 §봇 토큰 변경 단일 경로](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 다. Slack signing secret·Discord public key 회전 API 는 v1 에 정의되지 않았다.
 - `chatChannel` 이 실린 PATCH 는 사용자가 보낸 비밀을 받지도 쓰지도 않는다. `botToken` 과 Slack·Discord 의 `inboundSigningPlaintext` 는 요청 전후로 같다. `botTokenRef` 는 "통째로 교체" 규칙과 상관없이 사라지지 않는다(트리거 id 에서 다시 유도한다). Telegram 의 서버 발급 inbound signing 은 예외다. `setupChannel()` 을 다시 부를 때마다 새로 발급·저장되며 이것이 정상이다.
 - `interaction` · `notification` 이 실린 PATCH 에서 서버가 만든 두 값은 서버가 잠금 안에서 다시 읽은 행을 보고 정한다. 알림 서명 시크릿 참조(`notification.signing.secretRef`)는 그 행에 참조가 있으면 행의 값을 복사하지 않고 `notificationSigningSecretRef(triggerId)` 로 다시 만들어 싣는다. 참조가 없을 때와 트리거 단위 토큰(`interaction.triggerToken`, `itk_*`)의 처리는 아래 항목이 정한다. 타입 필드 `interaction` · `notification` 본문에 두 값을 실으면 전역 검증 파이프(`whitelist` + `forbidNonWhitelisted`)가 400 `VALIDATION_ERROR` 로 거부한다. 목적도 방식도 위 `botTokenRef` 보존과 같다. 두 참조는 저장값 대신 트리거 id 로 다시 만든다. 시크릿을 바꾸려면 시크릿 교체(`rotate-secret`)를 쓴다.
 - PATCH 가 `notification` 을 실었는데 잠금 안에서 다시 읽은 행에 `signing.secretRef` 가 없으면 서버는 그 행의 옛 평문 `signing.secret` 을 시크릿 저장소로 옮기거나 첫 알림 서명 시크릿(`wsk_<64hex>`)을 발급한다. 어느 쪽인지는 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. EIA 알림 웹훅 설정을 처음 붙일 때가 발급하는 경우다. 판정과 시크릿 저장소 쓰기(발급이나 옮기기)는 같은 트리거 설정 잠금 안에서 한다. 평문은 그 PATCH 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 실리고 발급한 비밀이 없는 응답에는 `secrets` 키가 없다. 생성 때와 같은 규칙이다. 이 응답을 받지 못했으면 `rotate-secret` 으로 새 시크릿을 받는다.
@@ -77,7 +77,7 @@ etag: "sha256-5024f52a7aeba78ebee40170bad9a463d4691bbb3a72aca7a410d57e6cebd2c6"
 - 채팅 채널이 없는 트리거에 PATCH 로 채널을 나중에 붙이면 400(`details.field='chatChannel'`, `details.code='INVALID_FIELD'`)이다. 최초 설정은 생성 요청에서만 한다.
 - 채팅 채널 `provider` 를 바꾸면 400(`details.field='provider'`, `details.code='INVALID_FIELD'`)이다. 허용하면 다른 채널 프로바이더의 토큰을 새 어댑터에 넘기게 된다.
 - 스케줄 유형 트리거 PATCH 는 `name`, `isActive` 만 받는다. `endpointPath` / `config` / `authConfigId` 등을 바꾸려 하면 400 `VALIDATION_ERROR`(`details.field='type'`, `details.code='INVALID_FIELD'`)다. 트리거와 스케줄의 동기화를 지키기 위해서다([트리거 데이터와 흐름](CLE-TRIG-DATA.md)).
-- 엔드포인트 경로가 전역 UNIQUE 를 어기거나 다른 워크스페이스가 예약한 경로(지웠거나 바꾼 경로)면 409 `RESOURCE_CONFLICT`(`details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)다. 길이·이름 검증 실패는 400 `VALIDATION_ERROR` 다.
+- 엔드포인트 경로가 전역 UNIQUE 를 어기거나 다른 워크스페이스가 예약한 경로(지웠거나 바꾼 경로)면 409 `RESOURCE_CONFLICT`(`details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)다. 이 `field` 만 본문 키와 달리 snake_case 다. 이미 내보낸 값이라 바꾸지 않는다. 길이·이름 검증 실패는 400 `VALIDATION_ERROR` 다.
 - 웹훅 인증 자격 증명(secret / token / password)은 트리거 응답에 나가지 않는다. 인증 설정 응답은 필드 마스킹(`***<last4>`)을 한다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)).
 
 ### 응답 형태
@@ -156,7 +156,9 @@ etag: "sha256-5024f52a7aeba78ebee40170bad9a463d4691bbb3a72aca7a410d57e6cebd2c6"
 - **`secret://` 값을 위치와 상관없이 거부한다.** 내부 필드 거부(`CONFIG_INTERNAL_FIELDS`)는 사람이 더하는 경로 목록이라 새 `*Ref` 슬롯을 목록에 넣지 않아도 테스트가 실패하지 않는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 22 와 R9 가 남긴 위험). 타입 키 거부로 타입 키 아래의 참조 슬롯은 모두 막히지만 다른 키 아래에 참조를 심는 길은 남는다. 값 검사는 슬롯 이름과 상관없이 잡는다. 경로 목록 거부는 그대로 두고 먼저 검사하므로 기존 거부의 `details.field` 는 바뀌지 않는다. 기각한 대안은 값 검사 없이 경로 목록만 유지하는 안이다.
 - 이 결정으로 지운 요구사항과 번호 처리는 [트리거 관리](CLE-TRIG-MANAGE.md#원시-config-계약) 에 적었다.
 
-### 타입 필드 `notification` · `interaction` 의 `null` 은 해제다 (2026-11-20)
+### 타입 필드 `notification` · `interaction` 의 `null` 은 해제다
+
+결정일: 2026-11-20
 
 두 필드는 보내면 통째로 바꾸고 보내지 않으면 그대로 둔다. 그래서 설정 블록을 지울 방법이 `null` 뿐이다. [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 기준대로 `null` 을 거부하지 않고 해제로 받는다. 전에는 `null` 을 그대로 저장해서 키는 있는데 값이 없는 행이 생겼다. 이제는 키를 지운다.
 
