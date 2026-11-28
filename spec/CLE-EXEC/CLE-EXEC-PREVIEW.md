@@ -2,19 +2,19 @@
 id: "CLE-EXEC-PREVIEW"
 title: "대화 미리보기"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-CONVPV-001", "REQ-CONVPV-002", "REQ-CONVPV-003", "REQ-CONVPV-004", "REQ-CONVPV-005", "REQ-CONVPV-006", "REQ-CONVPV-007", "REQ-CONVPV-008", "REQ-CONVPV-009", "REQ-CONVPV-010", "REQ-CONVPV-011", "REQ-CONVPV-012", "REQ-CONVPV-013", "REQ-CONVPV-014", "REQ-CONVPV-015", "REQ-CONVPV-016", "REQ-CONVPV-017", "REQ-CONVPV-018", "REQ-CONVPV-019", "REQ-CONVPV-020", "REQ-CONVPV-021", "REQ-CONVPV-022", "REQ-CONVPV-023", "REQ-CONVPV-024", "REQ-CONVPV-025", "REQ-CONVPV-026", "REQ-CONVPV-027", "REQ-CONVPV-028", "REQ-CONVPV-029", "REQ-CONVPV-030", "REQ-CONVPV-031", "REQ-CONVPV-032", "REQ-CONVPV-033", "REQ-CONVPV-034", "REQ-CONVPV-035", "REQ-CONVPV-036", "REQ-CONVPV-037", "REQ-CONVPV-038", "REQ-CONVPV-039", "REQ-CONVPV-040", "REQ-CONVPV-041", "REQ-CONVPV-042", "REQ-CONVPV-043", "REQ-CONVPV-044", "REQ-CONVPV-045", "REQ-CONVPV-046", "REQ-CONVPV-047"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "eeefc691daf0acd76a04cbdd680a059271a08af5961d0b2be7c6d0a3cca8ac4e"
+content_hash: "ce1f87e36db78b26321fae610b1b8ef4f8a08ce8b4ff6e37c3027001815cdbb1"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-B87H23"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "9484a5f530cbe74a12969975671dfb846efa237d503421c8b76e59707dc615ea"
-etag: "sha256-a5deed9fe53d37e3c84ffde5d636700ea7cf8412eaeed63710863596bd0c0134"
+mirror_sha256: "a18d3cc845c8446aebb60b3ea5f4c1dcff0f276ce95d5ed4397335896556a1bc"
+etag: "sha256-333e6cc6e31334e823f191dfaaccbcdd3d78dea7af7738692ac89760e31f499a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§9 미리보기 UI 렌더 규칙, 줄 433–756. 근거는 §8.1·§8.2·§8.3·§8.5·§8.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,9 +175,11 @@ store 보존(Inv-6)과 별도로 렌더 층 도달성을 Inv-8 로 두고 [데�
 - **retryable 과 상관없이 넓힌 이유**: 원래 예외의 근거는 [다시 시도] 버튼에 묶여 있어 저절로 넓어지지 않는다. 그래서 따로 근거를 둔다. 대화 시간축을 보존하는 가치는 재시도 가능성과 독립이다. retryable 이 아닌 종료(예: 인증 실패)에서도 사용자는 "어느 턴에서 어떤 맥락으로 끊겼는지" 를 먼저 봐야 한다. `system_error` 는 retryable 여부와 상관없이 스레드에 인라인으로 표시된다(retryable 이 아니면 액션 영역만 빈다). 오류 탭은 명시적으로 골라 계속 열 수 있어 에러 정보에 닿는 길은 줄지 않는다. 원래 예외가 기본 탭 일반 원칙(ED-EX-13)과의 긴장을 푼 것과 같은 논증이다.
 - **기각: 백엔드가 실패 노드에 대화 페이로드를 더 싣기.** 이미 싣고 있다(실측). 프런트가 버렸을 뿐이라 백엔드 계약을 바꿀 필요가 없다. `node.failed` 는 노드와 상관없는 공통 실패 경로라 AI 전용 페이로드를 더하면 계층을 침범한다.
 
-### 단일 턴 실패에는 `system_error` 를 붙이지 않는다 (2026-11-01)
+### 단일 턴 실패에는 `system_error` 를 붙이지 않는다
 
-→ [대화 미리보기 — 시각 매핑과 데이터 소스](CLE-EXEC-PREVIEW-RENDER.md#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01)
+결정일: 2026-11-01
+
+→ [대화 미리보기 — 시각 매핑과 데이터 소스](CLE-EXEC-PREVIEW-RENDER.md#단일-턴-실패에는-system_error-를-붙이지-않는다)
 
 ### `rag` 줄을 보조 관찰성 레인으로 둔다
 

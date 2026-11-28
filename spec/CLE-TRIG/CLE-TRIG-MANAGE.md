@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 16
+version: 17
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "bfa816efb5e1b584a9c05c75941c30751097d4ebce80d88f8085e538870e6474"
+content_hash: "0a82c93fd971185585fea5263e8fe175fe8f08193865c609554eb837f9f9a7b9"
 read_as: "approved_fallback"
-task: "CLE-T-PK8EKG"
+task: "CLE-T-1C2JE0"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "ceac7c19dacc49383500367115d4e4dfdd5091a01e31974f3e9f9b43ca7fc618"
-etag: "sha256-949f2ab25386bc1f930c40deb670fa05a6a377274ebb30f834ceba3c0ff056ab"
+mirror_sha256: "d4a53c2022cda940c31eb0b1eaa346d554dd851d84f511ed27b7a31bdf27f41d"
+etag: "sha256-ab0b705c443e451c4c336e611df3244737c953bfc2cde0927f940a7bb0e3b469"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -85,7 +85,7 @@ etag: "sha256-949f2ab25386bc1f930c40deb670fa05a6a377274ebb30f834ceba3c0ff056ab"
 - REQ-TRIG-045 WHEN 트리거 행을 없애는 경로가 실행되면 THE SYSTEM SHALL 경로와 상관없이 그 트리거의 외부 자원과 비밀을 정리한다.
 - REQ-TRIG-046 IF 스케줄 BullMQ 작업 해제가 실패하면 THE SYSTEM SHALL 삭제를 멈춘다.
 - REQ-TRIG-047 IF 채널 프로바이더 등록 해제가 실패하면 THE SYSTEM SHALL 삭제를 계속한다.
-- REQ-TRIG-048 IF 삭제가 트리거 설정 잠금을 5초 안에 잡지 못하면 THE SYSTEM SHALL 기다리지 않고 에러로 끝내며 외부 등록만 해제된 상태를 서버 로그에 남긴다.
+- REQ-TRIG-048 IF 삭제가 트리거 설정 잠금을 5초 안에 잡지 못하면 THE SYSTEM SHALL 기다리지 않고 503 `SERVICE_UNAVAILABLE` 로 끝내며 외부 등록만 해제된 상태를 서버 로그에 남긴다.
 - REQ-TRIG-049 WHEN 삭제가 성공하면 THE SYSTEM SHALL 본문 없이 `204 No Content` 로 응답한다.
 - REQ-TRIG-050 IF 같은 트리거를 두 요청이 동시에 지우면 THE SYSTEM SHALL 두 번째 요청에 `404 RESOURCE_NOT_FOUND` 로 응답한다.
 - REQ-TRIG-051 WHEN 트리거를 지우거나 활성 상태를 바꾸면 THE SYSTEM SHALL 감사 로그에 각각 `trigger.deleted`·`trigger.updated` 를 남긴다.
@@ -165,3 +165,9 @@ SSE 스트림을 REQ-TRIG-041 · 059 대로 닫을 때 닫기 신호를 놓친 �
 결정일: 2026-11-12
 
 단독 영문 «provider» 는 용어 기준에 맞춰 «채널 프로바이더» 로 적는다. 요구사항의 뜻과 코드 식별자 `provider`, 화면 필드 목록, 절 제목은 바꾸지 않는다.
+
+### REQ-TRIG-048 의 응답 코드
+
+결정일: 2026-11-28
+
+NERV Task `CLE-T-1C2JE0` 에서 REQ-TRIG-048 의 «에러로 끝낸다» 를 503 `SERVICE_UNAVAILABLE` 로 정했다. 근거는 [계정과 워크스페이스 데이터 흐름 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」](../CLE-ACCT/CLE-ACCT-DATA.md#잠금-대기-초과는-503-service_unavailable-로-낸다) 에 있다.

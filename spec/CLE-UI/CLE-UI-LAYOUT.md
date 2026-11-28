@@ -2,19 +2,19 @@
 id: "CLE-UI-LAYOUT"
 title: "레이아웃과 내비게이션"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-LAYOUT-001", "REQ-LAYOUT-002", "REQ-LAYOUT-003", "REQ-LAYOUT-004", "REQ-LAYOUT-005", "REQ-LAYOUT-006", "REQ-LAYOUT-007", "REQ-LAYOUT-008", "REQ-LAYOUT-009", "REQ-LAYOUT-010", "REQ-LAYOUT-011", "REQ-LAYOUT-012", "REQ-LAYOUT-013", "REQ-LAYOUT-014", "REQ-LAYOUT-015", "REQ-LAYOUT-016", "REQ-LAYOUT-017", "REQ-LAYOUT-018", "REQ-LAYOUT-019", "REQ-LAYOUT-020", "REQ-LAYOUT-021", "REQ-LAYOUT-022", "REQ-LAYOUT-023", "REQ-LAYOUT-024", "REQ-LAYOUT-025", "REQ-LAYOUT-026", "REQ-LAYOUT-027", "REQ-LAYOUT-028", "REQ-LAYOUT-029", "REQ-LAYOUT-030", "REQ-LAYOUT-031", "REQ-LAYOUT-032", "REQ-LAYOUT-033", "REQ-LAYOUT-034", "REQ-LAYOUT-035", "REQ-LAYOUT-036", "REQ-LAYOUT-037", "REQ-LAYOUT-038", "REQ-LAYOUT-039", "REQ-LAYOUT-040", "REQ-LAYOUT-041", "REQ-LAYOUT-042", "REQ-LAYOUT-043"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "da7027bd67503bcd5a22155371e2133cf28de4a9436e9e1327f05ccd708aabd6"
+content_hash: "1f5322c217a07237f1678443d151b8334bf55582e20c2c56ef06db54fc98d434"
 read_as: "approved_fallback"
-task: "CLE-T-7BNDT8"
+task: "CLE-T-95K2Q9"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "3ddf08709db8ea303d4a684347fb03f5e6f35bfa29697640038c5594e8f594cb"
-etag: "sha256-7e1a8c477490ead7a2f4890c46b14cc169c589cf3d0d63b59450115cfeba1e59"
+mirror_sha256: "bfa24175188e4299efda049445580d8921d590be8d416b193c5862a4845dc334"
+etag: "sha256-1e6866e1b9d5aa4e2e2db691fdf86bf1b958b8ffbaba53b7f9e2662b24120c98"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/_layout.md` (§1 레이아웃 구조, §2 사이드바, §4 메인 컨텐츠 영역, §5 공통 헤더, Rationale), `spec/2-navigation/_product-overview.md` (§1 개요, §2 내비게이션 구조), `spec/0-overview.md` (§3 공통 UI 패턴, Rationale «Inline Alert 의 위치») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -251,7 +251,9 @@ etag: "sha256-7e1a8c477490ead7a2f4890c46b14cc169c589cf3d0d63b59450115cfeba1e59"
 
 인라인 안내는 통합·지식 저장소 같은 내비게이션 화면에서 처음 도입됐다. 그래서 내비게이션 레이아웃 문서에 두는 것이 자연스러워 보였다. 그러나 앞으로 웹훅 서명 키 교체나 알림 설정 변경처럼 내비게이션 밖으로 사용처가 넓어질 가능성을 보면, 영역에 묶어 두는 비용이 더 크다고 판단했다. 그래서 여러 화면이 함께 쓰는 공통 패턴 자리에 둔다. 첫 사용처와 문서상 거리가 멀어진 것은 받아들인 비용이다.
 
-### 사이드바 메뉴 이름을 한국어 화면 문구로 적는다 (2026-10-17)
+### 사이드바 메뉴 이름을 한국어 화면 문구로 적는다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-6YY7KY` 가 고쳤다. [메뉴 항목](#메뉴-항목) 표는 항목 이름 13개를 모두 영어로 적었다. 한국어 화면의 사이드바에는 "대시보드" · "워크플로우" 같은 한국어 문구가 보인다. [용어 사전](../CLE-GLOSSARY.md) 표기 원칙 1 은 화면 개념을 화면 문구로 부르게 한다. 그래서 항목 이름을 한국어 화면 문구 사전의 값으로 바꾸고 표 앞에 그 출처를 적었다. 「마켓플레이스 메뉴 위치」 미결 사항의 메뉴 이름도 함께 바꿨다. 같은 메뉴를 영어 이름으로 적은 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)(사이드바 메뉴를 정한 요구사항 포함) · [모델 설정](../CLE-AI/CLE-AI-MODELS.md) · [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 은 후속 NERV Task `CLE-T-N0K4SE` 가 맞춘다.
 
@@ -262,7 +264,9 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. [메뉴 항목](#메뉴-항목) 표는 �
 
 2026-11-06 변경이다(NERV Task `CLE-T-6RY511`). 환경설정 카드와 저장 값에는 이미 `system` 이 있었다. 그런데 이 문서만 테마를 라이트·다크로 적고 있었다. 그래서 요구사항과 「반응형과 테마」 절에 시스템 테마를 더했다. 적용 규칙의 정본은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md#테마) 의 「테마」 절이다.
 
-### 옛 문서 이름과 `R-3` 을 정리했다 (2026-11-13)
+### 옛 문서 이름과 `R-3` 을 정리했다
+
+결정일: 2026-11-13
 
 NERV Task `CLE-T-YG34W6` 에서 표기만 고쳤다. 동작은 바뀌지 않았다.
 

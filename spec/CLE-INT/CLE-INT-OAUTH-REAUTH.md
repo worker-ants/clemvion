@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-REAUTH"
 title: "OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "be893f9c0166a23e60b09ad01216fdcc6dec92f1755de9633c80eeab8ee0a6c6"
+content_hash: "f8f51ba725db48764bc58d9d2c4561aff85d80f4b1e2726a9f748bb86388fb5a"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-DR1HPG"
 source_paths: []
-mirror_sha256: "47bac03e6613bd235afd1fa083400870bd0628d38abe6226ea2f108d0f92710e"
-etag: "sha256-adcf5acd1c26150424ed89e2a469ed9db6da6c41f0bef2bd49926f15cf275980"
+mirror_sha256: "39ff6128ec17d6e43aa99a13d58abcedffc0ff6824b6d6099439929f20e3798e"
+etag: "sha256-465e2a6b84060e8ef7f72a2dac658e28bac3b2383f1ee56feb124c36df4e3531"
 ---
 ## 개요
 
@@ -84,7 +84,7 @@ Cafe24 Private 응답(`cafe24_private_pending`)의 화면:
 
 - 공통 인라인 안내 패턴([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md))의 경고(amber) 톤을 쓴다. 권한 카드 안에 계속 보이고 다음 요청 때 초기화한다.
 - 제목: "Cafe24 Developers 에서 권한을 추가해 주세요" / "Grant the additional scopes in Cafe24 Developers"
-- 설명: "Cafe24 Developers 의 앱 권한 설정에서 추가 scope 를 활성화한 뒤 '테스트 실행' 을 다시 누르면 새 token 으로 갱신됩니다. (Private 앱은 외부에서 OAuth 화면을 띄울 수 없어 Cafe24 측 작업이 필요해요.)" / "Enable the additional scopes in your Cafe24 Developers app permission settings, then click 'Test run' again to refresh the token with the new scopes. (Private apps cannot initiate the OAuth flow externally, so the action must happen on Cafe24.)"
+- 설명: "Cafe24 Developers 의 앱 권한 설정에서 추가 scope 를 활성화한 뒤 '테스트 실행' 을 다시 누르면 새 token 으로 갱신돼요. (Private 앱은 외부에서 OAuth 화면을 띄울 수 없어 Cafe24 측 작업이 필요해요.)" / "Enable the additional scopes in your Cafe24 Developers app permission settings, then click 'Test run' again to refresh the token with the new scopes. (Private apps cannot initiate the OAuth flow externally, so the action must happen on Cafe24.)"
 - `scopesAdded` 가 비어 있지 않으면 목록을 작은 칩으로 안내 안에 보인다("Scopes added: [scope_a] [scope_b]"). 빈 배열이면 칩 영역을 보이지 않는다.
 - 안내와 함께 info 토스트를 한 번 띄워 응답이 왔음을 알린다. 본문은 안내가 맡는다.
 - 응답을 받으면 통합을 다시 조회한다. 서버가 합친 권한 범위와 재설치 대기 표시를 저장했으므로 상세 화면 머리 아래의 재설치 대기 안내가 바로 보인다. 토큰은 «테스트 실행» 뒤 콜백에서 바뀐다.

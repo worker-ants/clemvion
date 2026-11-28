@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-HOOK"
 title: "HTTP API 규약 — WebSocket 과 웹훅 수신"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "a626a5298297ab737c4797b170367ad34eeccf772e8e8610584790814a32c777"
+content_hash: "11d663b7a4a3634e1d6775afbbc3d1952cb46bdc5ea121b7d6e95f55d19ecc30"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "7e6df9b8539d08bc14d1b3263948136cd196e797c87b0448c6a76482673dc53c"
-etag: "sha256-fa563d5fa54da5bab4be9eef28cadd3f2f0188a35e6ab029b323794486905e41"
+mirror_sha256: "fb64083f0eb4093bd4f78a4d1af9558b1de69e2631d367ba9e8b49197d2f87d8"
+etag: "sha256-ca0b746ca399c562370340c8695a3522cec5cb165bcb7cb1797382dd3bb70544"
 ---
 ## 개요
 
@@ -122,12 +122,14 @@ flowchart TD
 
 ## Rationale
 
-### WebSocket 재연결 요약에 예외를 복제하지 않고 위임한 이유 (2026-09-02, 2026-09-10 갱신)
+### WebSocket 재연결 요약에 예외를 복제하지 않고 위임한 이유
+
+결정일: 2026-09-02
 
 §10 은 재연결을 요약만 하고 상세는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 에 맡긴다. 한때 요약의 두 줄(백오프 수치 · 마지막 이벤트 ID 재전송)은 틀렸다. Socket.IO 는 서버가 보낸 `disconnect()` 에 자동 재연결을 시작하지 않고 native WebSocket 의 복구는 끊긴 원인과 무관하게 늘 실행 스냅샷 이벤트다.
 
 - 처음에는 "요약에 예외를 복제하면 두 곳이 갈릴 자리를 새로 만든다" 는 이유로 이 절을 고치지 않았다. 그 논리는 지금도 맞다.
-- 바뀐 것은 전제다. 토큰 만료 종료가 구현되면서 그 예외가 access token 수명(15분)마다 늘 발동하게 됐다. 드물게 나는 예외를 요약에서 빼는 것과 늘 도는 경로를 요약이 반대로 적는 것은 다르다.
+- 2026-09-10 에 바뀐 것은 전제다. 토큰 만료 종료가 구현되면서 그 예외가 access token 수명(15분)마다 늘 발동하게 됐다. 드물게 나는 예외를 요약에서 빼는 것과 늘 도는 경로를 요약이 반대로 적는 것은 다르다.
 - 그래서 복제가 아니라 위임이다. 예외가 있다는 사실만 한 줄로 알리고 내용과 근거는 WebSocket 문서에 둔다. 위임 대상은 예외 하나에 그치지 않고 재연결 · 복구 서술 전체다.
 - 백오프 수치는 WebSocket 문서도 초안 값이라고 부인한 값이라 요약에 숫자를 두지 않는다. `seq` 기반 재전송 버퍼는 EIA SSE 쪽(Redis Stream `eia:sse:buf:<executionId>`)에만 있다. WebSocket 문서 Rationale 「재연결 복구: native WS 는 snapshot, seq 버퍼 재전송은 SSE 전송」이 2026-05-31 에 native WS 버퍼 재전송을 폐기 대안으로 기록했다.
 - **폐기한 대안**: 재연결 규칙 전체를 이 절에 펼치는 안. §10 의 위임 구조를 깨고 WebSocket 문서의 재연결 · 복구 절과 이중 관리가 된다.
@@ -145,7 +147,9 @@ flowchart TD
 - Content-Type `text/plain` 을 지웠다. 코드는 json·form 파라미터만 뽑는다.
 - 요청 빈도 제한 `1000 req/min(워크스페이스)` 를 `100 req/min(전역 throttler default)` 로 고쳤다(§7 표 포함).
 
-### 채팅 채널 handshake 와 인터랙션 ack 를 §11.4 의 봉투 예외로 적었다 (2026-10-17)
+### 채팅 채널 handshake 와 인터랙션 ack 를 §11.4 의 봉투 예외로 적었다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-EMB0YG` 에서 더했다. §11.4 는 웹훅 수신의 모든 응답을 `{ data }` 로 감싼다고만 적었다. 코드(`hooks.controller.ts`)는 채팅 채널 트리거의 handshake 와 인터랙션 ack 를 `TransformInterceptor` 를 거치지 않고 `200 OK` 로 바로 보낸다. 이 본문은 프로바이더가 정한 형식이고 프로바이더는 그 형식만 성공으로 인정한다. 그래서 §11.4 에 예외 한 줄과 채팅 채널 문서 링크를 더했다.
 
@@ -155,15 +159,21 @@ NERV Task `CLE-T-EMB0YG` 에서 더했다. §11.4 는 웹훅 수신의 모든 �
 
 2026-11-13 에 Slack 슬래시 명령의 응답을 같은 예외에 더했다(NERV Task `CLE-T-MGZRRP`, [Slack 어댑터 「R-S-14」](../CLE-CHAT/CLE-CHAT-SLACK.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다)). Slack 은 슬래시 명령 요청의 HTTP 응답 본문을 사용자에게 보이는 메시지로 쓴다. 그래서 이 응답은 `{ data }` 로 감싸지 않고 프로바이더 형식 그대로 보내야 한다.
 
-### 채팅 채널 인터랙션 응답을 §6 · §11.4 에 적었다 (2026-11-13)
+### 채팅 채널 인터랙션 응답을 §6 · §11.4 에 적었다
+
+결정일: 2026-11-13
 
 NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 채팅 채널 문서가 Discord 인터랙션 · Slack Interactivity 는 트리거가 꺼져 있어도 `200` 과 인터랙션 응답을 받고 Discord 슬래시 명령에는 즉시 응답을 보낸다고 정했다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약), NERV Task `CLE-T-TSEP9G`). [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) `410` 행과 §11.4 봉투 예외를 그 계약에 맞췄다.
 
-### 공개 웹훅 추가 한도에서 채팅 채널 트리거를 뺐다 (2026-11-12)
+### 공개 웹훅 추가 한도에서 채팅 채널 트리거를 뺐다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문 `01a1cd72-1888` 1안)으로 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) v10 이 공개 웹훅의 IP 단위 한도와 본문 크기 한도의 대상에서 채팅 채널 트리거를 뺐다. 채팅 채널 트리거는 `auth_config_id IS NULL` 이어도 공개 웹훅의 IP 단위 한도와 32KB 본문 한도를 받지 않고 `/api/hooks/*` 본문 파서 한도(기본 1MB)만 받는다. 채널 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보내고 `429` · `413` 을 받으면 재전송하거나 웹훅을 끌 수 있기 때문이다. 근거의 기준은 [웹훅 「본문 크기를 공개와 인증으로 나눈 이유」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#본문-크기를-공개와-인증으로-나눈-이유) 다. 이 규약은 본문 크기 정책을 [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) `413` 행에서 웹훅 문서에 맡기므로 본문 크기 서술은 고치지 않았다.
 
-### 채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)
+### 채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)으로 채팅 채널 트리거의 인바운드 요청을 전역 요청 빈도 제한(`UserThrottlerGuard`, 분당 100건)에서 뺐다. 채널 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보내므로 트래픽이 많은 봇은 IP 단위 전역 한도에 닿기 쉽다. 그때 나가는 `429` 는 프로바이더의 재전송과 웹훅 비활성화를 부른다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 이 결정은 R-CC-12 의 2026-11-12 결정(NERV Task `CLE-T-XKK9KH`) 가운데 채팅 채널 인바운드에도 전역 한도를 건다는 부분을 바꾼다.
 
@@ -178,7 +188,9 @@ NERV Task `CLE-T-ZC34Y0` 에서 구현했다. 채팅 채널 트리거인지는 �
 
 e2e 는 `NODE_ENV=test` 에서 돌아 전역 한도가 꺼져 있으므로 가드 순서는 wire 테스트(`hooks-throttle.wire.spec.ts`)로 확인한다.
 
-### 채팅 채널의 전역 한도 예외를 §7 머리 콜아웃 한 곳에 모았다 (2026-11-13)
+### 채팅 채널의 전역 한도 예외를 §7 머리 콜아웃 한 곳에 모았다
+
+결정일: 2026-11-13
 
 NERV Task `CLE-T-ZC34Y0` · `CLE-T-WGNJWE` 에서 고쳤다. 채팅 채널 트리거 요청이 전역 한도를 받지 않고 채팅방 단위 한도를 넘어도 `202` 를 받는다는 사실이 규칙 12, §7 머리 콜아웃, §7 표의 「웹훅 수신」 · 「공개 웹훅 추가 한도」 행, §11.7 에 거의 같은 문장으로 있었다. 한 곳만 고치면 나머지와 어긋나므로 정본을 [§7 머리 콜아웃](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 에 두고 나머지 자리에는 한 문장과 그 콜아웃 링크만 남겼다. 서명 검증 실패 한도는 콜아웃에 한 줄을 두고 수치는 §7 표에 행으로 더했다. §7 표가 수치의 단일 기준이기 때문이다. 쇼핑몰 앱 설치 진입점의 실패 잠금도 같은 이유로 표에 수치가 있다. 동작 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
 

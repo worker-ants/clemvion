@@ -2,19 +2,19 @@
 id: "CLE-RESEARCH-COMPETITORS"
 title: "경쟁 분석: n8n · Flowise"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-RESEARCH"
 ancestors: ["CLE-VISION", "CLE-RESEARCH"]
 area: "CLE-RESEARCH"
-content_hash: "085e88974d68b8ac87ef37b65142ec0bd69475bafc7eb2a5c1edae80530ee945"
+content_hash: "b7c86995b8bab06959e4e0317368344c29d512d297be52d2ee59ec25db9fd1cb"
 read_as: "approved_fallback"
-task: "CLE-T-0TBB0Z"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "e64ba9bb58acf301f34c380f9e9f11f519c2648b5ed5bab24a9e8a8babcfbbc7"
-etag: "sha256-8bb4037342a2466e90f08cae874cd57d11c9a9adc8a32ac554e5fa72f21ebfc4"
+mirror_sha256: "82536874f436afc2b91f9881c5d7693bdc2b1d023b75dfc1256e1846437521e7"
+etag: "sha256-bd945feba753002d2b3a4f672a504d060d270e5472dec3f2c6c7ef29f8ce4529"
 ---
 > 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 · 2026-10-10 · 2026-10-31 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -157,11 +157,15 @@ v2 는 스펙과 코드를 정독해 v1 의 단정 네 건이 틀렸음을 확�
 
 v2.3 까지는 "한국 커머스 버티컬 수직 통합" 을 코어이자 진입점으로 과하게 앞세웠다. v2.4 에서 기반 요건을 "AI 와 워크플로우의 범용 통합을 신뢰성 있게 실행하는 플랫폼" 으로 고치고 한국 커머스는 그 위의 통합 옵션이자 첫 시장 진입으로 내렸다. 이 교정 때문에 ② 범용 노드 ↔ 에이전트 도구 통합이 코어 명제에 직결되는 P0 가 됐다. ⑨ 알림톡 대행사 노드는 P1 통합 옵션이 됐다.
 
-### 후속 액션 목록을 현재 상태 표로 바꿨다 (2026-07-16 교정)
+### 후속 액션 목록을 현재 상태 표로 바꿨다
+
+결정일: 2026-07-16
 
 원문 체크리스트는 다른 계획으로 넘기는 위임 목록이었다. 2026-07-16 실측에서 P0-1 은 대부분 구현됐다. P2-3 은 해소됐다. P0-2 · P0-2b · P0-3 · P1-3 은 다른 계획이 소유하고 있었다. 체크 표시만 보고 우선순위를 판단하면 끝난 일을 다시 쫓게 된다. 그래서 목록을 현재 상태와 기준 문서가 함께 보이는 표로 바꿨다. 원문 체크리스트가 링크하던 보안 계획 파일은 실존한 적이 없는 파일이라 옮기지 않았다.
 
-### 암호화 키 정리를 미결에서 결정으로 고쳤다 (2026-10-31)
+### 암호화 키 정리를 미결에서 결정으로 고쳤다
+
+결정일: 2026-10-31
 
 P2-3 행과 ⑬ 은 암호화 키 두 개의 정리를 시크릿 저장소의 미결 사항으로 적었다. 이 사항은 2026-10-10 에 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 결정됐으므로 두 곳을 결정 내용으로 고쳤다(NERV Task `CLE-T-KQ37NJ`).
 

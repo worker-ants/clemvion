@@ -2,19 +2,19 @@
 id: "CLE-AI-MODELS"
 title: "모델 설정"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-MODELS-001", "REQ-MODELS-002", "REQ-MODELS-003", "REQ-MODELS-004", "REQ-MODELS-005", "REQ-MODELS-006", "REQ-MODELS-007", "REQ-MODELS-008", "REQ-MODELS-009", "REQ-MODELS-010", "REQ-MODELS-011", "REQ-MODELS-012", "REQ-MODELS-013", "REQ-MODELS-014", "REQ-MODELS-015", "REQ-MODELS-016", "REQ-MODELS-017", "REQ-MODELS-018", "REQ-MODELS-019", "REQ-MODELS-020", "REQ-MODELS-021", "REQ-MODELS-022", "REQ-MODELS-023", "REQ-MODELS-024", "REQ-MODELS-025", "REQ-MODELS-026", "REQ-MODELS-027", "REQ-MODELS-028", "REQ-MODELS-029", "REQ-MODELS-030", "REQ-MODELS-031", "REQ-MODELS-032", "REQ-MODELS-033", "REQ-MODELS-034", "REQ-MODELS-035", "REQ-MODELS-036", "REQ-MODELS-037", "REQ-MODELS-038"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "0cf47840b506df3f3891312e6f11a2bddbe88b3f502118d43cc2ea501df3004f"
+content_hash: "d5a349dc343959621d205a8242b4d2ccb09e9fdf7362aa447e88d23c0a3a79f4"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-N0K4SE"
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "6e308fdad093bf42373384791cfd9c49748b0ff3056378ba67c6f5ea70b37787"
-etag: "sha256-a0debc8f84633b7287e1812b017bc3f34e7eda79dfaeea3bb13f3a50ecf72c27"
+mirror_sha256: "7169044404e88763bbb3f63c2f582ff2c7312a6fd8b4baa05a8cef83c88db960"
+etag: "sha256-af985ad041d7201886816b3ae36b0eb1e0d0c6b5e4c07aa494d73becfdf2f1cc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 비기능 요구) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-a0debc8f84633b7287e1812b017bc3f34e7eda79dfaeea3bb13f3a50ecf72c27"
 
 모델 설정(Model settings, `ModelConfig`) 화면은 워크스페이스가 쓰는 AI 모델 연결을 한곳에서 관리한다. 모델 종류(`ModelConfig.kind`)는 세 가지다. Chat 은 AI 노드가 부르는 LLM, Embedding 은 지식 저장소(Knowledge Base, `KnowledgeBase`) 임베딩, Rerank 는 지식 저장소 검색의 리랭킹에 쓴다. 화면은 이 세 종류를 탭으로 나누고, 셋 모두 `kind` 로 구분하는 한 가지 리소스다. 모델 프로바이더(model provider, `provider`) 자격 증명, API 키 마스킹, SSRF 가드를 종류와 상관없이 함께 쓴다.
 
-워크플로우를 편집할 때마다 자격 증명을 입력하지 않도록, 여기서 한 번 등록한 모델 설정을 AI 노드와 지식 저장소가 참조한다. 화면은 사이드바 최상위 메뉴 "Models" 이고 경로는 `/w/<slug>/models` 다. 메뉴 배치는 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 에서 정한다.
+워크플로우를 편집할 때마다 자격 증명을 입력하지 않도록, 여기서 한 번 등록한 모델 설정을 AI 노드와 지식 저장소가 참조한다. 화면은 사이드바 최상위 메뉴 "모델 설정" 이고 경로는 `/w/<slug>/models` 다. 메뉴 배치는 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 에서 정한다.
 
 범위 밖 문서는 다음과 같다.
 
@@ -114,7 +114,7 @@ etag: "sha256-a0debc8f84633b7287e1812b017bc3f34e7eda79dfaeea3bb13f3a50ecf72c27"
 | temperature | 응답의 창의성·무작위성. Anthropic 모델에는 보내지 않는다 | 0.7 |
 | max_tokens | 최대 출력 토큰 수 | 4096 |
 
-폼에는 이 두 값만 있다. top_p · frequency_penalty · presence_penalty 입력은 없다. Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 폼은 temperature 가 0~2 의 숫자면 0 도 그대로 저장하고 아니면 0.7 을 저장한다. max_tokens 가 양의 정수가 아니면 4096 을 저장한다.
+폼에는 이 두 값만 있다. top_p · frequency_penalty · presence_penalty 입력은 없다. Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다)). 폼은 temperature 가 0~2 의 숫자면 0 도 그대로 저장하고 아니면 0.7 을 저장한다. max_tokens 가 양의 정수가 아니면 4096 을 저장한다.
 
 AI 노드 셋(AI 에이전트 · 정보 추출기 · 텍스트 분류기)과 워크플로우 AI 어시스턴트는 호출 쪽에서 temperature · max_tokens 를 정하지 않으면 이 값을 쓴다. 둘 다 없으면 보내지 않는다. 지식 저장소와 에이전트 메모리의 내부 호출은 이 값을 쓰지 않는다. 규칙은 [LLM 클라이언트 「모델 설정 기본 파라미터 채우기」](CLE-AI-LLM-SERVICE.md#모델-설정-기본-파라미터-채우기) 가 정한다.
 
@@ -195,7 +195,7 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 | GET | `/api/model-configs/:id` | 상세 조회 | 뷰어 |
 | PATCH | `/api/model-configs/:id` | 수정 | 편집자 |
 | PATCH | `/api/model-configs/:id/set-default` | 종류별 기본 지정. 같은 `(workspace_id, kind)` 의 기존 `is_default` 를 false 로 바꾼 뒤 대상만 true 로 둔다 | 편집자 |
-| POST | `/api/model-configs/:id/test` | 연결 테스트(Chat·Embedding 만, Rerank 없음). 응답 `data`: Chat `{ success }`, Embedding `{ success, dimension? }`. 설정은 종류와 상관없이 찾는다(`ModelConfigService.findEntity`) | 편집자 |
+| POST | `/api/model-configs/:id/test` | 연결 테스트(Chat·Embedding 만, Rerank 없음). 응답 `data`: 성공은 Chat `{ success }` · Embedding `{ success, dimension? }`, 실패는 `{ success: false, message }`(HTTP 200 결과 객체). 설정은 종류와 상관없이 찾는다(`ModelConfigService.findEntity`) | 편집자 |
 | POST | `/api/model-configs/preview-models` | 저장 전 폼 자격 증명으로 모델 목록 미리보기(Chat·Embedding). 본문 `{ provider, apiKey, baseUrl? }`. 결과 수 상한 500 | 편집자 |
 | GET | `/api/model-configs/:id/models` | 사용 가능한 모델 목록(Chat·Embedding). 쿼리 `?type=chat\|embedding`(선택)으로 거른다. 허용 값 밖의 `type` 은 400 Bad Request(컨트롤러 `ParseEnumPipe`). 결과 수 상한 500 | 뷰어 |
 | DELETE | `/api/model-configs/:id` | 삭제 | 편집자 |
@@ -258,7 +258,7 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 결정일: 2026-11-13
 
-Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 그런데 폼은 Anthropic 에서도 Temperature 를 그대로 받아 값이 적용되는 것처럼 보였다. 세 안을 견줬다. 입력을 숨기면 사용자가 왜 없는지 모른다. 그대로 두고 안내만 달면 여전히 적용되는 것처럼 보인다. 그래서 입력을 비활성으로 두고 그 아래에 이유를 보인다. 저장된 값은 지우지 않는다. 프로바이더를 바꾸면 이전 값이 그대로 돌아오고, Anthropic 이 다시 이 값을 받게 되면 폼만 풀면 된다. 폼에 없는 top_p · frequency_penalty · presence_penalty 는 기본값 표에서 뺐다. 예전 표는 이 셋을 적었지만 폼에 입력이 생긴 적이 없다.
+Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다)). 그런데 폼은 Anthropic 에서도 Temperature 를 그대로 받아 값이 적용되는 것처럼 보였다. 세 안을 견줬다. 입력을 숨기면 사용자가 왜 없는지 모른다. 그대로 두고 안내만 달면 여전히 적용되는 것처럼 보인다. 그래서 입력을 비활성으로 두고 그 아래에 이유를 보인다. 저장된 값은 지우지 않는다. 프로바이더를 바꾸면 이전 값이 그대로 돌아오고, Anthropic 이 다시 이 값을 받게 되면 폼만 풀면 된다. 폼에 없는 top_p · frequency_penalty · presence_penalty 는 기본값 표에서 뺐다. 예전 표는 이 셋을 적었지만 폼에 입력이 생긴 적이 없다.
 
 ### 연결 테스트와 미리보기를 편집자 이상으로 막는 이유
 

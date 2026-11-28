@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "9b760d134bc3082f75e2bddf99497b0da0de3f9fa2498f8bf5f342df0f4b74c0"
+content_hash: "8803407a4b5660b29cd6435f190cc93b44a00cd6e392388b8abb4a3ba01d6414"
 read_as: "approved_fallback"
-task: "CLE-T-8A055H"
+task: "CLE-T-18C572"
 source_paths: []
-mirror_sha256: "f7cde54e43fad00f2d49827e66e8c0ad20708331c682420655a5a2f0fdad9927"
-etag: "sha256-4cfd56c4631e5708572a6eb211125fb33fdb3dccaf44155d8550aaa01869285e"
+mirror_sha256: "73791e26e47c3dd4254bbc8a2e508d742de9d786b71dc63abb99b7d1429a018c"
+etag: "sha256-6880ca8f6a668c7340e7e6fd6c69100e6e26bafb0b55639c355fd36da2a4bbe9"
 ---
 ## 개요
 
@@ -192,7 +192,7 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 
 종결 이벤트의 정리(`/cancel` 포함)와 폼 입력 대기 상태 갱신을 그 실행을 가리킬 때만 하는 이유는 [활성 실행 중 다시 시작](#활성-실행-중-다시-시작) 의 시퀀스 그림 뒤 두 문단에 있다.
 
-시작 · 재시작 안내의 결정은 [설정 문서 「시작과 재시작 안내를 안내 문구 키로 둔다」](CLE-CHAT-DATA-CONFIG.md#시작과-재시작-안내를-안내-문구-키로-둔다-2026-11-20) 에 있다. `/start` 가 아닌 첫 메시지로 시작한 실행에는 안내하지 않는다.
+시작 · 재시작 안내의 결정은 [설정 문서 「시작과 재시작 안내를 안내 문구 키로 둔다」](CLE-CHAT-DATA-CONFIG.md#시작과-재시작-안내를-안내-문구-키로-둔다) 에 있다. `/start` 가 아닌 첫 메시지로 시작한 실행에는 안내하지 않는다.
 
 미룬 문제 셋은 닫았다. 참여자 누구나 기존 실행을 취소하던 문제는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다), 동시 `/start` 경합은 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다), 폼 입력 대기 상태 갱신 경합은 NERV Task `CLE-T-CVJXDE` 가 닫았다.
 

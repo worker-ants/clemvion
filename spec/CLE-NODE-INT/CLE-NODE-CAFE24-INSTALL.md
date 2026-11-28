@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-INSTALL"
 title: "Cafe24 노드 — 앱 설치 엔드포인트"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "de2df6f443640c6f0401ffd7635756b78c3e703aeee61320dec51eb0a3f91b15"
+content_hash: "eb24eebe939b6e74058d88641e62ca6c95a2fd81959775250779dd5cc1d60128"
 read_as: "approved_fallback"
-task: "CLE-T-JK1JFZ"
+task: "CLE-T-W50N35"
 source_paths: []
-mirror_sha256: "aef1d5731fe0b80e0083fcb98c4a41f4b79f1aef877737e2a8240eadf8ec9200"
-etag: "sha256-0676a4e7ee6b118796bca7a4d5766264c973156a23f2ee778747d7f212b3ea35"
+mirror_sha256: "379b02f26e0ae124b1e9e9733b7ad355ddef95a723890beaeb202ef926e95bd7"
+etag: "sha256-5501e029c0a93ac6d08f077a784cd3df242a87179115aa4704ca89748887295e"
 ---
 ## 개요
 
@@ -115,6 +115,8 @@ Cafe24 의 `/oauth/authorize` 는 RFC 6749 §3.3 의 공백 구분이 아니라 
 
 회귀 보호: `codebase/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts` 가 인가 URL 에 `scope=...%2C...` 가 들어 있는지, `+`·`%20` 으로 돌아가지 않는지 검증한다.
 
-### 1층 IP 제한을 공유 Redis 에 센다 (2026-11-21)
+### 1층 IP 제한을 공유 Redis 에 센다
+
+결정일: 2026-11-21
 
 NERV Task `CLE-T-JK1JFZ`. 그전에는 1층이 `@nestjs/throttler` 기본 저장소라 인스턴스마다 메모리에 따로 셌고 한도가 인스턴스별로 나뉘었다. 저장소 교체는 모든 제한 엔드포인트에 걸리는 전역 변경이라 따로 검증할 작업으로 미뤘고 2026-11-21 에 들였다. Redis 장애 때 제한을 끄는 안은 기각했다. 설치 진입점과 로그인 · 인증 라우트의 방어가 함께 사라진다. 그래서 Redis 를 쓸 수 없으면 1층은 메모리로 내려가 제한을 유지한다. 2층과 nonce 캐시는 메모리 대체 수단이 없어 지금처럼 건너뛴다.

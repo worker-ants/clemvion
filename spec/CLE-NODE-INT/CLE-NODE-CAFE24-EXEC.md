@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-EXEC"
 title: "Cafe24 노드 — 실행 로직"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "242572ac4952da780ef8f05d9e0a731ee15fa4d5c0675bdd7484b416c9dc8517"
+content_hash: "3c195fd7a49cfaa0cb11fc474beae976a3e07df06807a690de6ce7b7f37855bf"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-W50N35"
 source_paths: []
-mirror_sha256: "fe7cd057e998596e9e81c32a540c228cd9aa67a54158a71a3a1df221ee77c307"
-etag: "sha256-30b25916eed93dc92d1e0d397400a8cb10d222de930d706da5fdbb7b9a77a970"
+mirror_sha256: "16c4202435d4ccf0c3d577e3f6e9fe35f42e925196681a2c000befa5ecd24cc1"
+etag: "sha256-58b33a28ee1626ed4bad839f66d1b378c8935581874b41c32c779bc56d8614c7"
 ---
 ## 개요
 
@@ -29,7 +29,7 @@ etag: "sha256-30b25916eed93dc92d1e0d397400a8cb10d222de930d706da5fdbb7b9a77a970"
 3. **통합 자격 증명 해소**: `getForExecution` 으로 통합을 읽고 `serviceType='cafe24'`·`status='connected'` 를 확인한다. 넘기는 인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다. 실패하면 `INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` 로 에러 포트에 보낸다(D4). 통합이 없거나 다른 워크스페이스 소속이면 공통 규칙대로 `INTEGRATION_CALL_FAILED` 가 된다.
 4. **자격 증명 충족 검증**: `mall_id`·`app_type`·`access_token`·`refresh_token` 이 없으면 `INTEGRATION_INCOMPLETE` 다. `app_type='private'` 인데 `client_id`·`client_secret` 이 없어도 같다(D4).
 5. **필수 필드·조건부 필수 제약 검증**: 메타데이터의 `requiredFields`(모두 필수)가 `config.fields` 에 다 있는지, 조건부 필수 제약(`constraints`)을 만족하는지 확인한다. 제약 종류와 의미는 [Cafe24 operation 메타데이터](CLE-C24-META)가 정한다. 어기면 `CAFE24_MISSING_FIELDS` 로 에러 포트에 보내고, `details` 에 어느 필드나 어느 제약 종류가 어긋났는지 적는다(D4).
-6. **토큰 만료 확인과 갱신**: `Integration.token_expires_at` 이 지났거나 60초 안에 만료되면 호출 전에 자동 갱신한다. 갱신 실패의 상태 전이(리프레시 토큰 `invalid_grant` 면 `error(auth_failed)`, 전송 3회 연속 실패면 `error(network)`)와 갱신 요청의 여러 인스턴스 사이 직렬화는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)과 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다. 갱신에 실패해 연결이 끊긴 통합은 `INTEGRATION_NOT_CONNECTED` 로 끝난다.
+6. **토큰 만료 확인과 갱신**: `Integration.token_expires_at` 이 지났거나 60초 안에 만료되면 호출 전에 자동 갱신한다. 갱신 실패의 상태 전이(리프레시 토큰 `invalid_grant` 면 `error(auth_failed)`, 전송 3회 연속 실패면 `error(network)`)와 갱신 요청의 여러 인스턴스 사이 직렬화는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)과 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다. 갱신 요청이 401 · 403 으로 실패하면 이번 실행은 `CAFE24_AUTH_FAILED` 로 끝난다. 그 밖의 상태로 실패하면 `CAFE24_TRANSPORT_FAILED` 로 끝나고 연속 전송 실패 횟수에 세지 않는다. 통합이 `error` 로 바뀐 뒤의 실행은 `INTEGRATION_NOT_CONNECTED` 로 끝난다. 기준은 [Cafe24 노드 설정 「토큰 갱신 실패」](CLE-NODE-CAFE24-CONFIG.md#토큰-갱신-실패)이다.
 7. **URL 만들기**: `https://{credentials.mall_id}.cafe24api.com/api/v2/admin/{operation.path}`. `{path}` 는 메타데이터의 path 템플릿(예: `products/{product_no}`)이고 path 파라미터는 `fields` 에서 채운다.
 8. **query·본문 만들기**: 메타데이터의 `fields[*].location`(path·query·body)에 따라 나눈다. `pagination.{limit, offset}` 은 언제나 query 다. 본문을 Cafe24 요청 봉투로 감싸는 일은 9단계의 API 클라이언트가 혼자 맡는다.
 9. **호출**: `Cafe24ApiClient` 가 다음을 한다.
@@ -107,13 +107,13 @@ POST·PUT 밖의 method 는 허용 목록으로 강제한다. PATCH 같은 metho
 
 - 기각한 안: «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드만 남기는 차이를 그대로 두는 안은 같은 dry-run 에서 두 경로의 규칙이 갈려 택하지 않았다.
 - 상태를 바꾸는 GET 예외 목록: MakeShop `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꾼다. 메서드만으로는 부족한 곳이 있어 판정에 예외 목록을 더했다. Cafe24 목록은 비어 있고, 목록이 낡지 않도록 단위 테스트가 쓰기 낱말이 든 GET 을 예외 목록이나 확인한 조회 목록에 올리게 한다.
-- 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경-2026-10-23--2026-10-24)에 있다.
+- 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경)에 있다.
 
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다
 
 결정일: 2026-10-24
 
-규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다. 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경-2026-10-23--2026-10-24)에 있다.
+규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다) Rationale 에 있다. 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경)에 있다.
 
 ### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
 

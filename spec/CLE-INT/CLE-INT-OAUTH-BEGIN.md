@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-BEGIN"
 title: "OAuth 연결과 토큰 갱신 — 연결 시작(begin)"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "6bb7f66445c853747a8bdf902b5d9c65603a4b3f0ea20811126792e25566e6bc"
+content_hash: "d0ce301401725524c841157f81b568d74570420573b3380fea8b93441acdcdde"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-DR1HPG"
 source_paths: []
-mirror_sha256: "7a71003e60f641bb0e97e38184cbeb481b5b50747f67b306b188a95af9cd7f9b"
-etag: "sha256-5eb3c906b4f1c6b0276ba542a0ab269cc2f3dc6bab045cfcca8da0d78d07a1d6"
+mirror_sha256: "cfb14ec6fd9d1b40b9a4ac88fbe385c35423564cf4ea5699ebe0860304c76b26"
+etag: "sha256-cef48ae4e72aada8557a58054ecb41f46d122488a2b318bfeb0d09fb6a9e04e8"
 ---
 ## 개요
 
@@ -30,7 +30,7 @@ etag: "sha256-5eb3c906b4f1c6b0276ba542a0ab269cc2f3dc6bab045cfcca8da0d78d07a1d6"
 | `POST /api/integrations/:id/reauthorize` | `reauthorize` | 안에서 `begin(mode='reauthorize', integrationId)` 를 부른다. Cafe24 Public 통합은 행의 `credentials.mall_id`·`credentials.app_type` 을 begin 에 넘긴다. OAuth 가 아닌 통합, Cafe24 Private, MakeShop 의 처리는 [통합 재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 이 정한다 |
 | `POST /api/integrations/:id/request-scopes` | `request_scopes` | 기존 권한 범위와 새 권한 범위를 합친 뒤 begin 을 부른다. Cafe24 Public 은 통합 재인증과 같게 행의 `mall_id`·`app_type` 을 넘긴다. Cafe24 Private·MakeShop 의 처리는 [통합 재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 이 정한다 |
 
-- **`oauth/begin` 의 모드 거절**: 본문에 `client_id`·`client_secret` 을 갖춘 요청의 `new` 가 아닌 모드는 Cafe24 Private 이 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN`, MakeShop 이 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. 외부 마켓이 흐름을 시작하기 때문이다.
+- **`oauth/begin` 의 모드 거절**: 본문에 `clientId`·`clientSecret` 을 갖춘 요청의 `new` 가 아닌 모드는 Cafe24 Private 이 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN`, MakeShop 이 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. 외부 마켓이 흐름을 시작하기 때문이다.
 - Cafe24 Private 의 통합 재인증과 추가 권한 요청은 `:id/reauthorize`·`:id/request-scopes` 가 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)로 처리한다.
 - MakeShop 은 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)).
 
@@ -40,14 +40,14 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 
 ### `oauth/begin` 요청과 응답
 
-본문은 `{ service, scopes[], mode, integrationId?, integrationName?, scope? }` 이고 서비스에 따라 필드를 더한다. `integrationName`·`scope` 는 `new` 모드에서 만들 통합의 표시 이름과 공개 범위(`personal`·`organization`, 생략하면 `personal`)다(`OAuthBeginDto`). 이 `scope` 는 공개 범위이고 OAuth 권한 범위 `scopes[]` 와 관계없다. `integrationId` 는 `new` 가 아닌 모드의 대상 통합이다. `new` 모드에서는 보내도 무시하고 state 에 싣지 않는다. 요청 본문 필드 표기는 [미결 사항](#미결-사항) 참조.
+본문은 `{ service, scopes[], mode, integrationId?, integrationName?, scope? }` 이고 서비스에 따라 필드를 더한다. `integrationName`·`scope` 는 `new` 모드에서 만들 통합의 표시 이름과 공개 범위(`personal`·`organization`, 생략하면 `personal`)다(`OAuthBeginDto`). 이 `scope` 는 공개 범위이고 OAuth 권한 범위 `scopes[]` 와 관계없다. `integrationId` 는 `new` 가 아닌 모드의 대상 통합이다. `new` 모드에서는 보내도 무시하고 state 에 싣지 않는다. 본문 필드 이름은 camelCase 다([Rationale](#요청-본문-필드는-구현대로-camelcase-로-적는다)).
 
 | 서비스 | 더하는 필드 | 응답 |
 | --- | --- | --- |
 | Google, GitHub | 없음 | `{ authUrl, state }` (팝업 흐름) |
-| Cafe24 Public | `mall_id`, `app_type='public'` | `{ authUrl, state }` (팝업 흐름). `authUrl` 은 상점별 인가 URL 이다 |
-| Cafe24 Private | `mall_id`, `app_type='private'`, `client_id`, `client_secret` | `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl, scope }`. 설치 대기 통합을 만들고 팝업은 없다 |
-| MakeShop | `client_id`, `client_secret` | `{ mode:'makeshop_pending_install', integrationId, appUrl, callbackUrl, scope }`. 설치 대기 통합을 만들고 팝업은 없다. ShopStore 앱 설치가 설치 흐름의 진입점이다 |
+| Cafe24 Public | `mallId`, `appType='public'` | `{ authUrl, state }` (팝업 흐름). `authUrl` 은 상점별 인가 URL 이다 |
+| Cafe24 Private | `mallId`, `appType='private'`, `clientId`, `clientSecret` | `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl, scope }`. 설치 대기 통합을 만들고 팝업은 없다 |
+| MakeShop | `clientId`, `clientSecret` | `{ mode:'makeshop_pending_install', integrationId, appUrl, callbackUrl, scope }`. 설치 대기 통합을 만들고 팝업은 없다. ShopStore 앱 설치가 설치 흐름의 진입점이다 |
 
 - `appUrl` 은 Cafe24 Private 이 `${APP_URL}/api/3rd-party/cafe24/install/:installToken`, MakeShop 이 `${APP_URL}/api/3rd-party/makeshop/install/:installToken` 이다. `installToken` 은 이 begin 이 발급한 16바이트 base64url(22자, `^[A-Za-z0-9_-]{22}$`) 설치 토큰이다. 사용자는 이 주소를 외부 콘솔의 App URL 칸에 그대로 등록한다.
 - Cafe24 흐름(Public·Private)에 들어오면 같은 `(workspaceId, mall_id)` 의 Cafe24 통합을 먼저 본다.
@@ -58,7 +58,7 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
     - 이름은 놓지 않아 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다([설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다)).
 - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 세 경로에서 같은 코드로 나온다. 첫째는 begin 의 사전 SELECT 다. 연결됨 행만 차단하고 `new` 가 아닌 모드의 대상 통합은 뺀다. 둘째는 Cafe24 Private begin 이 `23505` 뒤 판정을 한 번 더 했는데도 상점 식별자 UNIQUE 에 걸린 경우다([설치 대기 행 재사용의 권한](CLE-INT-OAUTH-PENDING.md#설치-대기-행-재사용의-권한)). 셋째는 `POST /api/integrations` 최종 생성에서 `idx_integration_workspace_service_mall` 위반(`23505`)을 `throwIfUniqueViolation` 이 서비스 유형이 cafe24 인 분기로 바꾼 것이다. 앱 유형과 상관없이 쓴다. 이름의 `PRIVATE` 는 옛 이름이 남은 것이고 뜻은 «같은 상점의 Cafe24 통합이 이미 있다» 다. 클라이언트는 이름이 아니라 이 뜻으로 분기한다(아래 Rationale).
 - `new` 가 아닌 모드(`reauthorize`·`request_scopes`)의 요청은 `integrationId` 의 대상 통합과 맞아야 한다. 본문의 `service` 가 대상 통합의 서비스 유형과 같아야 하고, Cafe24 는 본문의 상점 식별자와 앱 유형도 대상 통합의 `credentials.mall_id`·`credentials.app_type` 과 같아야 한다. 하나라도 다르면 state 를 만들지 않고 400 `OAUTH_TARGET_MISMATCH` 로 거절한다. 그대로 통과시키면 콜백이 다른 서비스나 다른 상점의 토큰을 대상 통합에 쓴다.
-  - 판정은 다른 거절을 모두 지난 뒤 state 를 만들기 직전에 한다. 입력 형식(`CAFE24_INVALID_MALL_ID`·`CAFE24_INVALID_APP_TYPE`), 자격 증명과 모드의 거절(`CAFE24_PRIVATE_APP_USE_TEST_RUN`·`MAKESHOP_USE_SHOPSTORE_INSTALL`), `OAUTH_CONFIG_MISSING`, 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED`가 먼저 걸리고 그 코드는 바뀌지 않는다. Cafe24 Private·MakeShop 의 `new` 가 아닌 모드는 이 판정에 닿지 않는다. 본문에 `client_id`·`client_secret` 이 없으면 `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`·`MAKESHOP_CREDENTIALS_REQUIRED` 로, 있으면 그 모드 거절로 먼저 거절된다. 그래서 이 판정에 닿는 것은 Google·GitHub·Cafe24 Public 요청이다.
+  - 판정은 다른 거절을 모두 지난 뒤 state 를 만들기 직전에 한다. 입력 형식(`CAFE24_INVALID_MALL_ID`·`CAFE24_INVALID_APP_TYPE`), 자격 증명과 모드의 거절(`CAFE24_PRIVATE_APP_USE_TEST_RUN`·`MAKESHOP_USE_SHOPSTORE_INSTALL`), `OAUTH_CONFIG_MISSING`, 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED`가 먼저 걸리고 그 코드는 바뀌지 않는다. Cafe24 Private·MakeShop 의 `new` 가 아닌 모드는 이 판정에 닿지 않는다. 본문에 `clientId`·`clientSecret` 이 없으면 `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`·`MAKESHOP_CREDENTIALS_REQUIRED` 로, 있으면 그 모드 거절로 먼저 거절된다. 그래서 이 판정에 닿는 것은 Google·GitHub·Cafe24 Public 요청이다.
   - 대상 통합은 컨트롤러가 가시성과 수정 권한을 판정한 그 행이다. begin 이 그 행을 다시 읽어 견주고, 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다.
   - `:id/reauthorize`·`:id/request-scopes` 는 행의 서비스 유형과 `credentials.mall_id`·`credentials.app_type` 을 넘기므로 이 거절에 걸리지 않는다. 상점 식별자가 없는 옛 행은 그보다 앞에서 `CAFE24_INVALID_MALL_ID` 로 거절된다.
 - MakeShop 은 begin 시점에 `shop_uid` 를 모르므로 같은 `(workspace_id, client_id)` 의 설치 대기 행을 재사용하고 상점 중복은 설치 콜백에서 `MAKESHOP_ALREADY_CONNECTED`(409)로 막는다. 재사용 조건은 Cafe24 Private 과 같다. 설치 토큰과 발급 시각은 `client_secret` 이 바뀌어도 그대로 두고 설치 토큰이 없는 행에만 새로 발급한다. Cafe24 Private 과 다른 이 조건은 [미결 사항](CLE-INT-OAUTH-PENDING.md#미결-사항) 에 있다.
@@ -81,10 +81,6 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 - **Cafe24 토큰 응답은 `expires_in` 이 아니라 `expires_at`(ISO8601)을 준다.** 대신 `access_token` 이 JWT 라 `exp` 로도 만료 시각을 알 수 있다. 만료 시각 해석은 [토큰 자동 갱신](CLE-INT-OAUTH-REFRESH.md#토큰-자동-갱신) 의 규칙을 따른다.
 - 통합용 콜백(`/api/3rd-party/:provider/callback`)은 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 다르다. Google Cloud Console, GitHub OAuth App, Cafe24 개발자 센터에는 두 redirect URI 를 모두 등록한다.
 
-## 미결 사항
-
-- **`oauth/begin` 요청 본문 필드 표기**: 이 문서의 예시와 데이터 흐름 정의는 본문 필드를 `mall_id`·`app_type`·`client_id`·`client_secret` 으로 적는다. 현재 구현(`OAuthBeginDto`)과 프런트엔드는 `mallId`·`appType`·`clientId`·`clientSecret` 을 쓰고 같은 화면 정의의 precheck 쿼리도 `mallId` 다. 문서대로 보내는 클라이언트는 필드가 무시되거나 거부될 수 있다. API 계약의 표기를 정해야 한다.
-
 ## 구현 위치
 
 - `codebase/backend/src/modules/integrations/begin-policy.ts` (begin 의 공용 판정. 공개 범위 기본값 `resolveBeginScope`, 상점 식별자 UNIQUE 위반 판정 `isStoreIdentifierConflict`, 409 응답 `toAlreadyConnectedConflict`)
@@ -92,6 +88,12 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 - `codebase/backend/src/modules/integrations/oauth-providers/google.strategy.ts` (Google 인가 URL 의 권한 범위 합치기와 `access_type`·`prompt`. `buildAuthorizeUrl`)
 
 ## Rationale
+
+### 요청 본문 필드는 구현대로 camelCase 로 적는다
+
+결정일: 2026-11-28
+
+이 문서는 `oauth/begin` 본문 필드를 `mall_id`·`app_type`·`client_id`·`client_secret` 으로 적고 표기를 미결로 두었다. 구현(`OAuthBeginDto`)과 프런트엔드는 `mallId`·`appType`·`clientId`·`clientSecret` 을 쓰고 precheck 쿼리도 `mallId` 다. 스펙이 구현과 다르면 스펙을 고친다는 Task 경계에 따라 본문 필드만 camelCase 로 고쳤다(NERV Task `CLE-T-DR1HPG`). DB 컬럼, `credentials` 의 키, 제공자 URL 과 App URL 쿼리의 `mall_id` 는 그 이름 그대로다.
 
 ### `:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다
 

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-LIMIT"
 title: "큐 워커 — 동시 실행 제한과 시간 한도"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "704d7d5cbeb0dfab1045af3d824da53de9c0ebc05e2d1ba0fd6cb3ff95fb4ac4"
+content_hash: "97dccff9bb10bd211e201a8e464f796cfea4ad603059047d0d9c4a14a9fb9ad0"
 read_as: "approved_fallback"
-task: "CLE-T-B87H23"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "5dbbd75a69614959f3610933a352f2c571485475d8254b47316497f687ebcb68"
-etag: "sha256-098a74cd8f4e08c755c93feeefb98c57d9c11c0a339e40ab33ba964afdc117bb"
+mirror_sha256: "569cae6b600ddd643e32d3658765ee028510c43e6134c162145fa17c559d4831"
+etag: "sha256-651ad5e1d76f3872b582ad74bb20f199455339158b87f154af34cf37de98c84a"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-098a74cd8f4e08c755c93feeefb98c57d9c11c0a339e40ab33ba964afdc117bb"
 
 | 제한 항목 | 기본값 | 설정 위치 | 비고 |
 | --- | --- | --- | --- |
-| 워크스페이스당 동시 실행 수 | 10 | `Workspace.settings.maxConcurrentExecutions`(관리자 이상, `PATCH /api/workspaces/:id/settings`). 키 정의는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) | 시작 큐 + 동시 실행 제한 검사로 센다. |
+| 워크스페이스당 동시 실행 수 | 10 | `Workspace.settings.maxConcurrentExecutions`(관리자 이상, `PATCH /api/workspaces/:id/settings`). 키 정의는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#workspace) | 시작 큐 + 동시 실행 제한 검사로 센다. |
 | 워크플로우당 동시 실행 수 | 3 | `Workflow.settings.maxConcurrentExecutions`(편집자 이상, `PATCH /api/workflows/:id`). 키 정의는 [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) | 시작 큐 + 동시 실행 제한 검사로 센다. |
 | 단일 실행 최대 노드 수 | 500 | 시스템 설정 | 미구현(Planned) |
 | 단일 실행 최대 실행 시간 | 30분 | 1단계: 시스템 env `EXECUTION_MAX_ACTIVE_RUNNING_MS`(기본 `1800000`ms, `0`=무제한). 2단계(후속): 워크플로우별 `Workflow.settings` | 세그먼트 누적 시간 기준(wall-clock 아님, 입력 대기 시간 제외). 1단계 구현 완료 |

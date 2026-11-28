@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON-OUTPUT"
 title: "AI 노드 공통 — 출력 · 에러 · 토큰 회계"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AI-COMMON"]
 area: "CLE-NODE-AI"
-content_hash: "6f8d914b83e308310858e0e8baedbc4f807b021b6ebae1b57d4334e96c648475"
+content_hash: "7743817cf6b6f00658c8ea25ed69c7e95049bf4c05f9527280d154582348ec92"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "a3297a1435db9a29369574080888f5229a984af2fea4e39974f8b26195dfe7b6"
-etag: "sha256-c09a023503f1d585db78b8a9a9ca457b9975e7797d26835a331ca6534ff6e3ba"
+mirror_sha256: "ac91aee029fe92623f2463997826440099573aa0a07766f535d8ed42ae0329a0"
+etag: "sha256-5ebe3a6a16734b6bb6bcfdad6ff6c62ba88ec63e99cfc7f7d95ba0915102afd1"
 ---
 ## 개요
 
@@ -117,11 +117,15 @@ MCP 수를 합산하는 이유는 사용자 입장에서 외부 MCP 서버와 �
 
 AI 에이전트 요약의 옛 `· {N} tools` 세그먼트는 도구 영역(Tool Area)을 제거하면서 폐기했다.
 
-### 단일 턴 토큰 기준의 정본을 이 문서에 둔다 (2026-11-05)
+### 단일 턴 토큰 기준의 정본을 이 문서에 둔다
+
+결정일: 2026-11-05
 
 AI 에이전트 단일 턴 `meta` 토큰 기준을 [AI 에이전트 노드](CLE-NODE-AGENT.md) · [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) · [AI 노드 공통](CLE-NODE-AI-COMMON.md) 이 따로 적고 있었다. 정본을 [토큰 회계](#토큰-회계) 한 곳으로 정하고 두 문서는 링크와 한 줄 요약만 둔다. 반대로 롤링 요약 · 요약 모델 설정 조회 실패의 처리는 AI 에이전트 노드 문서가 정하고 [LLM 호출 경로별 타임아웃](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 표는 결과만 적는다.
 
-### 단일 턴 토큰을 성공한 호출의 합으로 맞춘다 (2026-11-12)
+### 단일 턴 토큰을 성공한 호출의 합으로 맞춘다
+
+결정일: 2026-11-12
 
 AI 에이전트 단일 턴의 정상 완료와 조건 분기는 마지막 LLM 호출 하나의 usage 만 `meta` 토큰에 실었다. LLM 호출 실패는 실패 전에 성공한 호출의 합을 실었다. 그래서 도구 루프로 LLM 을 여러 번 부르면 정상 완료 값이 실제 사용량보다 작았고 같은 노드의 출력끼리 기준이 달랐다. 세 출력 모두 성공한 호출의 합으로 맞췄다.
 
