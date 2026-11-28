@@ -202,6 +202,7 @@ export interface ActivityItem {
    *  - cafe24: `apiLabel` = `cafe24.<resource>.<operation>` (catalog key)
    *  - http-request / database-query / send-email: `apiLabel` = null,
    *    `apiMethod`/`apiPath` 채워짐
+   *  - mcp(외부 MCP 서버): `apiLabel` = 서버가 알린 도구 이름, `apiMethod`/`apiPath` = null
    */
   apiLabel?: string | null;
   apiMethod?: string | null;

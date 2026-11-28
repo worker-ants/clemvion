@@ -149,18 +149,16 @@ export function isSwaggerEnabled(
 const FORBIDDEN_FLAGS: ReadonlyArray<{ key: string; message: string }> = [
   {
     key: 'OAUTH_STUB_MODE',
-    message:
-      'OAUTH_STUB_MODE=true 는 NODE_ENV=production 에서 허용되지 않습니다.',
+    message: 'OAUTH_STUB_MODE 는 NODE_ENV=production 에서 켤 수 없습니다.',
   },
   {
     key: 'LLM_STUB_MODE',
-    message:
-      'LLM_STUB_MODE=true 는 NODE_ENV=production 에서 허용되지 않습니다.',
+    message: 'LLM_STUB_MODE 는 NODE_ENV=production 에서 켤 수 없습니다.',
   },
   {
     key: 'MCP_ALLOW_INSECURE_URL',
     message:
-      'MCP_ALLOW_INSECURE_URL=true 는 NODE_ENV=production 에서 허용되지 않습니다 ' +
+      'MCP_ALLOW_INSECURE_URL 은 NODE_ENV=production 에서 켤 수 없습니다 ' +
       '(SSRF 방어 우회).',
   },
   {

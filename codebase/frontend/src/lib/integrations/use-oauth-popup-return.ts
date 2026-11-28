@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TFunction } from "@/lib/i18n";
+import { formatOAuthCallbackError } from "@/lib/api/integration-error-codes";
 
 interface OAuthCallbackPayload {
   type: "oauth_callback";
@@ -9,6 +10,9 @@ interface OAuthCallbackPayload {
   provider?: string;
   integrationId?: string | null;
   previewToken?: string | null;
+  /** 실패 코드(`last_error.code` 와 같은 값). 옛 백엔드 payload 에는 없다. */
+  code?: string | null;
+  /** 서버 메시지 문자열. 코드를 모를 때 보인다. */
   error?: string | null;
 }
 
@@ -71,7 +75,7 @@ export function useOauthPopupReturn({
       clearOAuthTimeout();
       setOauthWaiting(false);
       if (event.data.status === "error") {
-        const msg = event.data.error ?? t("integrations.oauthFailedShort");
+        const msg = formatOAuthCallbackError(event.data, t);
         setOauthError(msg);
         toast.error(msg);
         return;

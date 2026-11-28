@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-CALLBACK"
 title: "OAuth 연결과 토큰 갱신 — 팝업 연결과 콜백"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "41401a20a1524bb3c563456f3621691dff1e3e4019b060edc9bb8890828c9f17"
+content_hash: "2693418abda8743468a245ad9e70b8cf111ec37f20adc3077a8b6415c814bcb2"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-3WGPC0"
 source_paths: []
-mirror_sha256: "258f32f878d563a30f6c64ef071738bbe8b55aa55e92bcf698ee75beb185edff"
-etag: "sha256-af54ce090a6d3d9b84670073e508a0e3cd8517afb7b875aa0c25a12220bfb520"
+mirror_sha256: "16bb94c2a6d50571f22e7269f645346073dc88bfe2e5c894beb77fd877f20cf4"
+etag: "sha256-992492c5377c8115da148653bdda7f14e36bbe3a62557cf2bbe478bf6fb9773f"
 ---
 ## 개요
 
@@ -121,14 +121,26 @@ GET /api/3rd-party/:provider/callback
      mode: "new",                  // "new" | "reauthorize" | "request_scopes"
      previewToken: "tmp_...",      // mode=new일 때만
      integrationId: "uuid",        // mode=reauthorize/request_scopes
+     code: null,                   // 실패 코드. 성공이면 null
      error: null
    }, window.location.origin);
    window.close();
    ```
 
-7. **실패 처리**: 콜백 처리 중 예외가 나면 컨트롤러는 같은 콜백 HTML 을 `status: 'error'` 와 에러 메시지로 돌려준다. 메시지를 읽을 수 있도록 팝업은 3~5초 뒤 닫는다(성공은 바로). `new` 모드의 콜백 실패는 대상 행이 없으므로 어느 행에도 기록하지 않는다. 그 밖의 모드에서 state 를 소비한 뒤의 예외는 `OAuthState.integrationId` 로 행을 알 수 있으므로 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 그 행에 기록한다. 다만 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않고 요청자의 콜백 응답에만 싣는다.
+   실패하면 같은 페이지가 `{ type: "oauth_callback", status: "error", provider, code, error }` 를 보낸다.
+
+   - `code` 는 실패 코드다. 대상 통합이 있으면 그 행의 `last_error.code` 와 같은 값이다. 코드가 없는 예외는 `OAUTH_CALLBACK_FAILED` 다. `mode=new` 처럼 대상 통합이 없어 행에 남기지 않는 실패도 payload 에는 코드를 싣는다. 지원하지 않는 provider 는 `code: null` 이다. 코드의 뜻은 [에러 코드 카탈로그 「6.21 통합 관리 · OAuth」](../CLE-API/CLE-API-ERRCODES-INTMGMT.md#621-통합-관리--oauth-도메인-문서-참조)에 있다.
+   - `error` 는 서버 메시지 문자열이다. 4xx `HttpException` 은 응답 객체의 `message` 를 그대로 싣는다. 5xx `HttpException` 과 `HttpException` 이 아닌 예외는 고정 문구 `OAuth failed due to an unexpected server error. Please try again later.` 를 싣는다. 원문은 서버 로그(`logger.error`, 비밀 값을 가린 문자열)에만 남긴다.
+   - 프런트엔드는 `status` 로 성공과 실패를 나누고 실패면 `code` 로 화면 문구를 고른다. 콜백 코드 매핑, 통합 코드 매핑(`ADMIN_REQUIRED` 등), 공용 코드 매핑 순으로 찾는다. 모르는 코드거나 `code` 가 없는 payload 면 `error` 문자열을 보이고 그것도 없으면 기본 문구를 보인다.
+
+7. **실패 처리**: 콜백 처리 중 예외가 나면 컨트롤러는 같은 콜백 HTML 을 HTTP 200 으로 돌려주고 6번의 실패 payload(`status: 'error'`, 실패 코드, 메시지)를 싣는다. 메시지를 읽을 수 있도록 팝업은 3~5초 뒤 닫는다(성공은 바로). `new` 모드의 콜백 실패는 대상 행이 없으므로 어느 행에도 기록하지 않는다. 그 밖의 모드에서 state 를 소비한 뒤의 예외는 `OAuthState.integrationId` 로 행을 알 수 있으므로 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 그 행에 기록한다. 다만 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않고 요청자의 콜백 응답에만 싣는다.
 
 ### 에러 매핑
+
+콜백 실패는 모두 HTTP 200 의 콜백 HTML 로 돌려준다. 아래 표의 «400 `INTEGRATION_INSTALL_EXPIRED`» 같은 상태는 서버 안에서 던진 예외의 상태이고 응답 HTTP 상태가 아니다. 응답 상태가 200 이 아닌 경우는 둘이다.
+
+- 지원하지 않는 provider: 400 콜백 HTML 이다. payload 에 `code: null` 과 `error: "Unsupported OAuth provider"` 를 싣는다.
+- `FRONTEND_URL` · `APP_URL` 이 없거나 구체적인 origin 이 아닌 서버 설정 오류: 500 이다. postMessage 없이 안내 문단만 돌려준다.
 
 | 에러 | 팝업 표시 | 통합 상태 |
 | --- | --- | --- |
@@ -153,8 +165,10 @@ GET /api/3rd-party/:provider/callback
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (콜백: `assertRequesterStillAllowed`, `markIntegrationCallbackError`. 행 잠금 안 단계 `lockAndRejudgeCallbackTarget`(행 잠금, 커밋 직전 인가 재판정, 만료 행 거절)·`replaceCallbackCredentials`·`markCallbackConnected`. 콜백 실패 기록 `handleCallbackWithErrorCapture` 는 `CallbackContext.recordable` 이 `false` 면 행에 쓰지 않는다. 계정 식별자 조회 `fetchAccountIdentity`)
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (콜백: `assertRequesterStillAllowed`, `markIntegrationCallbackError`. 행 잠금 안 단계 `lockAndRejudgeCallbackTarget`(행 잠금, 커밋 직전 인가 재판정, 만료 행 거절)·`replaceCallbackCredentials`·`markCallbackConnected`. 콜백 실패 기록 `handleCallbackWithErrorCapture` 는 `CallbackContext.recordable` 이 `false` 면 행에 쓰지 않는다. 계정 식별자 조회 `fetchAccountIdentity`. 실패 코드 `readErrorCode`)
+- `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`oauthCallback`, 실패 코드 · 메시지와 5xx 가림 `resolveCallbackFailure`), `services/oauth-callback.template.ts` (팝업 payload)
 - `codebase/backend/src/modules/integrations/oauth-providers/google.strategy.ts`, `github.strategy.ts` (계정 조회 요청 `buildIdentityRequest`, 응답에서 식별자 읽기 `extractIdentity`, stub 모드 값 `stubIdentity`)
+- `codebase/frontend/src/lib/api/integration-error-codes.ts` (`formatOAuthCallbackError`: 팝업 실패 payload 의 `code` 로 화면 문구를 고른다. `lib/integrations/use-oauth-popup-return.ts` 가 쓴다)
 
 ## Rationale
 
@@ -210,3 +224,14 @@ Cafe24 Admin API 가운데 mileage·notification·privacy 의 모든 권한 범�
 재인가(`reauthorize`)와 권한 추가(`request_scopes`)에서 새로 조회한 계정 식별자가 기존 값과 달라도 거절하지 않고 새 값으로 바꾼다(NERV Task `CLE-T-CDY02F`, 사용자 결정). 코드는 계정 조회를 더할 때부터 이렇게 동작했고 이번에 문서에 적었다. 다른 계정으로 다시 연결하려는 재인가도 정상 사용이다. Google·GitHub 통합을 쓰는 노드가 아직 없어서 계정이 바뀌어 깨지는 실행도 없다([인증 방식 「GitHub」](CLE-INT-AUTH.md#github)).
 
 - **기각한 안**: 식별자가 다르면 콜백을 거절하는 안(새 에러 코드, 자격 증명은 그대로)과 `request_scopes` 만 거절하는 안을 검토했다. 새 에러 코드와 콜백 에러 매핑이 늘지만 막는 사고가 없어서 택하지 않았다. 통합을 쓰는 노드가 생겨 계정이 바뀌면 실행 결과가 달라지게 되면 다시 본다.
+
+### 팝업 실패 코드는 `error` 문자열 옆 `code` 필드로 더한다
+
+결정일: 2026-11-28
+
+팝업 실패 payload 에는 메시지 문자열 `error` 만 있었다. 그래서 프런트엔드는 `last_error.code` 에 남는 코드로 화면 문구를 고를 수 없었고 서버 문구를 그대로 보였다. 사용자가 `error` 는 지금처럼 문자열로 두고 `code` 필드를 따로 더하기로 정했다(NERV Task `CLE-T-3WGPC0`).
+
+- **기각한 대안**: `error` 를 `{ code, message }` 객체로 바꾸는 것. 백엔드가 먼저 배포되면 옛 프런트엔드 토스트가 객체를 받아 깨진다. 필드를 더하기만 하면 배포 순서에 묶이지 않는다.
+- **5xx 원문은 같은 변경에서 가린다.** 콜백 HTML 은 `GlobalExceptionFilter` 를 거치지 않아 5xx `HttpException` 과 처리하지 못한 예외의 원문이 팝업에 그대로 실렸다. 가리는 기준은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md#5xx-httpexception-도-code-를-두고-message-를-가린다) 의 5xx `message` 가림과 같다. 코드는 그대로 두고 `error` 만 고정 문구로 바꾼다. 화면 문구는 `code` 로 고르므로 사용자가 잃는 정보가 없다.
+- **고정 문구는 공용 문구(`An unexpected error occurred. Please try again later.`)와 다르게 둔다.** `code` 를 모르는 프런트엔드는 `error` 문자열을 팝업 결과로 그대로 보이므로 어느 흐름이 실패했는지 문구에 넣었다. [설치 엔드포인트](CLE-INT-OAUTH-INSTALL.md)의 `Install failed due to an unexpected server error. Please try again later.` 와 같은 방식이다.
+- 콜백의 HTTP 상태와 `last_error` 기록 규칙은 바꾸지 않았다.
