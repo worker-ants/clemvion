@@ -306,7 +306,7 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     });
     selectFiles(input, [evil]);
 
-    expect(screen.getByText("허용되지 않은 파일 형식입니다.")).toBeTruthy();
+    expect(screen.getByText("허용되지 않은 파일 형식이에요.")).toBeTruthy();
     // selection 미반영 → submit 시 빈 배열.
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
@@ -334,7 +334,7 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     Object.defineProperty(big, "size", { value: 11 * MB });
     selectFiles(input, [big]);
 
-    expect(screen.getByText("파일 크기는 10MB 이하여야 합니다.")).toBeTruthy();
+    expect(screen.getByText("파일 크기는 10MB 이하여야 해요.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
   });
@@ -368,7 +368,7 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     selectFiles(input, [mk("a.png", 6 * MB), mk("b.png", 6 * MB)]);
 
     expect(
-      screen.getByText("전체 파일 크기는 10MB 이하여야 합니다."),
+      screen.getByText("전체 파일 크기는 10MB 이하여야 해요."),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
@@ -395,7 +395,7 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     // type "" — 브라우저가 MIME 미상. MIME 거부 없이 통과.
     selectFiles(input, [new File(["x"], "noext", { type: "" })]);
     expect(
-      screen.queryByText("허용되지 않은 파일 형식입니다."),
+      screen.queryByText("허용되지 않은 파일 형식이에요."),
     ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     const submitted = onSubmit.mock.calls[0][0] as { doc: Array<{ name: string }> };
@@ -425,7 +425,7 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     const mk = (n: string) => new File(["x"], n, { type: "image/png" });
     selectFiles(input, [mk("a.png"), mk("b.png"), mk("c.png")]);
 
-    expect(screen.getByText("최대 2개까지 업로드할 수 있습니다.")).toBeTruthy();
+    expect(screen.getByText("최대 2개까지 업로드할 수 있어요.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onSubmit.mock.calls[0][0]).toEqual({ doc: [] });
   });
@@ -450,10 +450,10 @@ describe("DynamicFormUI — file 클라이언트 검증 (spec §1.5 reject)", ()
     const input = screen.getByLabelText("Doc") as HTMLInputElement;
     // 1차: 미허용 → 에러.
     selectFiles(input, [new File(["x"], "x.gif", { type: "image/gif" })]);
-    expect(screen.getByText("허용되지 않은 파일 형식입니다.")).toBeTruthy();
+    expect(screen.getByText("허용되지 않은 파일 형식이에요.")).toBeTruthy();
     // 2차: 허용 → 에러 해제 + 반영.
     selectFiles(input, [new File(["ok"], "ok.png", { type: "image/png" })]);
-    expect(screen.queryByText("허용되지 않은 파일 형식입니다.")).toBeNull();
+    expect(screen.queryByText("허용되지 않은 파일 형식이에요.")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     const submitted = onSubmit.mock.calls[0][0] as {

@@ -42,7 +42,7 @@ export const knowledgeBases = {
   collectionDeleted: "컬렉션을 삭제했어요",
   collectionDeleteFailed: "컬렉션 삭제에 실패했어요",
   deleteTitle: "컬렉션 삭제",
-  deleteMessage: "모든 문서와 임베딩이 삭제됩니다. 되돌릴 수 없어요.",
+  deleteMessage: "모든 문서와 임베딩이 삭제돼요. 되돌릴 수 없어요.",
   noCollections: "등록된 컬렉션이 없어요.",
   docsCount: "{{count}} 건",
   statusReady: "준비됨",
@@ -59,7 +59,7 @@ export const knowledgeBases = {
   browseFiles: "파일 찾아보기",
   supportedTypes: "지원: .txt, .md, .pdf, .csv (최대 50MB)",
   documentDeleteTitle: "문서 삭제",
-  documentDeleteMessageFull: "문서와 임베딩이 함께 삭제됩니다.",
+  documentDeleteMessageFull: "문서와 임베딩이 함께 삭제돼요.",
   noDocumentsHint: "아직 문서가 없어요. 파일을 업로드해 시작해 보세요.",
   uploadFailedShort: "업로드에 실패했어요",
   reembedStarted: "재임베딩을 시작했어요",
@@ -82,9 +82,9 @@ export const knowledgeBases = {
   kbReembedAll: "KB 전체 재임베딩",
   kbReembedConfirmTitle: "KB 전체 재임베딩",
   kbReembedConfirmMessage:
-    "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리합니다. 진행하시겠어요?",
+    "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리해요. 진행하시겠어요?",
   kbReembedConfirmMessageGraph:
-    "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리합니다. graph 모드 KB 라 임베딩 완료 후 그래프 추출도 자동 실행되어 추가 LLM 비용이 발생해요. 진행하시겠어요?",
+    "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리해요. graph 모드 KB 라 임베딩 완료 후 그래프 추출도 자동 실행되어 추가 LLM 비용이 발생해요. 진행하시겠어요?",
   kbReembedStarted: "{{count}}개 문서의 재임베딩을 시작했어요",
   kbReembedFailed: "KB 재임베딩 시작에 실패했어요",
   chunkSizeInvalid: "청크 크기는 100~8000 사이여야 해요",
@@ -93,7 +93,7 @@ export const knowledgeBases = {
   ragModeVector: "Vector — 유사도 검색",
   ragModeGraph: "Graph — entity·relation 그래프 검색",
   ragModeHint:
-    "검색 모드는 생성 시에만 결정되고 이후에는 변경할 수 없어요. graph 모드는 LLM 추출 비용이 추가로 발생합니다.",
+    "검색 모드는 생성 시에만 결정되고 이후에는 변경할 수 없어요. graph 모드는 LLM 추출 비용이 추가로 발생해요.",
   extractionLlm: "그래프 추출 LLM",
   extractionLlmHint:
     "그래프 추출에 사용할 LLM 설정. 비워 두면 워크스페이스 기본 LLM 을 사용해요.",
@@ -122,9 +122,9 @@ export const knowledgeBases = {
   reembeddingInProgress: "재임베딩 중",
   reembedNow: "지금 재임베딩",
   unsearchableBannerIdleDesc:
-    "임베딩 모델 변경 후 재임베딩이 실행되지 않아 이 지식 저장소는 검색에서 제외됩니다. 재임베딩하면 검색이 복구됩니다.",
+    "임베딩 모델 변경 후 재임베딩이 실행되지 않아 이 지식 저장소는 검색에서 제외돼요. 재임베딩하면 검색이 복구돼요.",
   unsearchableBannerInProgressDesc:
-    "재임베딩이 진행 중입니다. 완료되면 검색이 자동으로 복구됩니다.",
+    "재임베딩이 진행 중이에요. 완료되면 검색이 자동으로 복구돼요.",
   graphBuildStatus: "그래프 추출 상태",
   graphExtractedDocs: "{{count}}개 문서 추출 완료",
   graphFailedDocs: "{{count}}개 실패",
@@ -147,7 +147,7 @@ export const knowledgeBases = {
   kbReExtractAll: "그래프 전체 재추출",
   kbReExtractConfirmTitle: "그래프 전체 재추출",
   kbReExtractConfirmMessage:
-    "모든 entity·relation·매핑을 삭제하고 모든 문서를 처음부터 다시 추출합니다. LLM 호출 비용이 발생해요. 진행하시겠어요?",
+    "모든 entity·relation·매핑을 삭제하고 모든 문서를 처음부터 다시 추출해요. LLM 호출 비용이 발생해요. 진행하시겠어요?",
   kbReExtractStarted: "{{count}}개 문서의 그래프 재추출을 시작했어요",
   kbReExtractFailed: "그래프 재추출 시작에 실패했어요",
   tabDocuments: "문서",
@@ -158,10 +158,10 @@ export const knowledgeBases = {
   entityMentions: "등장",
   entityAllTypes: "모든 유형",
   entitySearchPlaceholder: "Entity 이름 검색…",
-  entityEmpty: "등록된 entity 가 없어요. 문서 추출이 끝난 뒤 표시됩니다.",
+  entityEmpty: "등록된 entity 가 없어요. 문서 추출이 끝난 뒤 표시돼요.",
   entityDeleteTitle: "Entity 삭제",
   entityDeleteMessage:
-    "관련 relation 과 chunk 매핑이 함께 삭제됩니다. 되돌릴 수 없어요.",
+    "관련 relation 과 chunk 매핑이 함께 삭제돼요. 되돌릴 수 없어요.",
   entityDeleted: "Entity 를 삭제했어요",
   entityDeleteFailed: "Entity 삭제에 실패했어요",
   entityMentionedInChunks: "{{count}}개 청크에서 등장",
@@ -174,7 +174,7 @@ export const knowledgeBases = {
   relationSearchPlaceholder: "Relation predicate / entity 이름 검색…",
   relationEmpty: "등록된 relation 이 없어요.",
   relationDeleteTitle: "Relation 삭제",
-  relationDeleteMessage: "이 relation 을 영구 삭제합니다. 되돌릴 수 없어요.",
+  relationDeleteMessage: "이 relation 을 영구 삭제해요. 되돌릴 수 없어요.",
   relationDeleted: "Relation 을 삭제했어요",
   relationDeleteFailed: "Relation 삭제에 실패했어요",
   tabGraph: "그래프",

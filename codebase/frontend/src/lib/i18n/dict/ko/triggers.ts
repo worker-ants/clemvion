@@ -126,12 +126,12 @@ export const triggers = {
     nameLabel: "이름",
     namePlaceholder: "트리거 이름",
     endpointPathLabel: "엔드포인트 경로",
-    endpointPathHelp: "변경하면 옛 URL 로 들어오던 호출이 즉시 404 가 됩니다.",
+    endpointPathHelp: "변경하면 옛 URL 로 들어오던 호출이 즉시 404 가 돼요.",
     endpointPathChangeWarning: "엔드포인트를 변경하면 기존 URL 이 더 이상 동작하지 않아요. 진행할까요?",
     authTypeLabel: "인증",
     hmacHeaderLabel: "서명 헤더",
     hmacSecretLabel: "새 HMAC secret",
-    hmacSecretHelp: "비워두면 기존 secret 이 유지돼요. 입력 후 저장하면 백엔드가 즉시 교체합니다.",
+    hmacSecretHelp: "비워두면 기존 secret 이 유지돼요. 입력 후 저장하면 백엔드가 즉시 교체해요.",
     bearerTokenLabel: "새 Bearer 토큰",
     bearerTokenHelp: "비워두면 기존 토큰이 유지돼요.",
     editInSchedule: "스케줄 관리에서 편집",
@@ -141,7 +141,7 @@ export const triggers = {
   externalInteraction: {
     section: "외부 인터랙션",
     sectionDescription:
-      "트리거가 시작한 워크플로우의 인터랙션 노드 (Form / 버튼 / AI Multi-Turn) 에 외부 시스템이 응답할 수 있게 설정합니다.",
+      "트리거가 시작한 워크플로우의 인터랙션 노드 (Form / 버튼 / AI Multi-Turn) 에 외부 시스템이 응답할 수 있게 설정해요.",
     notification: "Notification Webhook (Outbound)",
     notificationDescription:
       "워크플로우 이벤트를 외부 URL 로 push. HMAC-SHA256 서명. 실패하면 첫 시도를 포함해 기본 5회까지 보내요.",
@@ -154,14 +154,14 @@ export const triggers = {
     healthDegraded: "저하됨",
     interaction: "Inbound Interaction (REST + SSE)",
     interactionDescription:
-      "외부 클라이언트가 REST 로 명령 (submit_form / click_button / submit_message / end_conversation / cancel) 을 제출하고 SSE 로 이벤트 스트림을 수신합니다.",
+      "외부 클라이언트가 REST 로 명령 (submit_form / click_button / submit_message / end_conversation / cancel) 을 제출하고 SSE 로 이벤트 스트림을 수신해요.",
     interactionEnabled: "활성화",
     interactionTokenStrategy: "토큰 전략",
     tokenStrategyPerExecution: "Per Execution (default, 단명 1h)",
     tokenStrategyPerTrigger: "Per Trigger (영구 itk_*)",
     interactionRevokeToken: "트리거 단위 토큰 재발급",
     notConfigured:
-      "외부 인터랙션 채널이 설정되어 있지 않아요. trigger config 에 notification 또는 interaction 필드를 추가하면 표시됩니다.",
+      "외부 인터랙션 채널이 설정되어 있지 않아요. trigger config 에 notification 또는 interaction 필드를 추가하면 표시돼요.",
     edit: "수정",
     save: "저장",
     cancel: "취소",
@@ -170,9 +170,9 @@ export const triggers = {
     saveFailed: "저장에 실패했어요",
     notificationUrlPlaceholder: "https://your-server.example/webhook",
     notificationUrlHelp:
-      "https:// 만 허용. 사설 IP·loopback·metadata IP 는 차단됩니다.",
+      "https:// 만 허용. 사설 IP·loopback·metadata IP 는 차단돼요.",
     rotateConfirm:
-      "현재 secret 으로 서명된 outbound notification 은 24h grace 동안 새 secret 도 함께 동봉됩니다. 진행할까요?",
+      "현재 secret 으로 서명된 outbound notification 은 24h grace 동안 새 secret 도 함께 동봉돼요. 진행할까요?",
     rotateSucceeded: "새 secret 을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     rotateFailed: "Secret 회전에 실패했어요",
     rotateNewSecret: "새 secret (1회만 표시)",
@@ -202,7 +202,7 @@ export const triggers = {
   chatChannel: {
     section: "Chat Channel (Telegram 등)",
     sectionDescription:
-      "Webhook 트리거에 외부 chat 플랫폼 봇을 연결해서 워크플로우의 인터랙션을 봇 메시지로 노출합니다.",
+      "Webhook 트리거에 외부 chat 플랫폼 봇을 연결해서 워크플로우의 인터랙션을 봇 메시지로 노출해요.",
     rowChip: "Chat",
     provider: "Provider",
     providerTelegram: "Telegram",
@@ -253,7 +253,7 @@ export const triggers = {
     setupAt: "설정 시각",
     rotatedAt: "최근 토큰 회전 시각",
     notConfigured:
-      "Chat Channel 설정이 없습니다. 트리거 생성 시 'Chat Channel 연결' 섹션을 켜서 봇 토큰을 등록하세요.",
+      "Chat Channel 설정이 없어요. 트리거 생성 시 'Chat Channel 연결' 섹션을 켜서 봇 토큰을 등록하세요.",
     edit: "수정",
     save: "저장",
     cancel: "취소",
@@ -263,9 +263,9 @@ export const triggers = {
     languageHintsInvalid: "languageHints 는 올바른 JSON 객체여야 해요.",
     rotateBotToken: "Bot Token 재발급",
     rotateBotTokenDescription:
-      "Spec §5.4.1 single-path — 토큰 변경은 항상 이 API 만 사용. 24h grace 동안 기존 토큰도 함께 받습니다.",
+      "Spec §5.4.1 single-path — 토큰 변경은 항상 이 API 만 사용. 24h grace 동안 기존 토큰도 함께 받아요.",
     rotateBotTokenConfirm:
-      "기존 토큰을 새 토큰으로 교체합니다. 24h 동안 두 토큰 모두 수신 → 그 후 자동 정리. 진행할까요?",
+      "기존 토큰을 새 토큰으로 교체해요. 24h 동안 두 토큰 모두 수신 → 그 후 자동 정리. 진행할까요?",
     rotateBotTokenSucceeded: "Bot Token 을 회전했어요.",
     rotateBotTokenFailed: "Bot Token 회전에 실패했어요",
     rotateBotTokenDialogTitle: "Bot Token 재발급",

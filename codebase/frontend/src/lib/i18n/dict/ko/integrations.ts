@@ -184,7 +184,7 @@ export const integrations = {
   selectAtLeastOneScope: "하나 이상의 권한을 선택해 주세요",
   completeOauth: "계속하기 전에 OAuth 인증을 완료해 주세요",
   selectAuthType: "인증 유형을 선택해 주세요",
-  fieldRequired: "{{label}}은(는) 필수입니다",
+  fieldRequired: "{{label}}은(는) 필수예요",
   namePlaceholderWithService: "My {{name}}",
   scopeHint: "조직 범위로 설정하려면 관리자 권한이 필요해요.",
   authTypeLabel2: "인증 유형",
@@ -192,12 +192,12 @@ export const integrations = {
   recommendedBadge: "권장",
   approvalRequiredBadge: "별도 승인",
   approvalRequiredTooltip:
-    "카페24 본사 승인이 필요한 권한입니다. 미승인 상태로 동의를 시도하면 invalid_scope 로 실패하거나, 인증 후 호출 시 403 이 반환될 수 있어요.",
+    "카페24 본사 승인이 필요한 권한이에요. 미승인 상태로 동의를 시도하면 invalid_scope 로 실패하거나, 인증 후 호출 시 403 이 반환될 수 있어요.",
   approvalInquiryLink: "Cafe24 개발자센터 문의 →",
   cafe24RestrictedScopeNotice:
-    "선택한 권한 중 카페24 본사 승인이 필요한 항목이 있습니다 ({{count}}개). 미승인 상태로 진행하면 OAuth 또는 호출 단계에서 실패할 수 있어요.",
+    "선택한 권한 중 카페24 본사 승인이 필요한 항목이 있어요 ({{count}}개). 미승인 상태로 진행하면 OAuth 또는 호출 단계에서 실패할 수 있어요.",
   cafe24RestrictedApprovalApiError:
-    "이 권한은 카페24 별도 승인이 필요합니다 — {{scopes}}",
+    "이 권한은 카페24 별도 승인이 필요해요 — {{scopes}}",
   cafe24ScopeWarning:
     "Cafe24 는 앱 설정에 사전 등록된 권한만 OAuth 요청을 허용해요. 선택한 권한이 Cafe24 Developers → 내 앱 → 사용 권한(Scope) 에 모두 체크돼 있어야 하며, 하나라도 누락되면 OAuth 가 invalid_scope 로 거부돼요. 처음에는 1개만 켜고 동작을 확인한 뒤 점진적으로 늘리길 권해요.",
   cafe24PrivatePendingTitle: "Cafe24 Developers 설정을 완료해 주세요",
@@ -206,7 +206,7 @@ export const integrations = {
   cafe24AppUrlLabel: "App URL (Cafe24 Developers → 개발 정보에 등록)",
   cafe24CallbackUrlLabel: "Redirect URI (Cafe24 Developers → 개발 정보에 등록)",
   cafe24PrivatePendingSteps:
-    "① Cafe24 Developers → 내 앱 → 개발 정보에서 App URL 과 Redirect URI 를 위 값으로 전체 복사해서 등록하세요 (App URL 은 끝의 22자 토큰까지 모두 포함). ② 사용 권한(Scope) 이 요청한 scope 와 일치하는지 확인하세요. ③ 테스트 실행 버튼을 클릭하고 mall_id 를 입력하세요. 동의 후 통합이 활성화됩니다.",
+    "① Cafe24 Developers → 내 앱 → 개발 정보에서 App URL 과 Redirect URI 를 위 값으로 전체 복사해서 등록하세요 (App URL 은 끝의 22자 토큰까지 모두 포함). ② 사용 권한(Scope) 이 요청한 scope 와 일치하는지 확인하세요. ③ 테스트 실행 버튼을 클릭하고 mall_id 를 입력하세요. 동의 후 통합이 활성화돼요.",
   cafe24PrivatePendingViewList: "통합 상세 보기",
   cafe24PrivatePendingWaiting:
     "Cafe24 테스트 실행 완료를 기다리는 중… (자동 새로고침)",
@@ -219,7 +219,7 @@ export const integrations = {
   cafe24PrivatePendingLastErrorLabel: "마지막 콜백 오류",
   cafe24DetailAppUrlTitle: "Cafe24 App URL",
   cafe24DetailAppUrlDesc:
-    "Cafe24 Developers → 내 앱 → 개발 정보의 '앱 URL' 에 이 값을 등록하세요. 카페24 admin 의 '앱으로 가기' / Cafe24 Developers 의 '테스트 실행' 모두 이 URL 을 호출합니다. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부됩니다.",
+    "Cafe24 Developers → 내 앱 → 개발 정보의 '앱 URL' 에 이 값을 등록하세요. 카페24 admin 의 '앱으로 가기' / Cafe24 Developers 의 '테스트 실행' 모두 이 URL 을 호출해요. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부돼요.",
   oauthPopupClosedNoResult:
     "OAuth 팝업이 결과 없이 닫혔어요. 다시 시도하거나 페이지를 새로고침 해주세요.",
   copied: "복사됨",
@@ -313,7 +313,7 @@ export const integrations = {
   makeshopAppUrlLabel: "App URL (MakeShop 파트너센터 ShopStore 앱에 등록)",
   makeshopCallbackUrlLabel: "Redirect URI (MakeShop 파트너센터에 등록)",
   makeshopPendingSteps:
-    "① MakeShop 파트너센터 → ShopStore 앱 설정에서 App URL 과 Redirect URI 를 위 값으로 전체 복사해서 등록하세요 (App URL 은 끝의 설치 토큰까지 모두 포함). ② 요청한 scope 가 앱 권한과 일치하는지 확인하세요. ③ 상점에서 앱을 설치하면 통합이 활성화됩니다.",
+    "① MakeShop 파트너센터 → ShopStore 앱 설정에서 App URL 과 Redirect URI 를 위 값으로 전체 복사해서 등록하세요 (App URL 은 끝의 설치 토큰까지 모두 포함). ② 요청한 scope 가 앱 권한과 일치하는지 확인하세요. ③ 상점에서 앱을 설치하면 통합이 활성화돼요.",
   makeshopPendingViewList: "통합 상세 보기",
   makeshopPendingWaiting: "MakeShop 앱 설치 완료를 기다리는 중… (자동 새로고침)",
   makeshopPendingTimedOut:
@@ -336,5 +336,5 @@ export const integrations = {
     "설치 중 문제가 발생했어요. 파트너센터 설정을 확인하고 다시 시도해 주세요.",
   makeshopDetailAppUrlTitle: "MakeShop App URL",
   makeshopDetailAppUrlDesc:
-    "MakeShop 파트너센터의 ShopStore 앱 'App URL' 에 이 값을 등록하세요. 상점의 앱 설치가 이 URL 을 호출합니다. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부됩니다.",
+    "MakeShop 파트너센터의 ShopStore 앱 'App URL' 에 이 값을 등록하세요. 상점의 앱 설치가 이 URL 을 호출해요. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부돼요.",
 } as const;

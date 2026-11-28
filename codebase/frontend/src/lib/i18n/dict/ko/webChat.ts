@@ -58,7 +58,7 @@ export const webChat = {
     unavailable:
       "라이브 미리보기는 위젯 번들이 배포에 동봉된 후 사용할 수 있어요",
     reset: "새 세션",
-    resetHint: "대화를 처음부터 다시 시작합니다",
+    resetHint: "대화를 처음부터 다시 시작해요",
   },
   manage: {
     active: "활성",

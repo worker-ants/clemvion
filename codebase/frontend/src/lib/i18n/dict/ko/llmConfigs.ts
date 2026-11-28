@@ -54,7 +54,7 @@ export const llmConfigs = {
   modelLoadRequired: "먼저 \"모델 불러오기\"를 눌러주세요",
   modelSavedFallback: "현재 저장값: {{model}}",
   deleteTitle: "제공자 삭제",
-  deleteMessage: "이 LLM 제공자 설정을 영구 삭제합니다.",
+  deleteMessage: "이 LLM 제공자 설정을 영구 삭제해요.",
   noConfigs: "설정된 LLM 제공자가 없어요.",
   columnName: "이름",
   columnProvider: "제공자",

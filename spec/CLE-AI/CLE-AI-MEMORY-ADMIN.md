@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY-ADMIN"
 title: "에이전트 메모리 — 관리 API · 화면"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-MEMORY"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-MEMORY"]
 area: "CLE-AI"
-content_hash: "11bab9ca0e12103abf3d333fba270f2f1686a47e20cf43fb4dde491398f18322"
+content_hash: "6ca0487c4e33eca903946a9445d97b4c118eb62cabef375c285b424375968459"
 read_as: "approved_fallback"
-task: "CLE-T-N0K4SE"
+task: "CLE-T-7CX8FM"
 source_paths: []
-mirror_sha256: "ca53927b7e119220c09c9be8a56f4e4594c7c8e62556fd1be25714ade308f943"
-etag: "sha256-0fa3a0bfd750778d7fb2bd4d46192681f963cf4d056851a193246c7b25d113a4"
+mirror_sha256: "fd3147fd6bb8e9f5a1442c0775ae7f84dcc30cf9b2403df7de072f9ca53628be"
+etag: "sha256-6631d9dd2b92a4ed6af77ee0c5dfcfa72c9a3518179a6b2d5682c371a2f8137b"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-0fa3a0bfd750778d7fb2bd4d46192681f963cf4d056851a193246c7b25d113a4"
 
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 |------|------|---------------|------|
-| 헤더 | 상단 | 제목 "에이전트 메모리", `[↻ 새로고침]`, 안내 문구 "AI Agent persistent 메모리를 scope 별로 조회/삭제합니다." | 새로고침은 목록을 다시 불러온다 |
+| 헤더 | 상단 | 제목 "에이전트 메모리", `[↻ 새로고침]`, 안내 문구 "AI Agent persistent 메모리를 scope 별로 조회하고 정리해요" | 새로고침은 목록을 다시 불러온다 |
 | 범위 목록 | 왼쪽 | 검색 입력, 행마다 범위 키(예: `cust:42`)·건수·최신 갱신 상대 시각·🗑, "더 보기" | 행을 고르면 오른쪽에 그 범위의 메모리가 나온다. 🗑 은 범위 전체 삭제(편집자 이상) |
 | 메모리 목록 | 오른쪽 | 종류 필터 드롭다운(기본 전체), 건수, 행마다 내용·메모리 종류 배지·상대 시각·🗑, "더 보기" | 🗑 은 단건 삭제(편집자 이상) |
 
@@ -54,7 +54,7 @@ etag: "sha256-0fa3a0bfd750778d7fb2bd4d46192681f963cf4d056851a193246c7b25d113a4"
 - **단건 삭제**: 메모리 행 🗑 → 확인 모달 → `DELETE /api/agent-memories/:id`. 성공하면 목록을 갱신한다.
 - **범위 삭제**: 범위 행 🗑 → 건수 경고가 있는 확인 모달 → `DELETE /api/agent-memories?scopeKey=`. 응답 헤더 `X-Deleted-Count` 로 실제 삭제 건수를 받는다. 0건이면 성공 토스트가 아니라 중립 토스트 "삭제할 메모리가 없었어요" 를 보여 줘 "삭제했다" 는 오해를 막는다.
 - **권한**: 화면 진입과 조회는 워크스페이스 멤버(뷰어 이상)가 한다. 삭제 버튼은 편집자 이상에게만 보인다(RoleGate).
-- **빈 상태**: `persistent` 메모리를 한 번도 쌓지 않은 워크스페이스에는 "아직 메모리가 없습니다" 안내와 AI 에이전트 노드 `memoryStrategy` 설정 안내 링크를 보여 준다.
+- **빈 상태**: `persistent` 메모리를 한 번도 쌓지 않은 워크스페이스에는 "아직 메모리가 없어요" 안내와 AI 에이전트 노드 `memoryStrategy` 설정 안내 링크를 보여 준다.
 
 ## 구현 위치
 

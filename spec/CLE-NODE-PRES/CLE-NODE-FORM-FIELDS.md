@@ -2,19 +2,19 @@
 id: "CLE-NODE-FORM-FIELDS"
 title: "Form 노드 — 필드 정의와 파일 필드"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-FORM"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-FORM"]
 area: "CLE-NODE-PRES"
-content_hash: "d002af8702f545a7577145b3214494ef82f5029ae6509ea514c86989130200bb"
+content_hash: "44b7814d01b25e7a746e5161543a0e7aa804ec0191ec149bd26372ae8f2a5a7c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-7CX8FM"
 source_paths: []
-mirror_sha256: "d82a618a2fd0485ee0e7ba34ee0d7240951079d066aeb2fc16eb201f79031760"
-etag: "sha256-904804319673724d1047c7fe4e098ce801f14a4c8d6a3887001f1585b3b06104"
+mirror_sha256: "79fb787a5330112b19a5444b48d391b00be78a6e32176c0dff9d11a7610a43fc"
+etag: "sha256-37ee9251996e70ecdedcd6516eee793cf42f0b86cee92ece67ee6d5005fae27d"
 ---
 ## 개요
 
@@ -60,7 +60,7 @@ etag: "sha256-904804319673724d1047c7fe4e098ce801f14a4c8d6a3887001f1585b3b06104"
 |---|---|---|---|---|
 | `phone` | `text` | 전화번호. 국제 형식 허용(`+`, 숫자, 공백, `-`, `()`) | `^\+?[\d\s\-()]+$`(1자 이상) | Telegram: `request_contact: true`(연락처 공유 버튼). Slack·Discord: 텍스트 입력과 어댑터 형식 검증(연락처 공유 없음). 지원하지 않는 채널 프로바이더: 일반 텍스트 입력 |
 
-계획상 v1 카탈로그는 1종이다. URL·datetime 같은 다음 preset 은 쓰임이 생기면 더한다. 계획상 `preset` 과 `pattern` 이 함께 있으면 `preset` 을 먼저 쓴다. `message` 가 없으면 preset 별 기본 메시지를 쓴다(`phone` → "전화번호 형식이 올바르지 않습니다.").
+계획상 v1 카탈로그는 1종이다. URL·datetime 같은 다음 preset 은 쓰임이 생기면 더한다. 계획상 `preset` 과 `pattern` 이 함께 있으면 `preset` 을 먼저 쓴다. `message` 가 없으면 preset 별 기본 메시지를 쓴다(`phone` → "전화번호 형식이 올바르지 않아요.").
 
 채널 어댑터의 `phone` 힌트는 preset 을 도입할 때 함께 구현할 대상이다. 지금은 세 어댑터 모두 preset 이 없어 일반 `text` 필드로 묻는다([Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md), [Slack 어댑터](../CLE-CHAT/CLE-CHAT-SLACK.md), [Discord 어댑터](../CLE-CHAT/CLE-CHAT-DISCORD.md)).
 
@@ -94,13 +94,13 @@ URL 검증 preset 도 없다. Discord 채널은 v1 에서 파일 업로드를 �
   - `maxFiles` 가 1이거나 없으면 파일 하나만, 1보다 크면 여러 개를 고른다.
   - `accept` 는 사용자가 적은 `allowedMimeTypes` 를 쉼표로 이어 붙이고 없으면 두지 않는다. 아래 클라이언트 가드는 없는 필드에 기본 MIME 목록을 적용한다.
 - **제출 전 클라이언트 가드**: `onChange` 는 `FileList` 를 필드 상태에 넣기 **전에** `validateFilesClient` 로 검사하고 위반이면 선택을 거부한다. 검사 순서는 서버 `validateFileField` 와 같고 필드에 적지 않은 제약은 기본값을 쓴다.
-  - `allowedMimeTypes`(없으면 기본 14종)와 맞지 않으면 바로 거부하고 "허용되지 않은 파일 형식입니다." 를 보여 준다.
-  - 파일 하나가 `maxFileSize`(MB)보다 크면 거부하고 "파일 크기는 {N}MB 이하여야 합니다." 를 보여 준다.
-  - 합계가 `maxTotalSize`(MB)보다 크면 거부하고 "전체 파일 크기는 {N}MB 이하여야 합니다." 를 보여 준다.
-  - 고른 개수가 `maxFiles` 보다 많으면 거부하고 "최대 {N}개까지 업로드할 수 있습니다." 를 보여 준다.
+  - `allowedMimeTypes`(없으면 기본 14종)와 맞지 않으면 바로 거부하고 "허용되지 않은 파일 형식이에요." 를 보여 준다.
+  - 파일 하나가 `maxFileSize`(MB)보다 크면 거부하고 "파일 크기는 {N}MB 이하여야 해요." 를 보여 준다.
+  - 합계가 `maxTotalSize`(MB)보다 크면 거부하고 "전체 파일 크기는 {N}MB 이하여야 해요." 를 보여 준다.
+  - 고른 개수가 `maxFiles` 보다 많으면 거부하고 "최대 {N}개까지 업로드할 수 있어요." 를 보여 준다.
 - 검증에 실패하면 선택 자체를 거부한다. 고른 파일은 필드 상태에 들어가지 않고 파일 입력도 비운다. 에러 문구는 필드 아래에 보여 주고 제출 버튼은 켜진 채로 둔다.
 
-메시지는 서버와 클라이언트가 함께 쓰는 **기본 메시지**다. `validation.message` 로 바꾸는 기능은 v1 에서 파일 필드에 적용하지 않고 일반 필드도 지금은 기본 메시지를 쓴다. 메시지 바꾸기는 두 필드 공통의 다음 과제다.
+메시지는 **기본 메시지**다. 클라이언트는 화면 사전의 해요체 문구를 보여 주고 서버 `validateFileField` 는 뜻이 같은 기본 메시지를 따로 둔다. `validation.message` 로 바꾸는 기능은 v1 에서 파일 필드에 적용하지 않고 일반 필드도 지금은 기본 메시지를 쓴다. 메시지 바꾸기는 두 필드 공통의 다음 과제다.
 
 **제출 payload(메타데이터만):**
 

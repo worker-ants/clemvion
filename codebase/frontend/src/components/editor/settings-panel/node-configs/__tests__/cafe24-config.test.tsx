@@ -328,7 +328,7 @@ describe("Cafe24Config", () => {
         />,
       );
       expect(
-        screen.getByText(/아직 지원되지 않습니다/),
+        screen.getByText(/아직 지원되지 않아요/),
       ).toBeInTheDocument();
     });
 
