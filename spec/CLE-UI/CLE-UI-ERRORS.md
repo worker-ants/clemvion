@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
 content_hash: "d5b3ab1bfad4397423ece34cea65d1957c457e8853dede6fadc1bd981f38db57"
 read_as: "approved_fallback"
-task: "CLE-T-N2FM8W"
+task: "CLE-T-W1JP66"
 source_paths: ["spec/2-navigation/11-error-empty-states.md"]
-mirror_sha256: "262ed93f729849e3fa3cfd701b7d822055811d195230c3f27ffd7383dc6b0306"
-etag: "sha256-f30cf80bd17041a1623dfb53bd26133584bab224157e47abf11e9f8ea5e773ff"
+mirror_sha256: "110521917cca4e29f67499eab5211a07f7270c73dfa9c304bf1fb7a08a4b658b"
+etag: "sha256-4e2cbc2bbcc3c8513df8dd2abbf7186ac58243528f0ad3fbdd2b73d89a6ab810"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/11-error-empty-states.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
