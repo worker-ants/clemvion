@@ -181,3 +181,9 @@ jobs:
       - name: spec body size ratchet (size_check.py)
         if: needs.changes.outputs.relevant != 'false'
         run: python3 .claude/tools/nerv-mirror/size_check.py
+
+      # 스펙 문서 사이 `#앵커` 링크(래칫). 기준선은 도입 시점에 끊겨 있던 링크이고 줄어들기만 한다.
+      # 근거와 판정은 `anchor_check.py` docstring, 규칙은 NERV 규약 CLE-ENG-SPECHEADING 규칙 3.
+      - name: spec anchor link ratchet (anchor_check.py)
+        if: needs.changes.outputs.relevant != 'false'
+        run: python3 .claude/tools/nerv-mirror/anchor_check.py
