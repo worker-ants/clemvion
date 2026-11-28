@@ -36,6 +36,7 @@ import type { AuthContext } from './types/auth-context';
 import { SessionsService } from './sessions.service';
 import { TotpService } from './totp.service';
 import { PasswordRecheckFailureLimiterService } from './password-recheck-failure-limiter.service';
+import { AUTH_ERROR_BODIES } from './auth-error-bodies';
 
 export type { AuthContext };
 
@@ -102,10 +103,7 @@ export class AuthService {
     const ok = await comparePassword(plainPassword, user.passwordHash);
     if (!ok) {
       await this.passwordRecheckLimiter.recordFailure(user.id);
-      throw new UnauthorizedException({
-        code: PASSWORD_VERIFY_CODES.INVALID,
-        message: 'The password is incorrect.',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.passwordInvalid });
     }
   }
 
@@ -154,10 +152,7 @@ export class AuthService {
   > {
     const exists = await this.usersService.emailExists(dto.email);
     if (exists) {
-      throw new ConflictException({
-        code: 'RESOURCE_CONFLICT',
-        message: 'Email already registered',
-      });
+      throw new ConflictException({ ...AUTH_ERROR_BODIES.emailTaken });
     }
 
     validatePasswordStrength(dto.password, 'password');
@@ -356,10 +351,7 @@ export class AuthService {
         userAgent: ctx.userAgent ?? null,
         failureReason: 'USER_NOT_FOUND',
       });
-      throw new UnauthorizedException({
-        code: 'LOGIN_FAILED',
-        message: 'Invalid email or password',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.loginFailed });
     }
 
     // Check lock
@@ -387,10 +379,7 @@ export class AuthService {
         userAgent: ctx.userAgent ?? null,
         failureReason: 'PASSWORD_NOT_SET',
       });
-      throw new UnauthorizedException({
-        code: 'LOGIN_FAILED',
-        message: 'Invalid email or password',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.loginFailed });
     }
 
     const isValid = await comparePassword(dto.password, user.passwordHash);
@@ -404,10 +393,7 @@ export class AuthService {
         userAgent: ctx.userAgent ?? null,
         failureReason: 'INVALID_PASSWORD',
       });
-      throw new UnauthorizedException({
-        code: 'LOGIN_FAILED',
-        message: 'Invalid email or password',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.loginFailed });
     }
 
     // 비밀번호가 맞았으므로 실패 횟수를 되돌린다. 이메일 인증 전 계정도 같다.
@@ -542,10 +528,7 @@ export class AuthService {
         userAgent: ctx.userAgent ?? null,
         failureReason: 'TOTP_INVALID',
       });
-      throw new UnauthorizedException({
-        code: 'TOTP_INVALID',
-        message: 'The verification code is incorrect.',
-      });
+      throw new UnauthorizedException({ ...AUTH_ERROR_BODIES.totpInvalid });
     }
     const rememberMe = !!payload.rememberMe;
     const tokens = await this.generateTokens(user, rememberMe, undefined, ctx);
@@ -677,8 +660,7 @@ export class AuthService {
 
     if (!stored) {
       throw new UnauthorizedException({
-        code: 'TOKEN_INVALID',
-        message: 'Invalid refresh token',
+        ...AUTH_ERROR_BODIES.refreshTokenInvalid,
       });
     }
 
@@ -716,8 +698,7 @@ export class AuthService {
       // 토큰은 유효하나 user 관계가 비어있다 (데이터 손상). 회전 불가 — reuse 분기의
       // `if (stored.user)` 방어와 동일하게 안전 거부한다.
       throw new UnauthorizedException({
-        code: 'TOKEN_INVALID',
-        message: 'Invalid refresh token',
+        ...AUTH_ERROR_BODIES.refreshTokenInvalid,
       });
     }
 
@@ -747,8 +728,7 @@ export class AuthService {
       // 먼저 회전했거나 만료 경계에 걸린 것이므로 신규 토큰을 발급하지 않는다.
       if (!result.affected) {
         throw new UnauthorizedException({
-          code: 'TOKEN_INVALID',
-          message: 'Invalid refresh token',
+          ...AUTH_ERROR_BODIES.refreshTokenInvalid,
         });
       }
       // Issue new tokens in same family — INSERT joins this transaction.
@@ -927,10 +907,7 @@ export class AuthService {
       });
     }
     if (await this.usersService.emailTakenByOther(email, userId)) {
-      throw new ConflictException({
-        code: 'RESOURCE_CONFLICT',
-        message: 'Email already registered',
-      });
+      throw new ConflictException({ ...AUTH_ERROR_BODIES.emailTaken });
     }
 
     // 3) 토큰 발급 — raw 는 메일로만, DB 엔 SHA-256 해시(email_verify_token 패턴 §1.1).
@@ -993,10 +970,7 @@ export class AuthService {
     // 확인 시점 재검사 — request 이후 신규 이메일이 타 계정에 선점됐는지(대소문자 무시).
     if (await this.usersService.emailTakenByOther(newEmail, userId)) {
       await this.clearPendingEmailChange(userId);
-      throw new ConflictException({
-        code: 'RESOURCE_CONFLICT',
-        message: 'Email already registered',
-      });
+      throw new ConflictException({ ...AUTH_ERROR_BODIES.emailTaken });
     }
 
     // email 교체 + 검증 완료 + pending 정리. email UNIQUE 제약이 race 의 최종 가드.
@@ -1011,10 +985,7 @@ export class AuthService {
     } catch (err) {
       if (this.isUniqueEmailViolation(err)) {
         await this.clearPendingEmailChange(userId);
-        throw new ConflictException({
-          code: 'RESOURCE_CONFLICT',
-          message: 'Email already registered',
-        });
+        throw new ConflictException({ ...AUTH_ERROR_BODIES.emailTaken });
       }
       throw err;
     }

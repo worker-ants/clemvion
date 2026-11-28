@@ -94,6 +94,28 @@ describe('findKoreanMessages 판정', () => {
     expect(findKoreanMessages(source)).toEqual([]);
   });
 
+  /**
+   * 판정이 이름 규칙 휴리스틱이라 **지금은 못 잡는** 꼴이다(NERV Task CLE-T-7QQPK7). 판정을 넓히지 않기로 해서 못 잡는다는
+   * 사실을 여기 고정한다. 판정을 넓혀 이 픽스처가 걸리기 시작하면 이 목록에서 「잡는다」 쪽으로 옮기고 가드 docstring 의
+   * 한계 서술도 고친다.
+   */
+  it.each([
+    [
+      '변수에 담았다가 throw 하는 문구',
+      `const reason = '권한이 없어요';\nthrow new ForbiddenException({ code: 'X', message: reason });`,
+    ],
+    [
+      '화살표 함수 예외 헬퍼의 인자',
+      `const denied = (text: string): ForbiddenException => new ForbiddenException({ code: 'X', message: text });\nthrow denied('권한이 없어요');`,
+    ],
+    [
+      '다른 파일에서 가져온 예외 헬퍼의 인자',
+      `import { denied } from './errors';\nthrow denied('권한이 없어요');`,
+    ],
+  ])('%s 는 지금은 안 잡는다', (_label, source) => {
+    expect(findKoreanMessages(source)).toEqual([]);
+  });
+
   it('걸린 줄 번호를 1부터 센다', () => {
     const source = `const a = 1;\nthrow new BadRequestException({ code: 'X', message: '틀려요' });`;
     expect(findKoreanMessages(source)).toEqual([{ line: 2, text: "'틀려요'" }]);

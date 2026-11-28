@@ -39,6 +39,7 @@ import {
   isPostgresUniqueViolation,
   pgErrorConstraint,
 } from '../../../common/db/pg-error';
+import { AUTH_ERROR_BODIES } from '../auth-error-bodies';
 
 const RECOVERY_CODE_COUNT = 10;
 const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」)
@@ -112,8 +113,7 @@ const CREDENTIAL_ID_UNIQUE_CONSTRAINT = 'uq_webauthn_credential_credential_id';
 
 function credentialAlreadyExists(): ConflictException {
   return new ConflictException({
-    code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-    message: 'This authenticator is already registered.',
+    ...AUTH_ERROR_BODIES.webauthnCredentialExists,
   });
 }
 
