@@ -43,9 +43,8 @@ export type ContinuationMessage = {
    * NodeExecution 체크포인트 lookup 의 1차 키. publisher 가 enqueue 직전
    * `execution_id + node_id + status='waiting_for_input'` lookup 으로 채운다.
    *
-   * legacy publisher (Phase 1 까지) 가 미설정으로 호출할 수 있어 optional 로
-   * 두지만, Phase 2 worker 는 이 값이 없으면 fast-path 만 지원하고 rehydration
-   * 은 `RESUME_CHECKPOINT_MISSING` 으로 실패한다.
+   * 타입은 optional 이지만 worker 는 rehydration 으로만 재개하므로, 이 값이
+   * 없으면 재개가 `RESUME_CHECKPOINT_MISSING` 으로 실패한다.
    */
   nodeExecutionId?: string;
   payload?: unknown;

@@ -1,4 +1,4 @@
-import { buildExecutionStatusUpdateSql } from '../execution-engine.service';
+import { buildExecutionStatusUpdateSql } from '../execution-status-update-sql';
 import { findExecutionStatusUpdate } from './raw-update-params';
 
 /**

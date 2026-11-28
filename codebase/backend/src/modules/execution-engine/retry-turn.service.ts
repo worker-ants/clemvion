@@ -804,7 +804,7 @@ export class RetryTurnService {
    *
    * **멱등 분기가 driver 를 지나지 않는 이유(CLE-T-84YZDS)**: 상태가 이미 목표와 같으면
    * `updateExecutionStatus` 를 쓸 수 없다. 상태머신이 자기 전이를 막는다. 또 그 SET 은
-   * `error` 를 늘 덮어쓰므로(`execution-engine.service.ts` `buildExecutionStatusUpdateSql` 의
+   * `error` 를 늘 덮어쓰므로(`execution-status-update-sql.ts` `buildExecutionStatusUpdateSql` 의
    * 쓰기 범위 계약) 취소 분기가 지나면 먼저 쓴 취소의 `error` 가 지워진다. 그래서 두 멱등
    * 분기는 필요한 lifecycle 컬럼만 직접 UPDATE 한다. 취소 분기는 `error` 를 쓰지 않고 FAILED ·
    * COMPLETED 분기는 이번 시도의 `error` 를 쓴다. 종결 메트릭

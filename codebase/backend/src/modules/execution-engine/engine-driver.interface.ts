@@ -32,14 +32,15 @@ import type {
  * (`AiTurnEngineDriver` / `InteractionEngineDriver` / `RetryEngineDriver`) 주입받는다.
  * 런타임 바인딩(`ENGINE_DRIVER` useExisting)·동작은 불변 — 컴파일 타임 가시성만 좁힌다.
  * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이며,
- * step4 멤버는 impl 측과 대칭으로 `@internal` 을 명시한다.
+ * 엔진 내부 전용 멤버(`RetryEngineDriver` 의 고유 멤버)는 impl 측과 대칭으로
+ * `@internal` 을 명시한다.
  *
  * 멤버 목록의 정본은 이 파일의 타입 정의다. 주석과 스펙에는 멤버 수를 적지 않는다
  * (CLE-EXEC-ENGINE Rationale 도 같은 기준이다). 멤버를 더하거나 옮길 때는:
  *   1. 그 멤버를 실제로 호출하는 소비자의 부분 인터페이스에 둔다. 둘 이상이 쓰면
  *      공통 부모(`CoreEngineDriver` · `ReentryStateDriver`)로 올린다.
- *   2. `ExecutionEngineService` 에 같은 시그니처를 구현한다. step4 멤버처럼 엔진
- *      내부 전용이면 양쪽에 `@internal` 을 단다.
+ *   2. `ExecutionEngineService` 에 같은 시그니처를 구현한다. 엔진 내부 전용
+ *      멤버면 양쪽에 `@internal` 을 단다.
  *   3. 합집합 `EngineDriver` 는 `extends` 로만 묶으므로 따로 고치지 않는다.
  */
 export interface CoreEngineDriver {
@@ -221,8 +222,8 @@ export interface AiTurnEngineDriver
 
 /**
  * C-1 step4 — `RetryTurnService` 가 소비하는 표면 — core + reentry-state +
- * graph rebuild / dispatch loop / context rehydration / cache 정리. step4 멤버
- * 5개는 `@internal`(엔진 내부 전용, 모듈 외부 직접 참조 금지).
+ * graph rebuild / dispatch loop / context rehydration / cache 정리. 이 인터페이스의
+ * 고유 멤버는 `@internal`(엔진 내부 전용, 모듈 외부 직접 참조 금지)이다.
  */
 export interface RetryEngineDriver
   extends CoreEngineDriver, ReentryStateDriver {

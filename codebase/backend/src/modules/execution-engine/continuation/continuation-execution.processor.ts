@@ -135,9 +135,8 @@ export class ContinuationExecutionProcessor extends WorkerHost {
       }
     }
 
-    // 단일 dispatch table — 옛 registerContinuationHandlers 의 5 case 와 일치.
-    // Engine 메서드는 fast path (Map hit) 와 slow path (rehydration) 를 자체
-    // 분기해 처리한다.
+    // 단일 dispatch table. Engine 메서드는 모두 §7.5 rehydration 경로로 재개한다
+    // (in-memory resolver 는 없다).
     switch (type) {
       case 'continue':
         await this.engine.applyContinuation(
@@ -147,10 +146,10 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         );
         break;
       case 'cancel':
-        // Phase B (PR-B1) — applyCancellation 은 async. in-memory 코루틴 생존 시
-        // rejectPending(동기 완료), park-release 로 코루틴 없을 시 durable WAITING
-        // 행을 직접 CANCELLED 마감(async DB write). process() 가 반환 전에 cancel
-        // 완료를 await 해 job ack 시점에 terminal 마킹을 보장한다.
+        // applyCancellation 은 durable WAITING 행을 직접 CANCELLED 로 마감한다
+        // (async DB write. park 가 코루틴을 늘 해제하므로 깨울 코루틴이 없다).
+        // process() 가 반환 전에 cancel 완료를 await 해 job ack 시점에 terminal
+        // 마킹을 보장한다.
         // 동일 executionId 의 cancel vs resume 동시 픽업 순서 경합은
         // claimResumeEntry 원자 claim + WAITING_FOR_INPUT andWhere 멱등
         // 가드 + BullMQ jobId 멱등성이 흡수한다.
