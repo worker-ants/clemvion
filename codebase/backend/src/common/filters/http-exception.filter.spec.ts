@@ -455,6 +455,125 @@ describe('GlobalExceptionFilter', () => {
       expect(bodyOf(json).error.message).toBe('Invalid webhook payload');
       expect(error).not.toHaveBeenCalled();
     });
+
+    it('로그의 두 번째 인자로 예외의 stack 을 넘긴다', () => {
+      const { host } = mockHost();
+      const exception = new BadGatewayException({
+        code: 'CHAT_CHANNEL_SETUP_FAILED',
+        message: 'upstream refused',
+      });
+      new GlobalExceptionFilter().catch(exception, host);
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [, stack] = errorSpy.mock.calls[0] as [string, string | undefined];
+      expect(stack).toBeDefined();
+      expect(stack).toBe(exception.stack);
+    });
+
+    it('로그에는 message 만 남기고 details 는 남기지 않는다', () => {
+      const { host } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new InternalServerErrorException({
+          code: 'OAUTH_CONFIG_MISSING',
+          message: 'not configured',
+          details: { env: 'DETAILS_ONLY_MARKER' },
+        }),
+        host,
+      );
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(errorSpy.mock.calls[0])).not.toContain(
+        'DETAILS_ONLY_MARKER',
+      );
+    });
+
+    // 가림 경계는 `status >= 500` 이다. 499 는 Nest 표준 예외가 없어 HttpException 으로 만든다.
+    it.each([
+      { status: 499, masked: false },
+      { status: 500, masked: true },
+      { status: 501, masked: true },
+      { status: 599, masked: true },
+    ])(
+      '상태 $status 의 가림 여부는 $masked 다',
+      ({ status: httpStatus, masked }) => {
+        const { host, status, json } = mockHost();
+        new GlobalExceptionFilter().catch(
+          new HttpException(
+            {
+              code: 'BOUNDARY_CODE',
+              message: 'boundary original text',
+              details: { hint: 'boundary details' },
+            },
+            httpStatus,
+          ),
+          host,
+        );
+
+        expect(status).toHaveBeenCalledWith(httpStatus);
+        const body = bodyOf(json);
+        expect(body.error.code).toBe('BOUNDARY_CODE');
+        if (masked) {
+          expect(body.error.message).toBe(MASKED);
+          expect(body.error.details).toBeUndefined();
+          expect(errorSpy).toHaveBeenCalledTimes(1);
+        } else {
+          expect(body.error.message).toBe('boundary original text');
+          expect(body.error.details).toEqual({ hint: 'boundary details' });
+          expect(errorSpy).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    it('code 없는 5xx 객체 응답은 INTERNAL_ERROR 로 두고 message · details 를 가린다', () => {
+      const { host, status, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new HttpException(
+          {
+            message: 'redis at 10.0.0.7:6379 refused',
+            details: { host: '10.0.0.7' },
+          },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        ),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(503);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.message).toBe(MASKED);
+      expect(body.error.details).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain('10.0.0.7');
+      expect(String(errorSpy.mock.calls[0][0])).toContain('10.0.0.7');
+    });
+
+    it.each([
+      { status: HttpStatus.BAD_REQUEST, code: 'VALIDATION_ERROR' },
+      { status: HttpStatus.UNAUTHORIZED, code: 'AUTH_REQUIRED' },
+      { status: HttpStatus.FORBIDDEN, code: 'FORBIDDEN' },
+      { status: HttpStatus.NOT_FOUND, code: 'RESOURCE_NOT_FOUND' },
+      { status: HttpStatus.CONFLICT, code: 'RESOURCE_CONFLICT' },
+      { status: HttpStatus.UNPROCESSABLE_ENTITY, code: 'INVALID_STATE' },
+      { status: HttpStatus.TOO_MANY_REQUESTS, code: 'RATE_LIMITED' },
+    ])(
+      '4xx($status) 는 message · details 를 그대로 싣고 error 로그를 남기지 않는다',
+      ({ status: httpStatus, code }) => {
+        const { host, status, json } = mockHost();
+        new GlobalExceptionFilter().catch(
+          new HttpException(
+            { message: 'client facing text', details: { field: 'name' } },
+            httpStatus,
+          ),
+          host,
+        );
+
+        expect(status).toHaveBeenCalledWith(httpStatus);
+        const body = bodyOf(json);
+        expect(body.error.code).toBe(code);
+        expect(body.error.message).toBe('client facing text');
+        expect(body.error.details).toEqual({ field: 'name' });
+        expect(errorSpy).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it('defaults unknown errors to 500 INTERNAL_ERROR', () => {
