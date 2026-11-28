@@ -10,6 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { S3Service } from '../../common/services/s3.service';
+import { AUTH_ERROR_BODIES } from '../auth/auth-error-bodies';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { User } from './entities/user.entity';
 import {
@@ -333,8 +334,7 @@ export class UsersService {
     const matches = await comparePassword(currentPassword, user.passwordHash);
     if (!matches) {
       throw new UnauthorizedException({
-        code: PASSWORD_VERIFY_CODES.INVALID,
-        message: 'The password is incorrect.',
+        ...AUTH_ERROR_BODIES.passwordInvalid,
       });
     }
 

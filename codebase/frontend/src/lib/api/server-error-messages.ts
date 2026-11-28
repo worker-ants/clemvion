@@ -8,7 +8,7 @@ import { extractApiCode, extractApiMessage, type ApiErrorBody } from "./errors";
  *
  * 인증 · 세션 · 워크스페이스 가드처럼 여러 화면이 같은 뜻으로 받는 코드만 두고 키는 모두 `errors.codes.*` 다. 한
  * 화면에서만 다르게 읽어야 하는 코드는 그 화면이 `overrides` 로 먼저 고르고(예: 통합 화면의 역할 거부, 이메일 인증
- * 화면의 `VALIDATION_ERROR`), 여기 없는 코드는 서버 문구를 그대로 보인다.
+ * · 비밀번호 재설정 화면의 `VALIDATION_ERROR`), 여기 없는 코드는 서버 문구를 그대로 보인다.
  *
  * 5xx 응답의 `message` 는 전역 예외 필터가 고정 문구로 바꾼다(NERV CLE-API-ERROR, Task CLE-T-KKJ2A0). 그래서
  * 작성자가 문구로 원인을 알리던 5xx 코드(`OAUTH_CONFIG_MISSING`)와 `INTERNAL_ERROR` 는 여기서 문구를 고른다.
