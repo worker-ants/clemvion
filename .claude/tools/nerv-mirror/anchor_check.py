@@ -18,7 +18,18 @@ slug 규칙: 프런트 docs 가드(`codebase/frontend/src/lib/docs/__tests__/spe
 내용, 링크는 글자, `_강조_` · `**강조**` 표시는 지운다) 소문자로 바꾼 뒤 github-slugger 가 지우는 글자
 (`slug_ranges.py`, 문장 부호 · 기호 · 제어 문자 등)를 지우고 공백을 `-` 로 바꾼다. 한글 · `_` · `-` 는
 남는다. 같은 slug 가 다시 나오면 문서 순서대로 `-1` · `-2` 를 붙인다. 제목은 ATX(`#` 줄)만 센다(스펙 문서는 ATX 제목만 쓴다. `_lib/spec_heading.py`).
-앵커의 `%XX` 는 풀어서 비교한다.
+앵커의 `%XX` 는 풀어서 비교한다. 울타리 · ATX 제목 판정은 날짜 제목 훅과 같은 `_lib/md_lines.py` 를 쓴다.
+
+제목 문구 풀기(`heading_text`)는 CommonMark 인라인 규칙을 정규식으로 근사한 것이다. 맞는 범위:
+- 확인한 범위: 2026-11-28 미러 425편의 제목 6,356개에서 프런트 mdast(`toString`) + github-slugger 결과와 같다.
+  `test_spec_anchor_check.py` 의 `SlugTableTest.test_real_mirror_headings_match_frontend_pipeline` 이 미러
+  전체를 다시 대조한다(CI `spec-link-integrity` 잡에서 돈다).
+- 다루는 것: 인라인 코드(백틱 개수 짝 · 앞뒤 한 칸 떼기), 인라인 링크 · 이미지의 글자, 자동 링크 `<scheme:…>`,
+  `*` · `_` 강조(밑줄은 낱말 경계에서만), 백슬래시 이스케이프, HTML 엔티티. 인라인 HTML 태그는 글자를 그대로
+  남긴다(mdast `toString` 도 같다).
+- 범위 밖: 참조형 링크 `[글자][이름]`(정의가 있으면 mdast 는 글자만 남기는데 여기서는 괄호째 남는다), 강조
+  구분자의 left/right flanking 세부 규칙 전부, 링크 글자 안의 중첩 대괄호. 스펙 제목이 이런 꼴을 쓰기 시작하면 위 대조 테스트가
+  빨갛게 되고 이 근사를 넓힌다.
 
 판정(링크 단위 래칫):
 - 끊긴 링크를 (링크가 있는 문서, `대상키#앵커`) 쌍으로 세어 기준선(`anchor_baseline.json`)과 비교한다.
@@ -27,8 +38,8 @@ slug 규칙: 프런트 docs 가드(`codebase/frontend/src/lib/docs/__tests__/spe
 - 기준선에 있지만 이제 이어진 링크는 알리기만 한다. `--update-baseline` 이 그 항목을 지운다(늘리지는
   않는다). 기준선은 줄어들기만 한다.
 
-기준선은 2026-11-28 도입 시점의 main(`ab1328eea`)에서 끊겨 있던 링크다. 24차 3 · 9~12번 묶음의 미러
-PR 이 고친 만큼 `--update-baseline` 으로 낮춘다.
+기준선은 2026-11-28 도입 시점의 main(`ab1328eea`)에서 끊겨 있던 링크 40개였다. 24차 미러 PR(#1850 · #1865 ·
+#1866)이 모두 고쳐 지금은 0건이다. 그래서 끊긴 링크가 하나라도 새로 생기면 실패한다.
 
 usage: anchor_check.py [--root ROOT] [--update-baseline] [--report]
 """
@@ -51,6 +62,10 @@ sys.path.insert(0, str(HERE))
 import pull  # noqa: E402  (같은 폴더의 미러 도구)
 from slug_ranges import removed  # noqa: E402  (github-slugger 가 지우는 글자 표)
 
+sys.path.insert(0, str(HERE.parents[1] / "hooks"))
+# 울타리 · ATX 제목 판정은 날짜 제목 훅(`_lib/spec_heading.py`)과 이 모듈 하나를 함께 쓴다.
+from _lib.md_lines import ATX_HEADING, lines_outside_fences  # noqa: E402
+
 BASELINE = HERE / "anchor_baseline.json"
 
 # 문서 키 → (`대상키#앵커` → 끊긴 링크 개수). 기준선 파일과 같은 꼴이다.
@@ -64,8 +79,6 @@ class Broken(NamedTuple):
     ref: str  # `대상키#앵커`
     why: str
 
-_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(?P<text>.*?))?(?:[ \t]+#+)?[ \t]*$")
-_FENCE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
 # 링크 대상: `](대상)` 의 대상. 공백 · 괄호 없는 꼴만 쓴다(`pull.LINK_RE` · `MIRROR_LINK_RE` 와 같다).
 _LINK = re.compile(r"\]\((?P<target>[^()\s]*#[^()\s]*)\)")
 _MIRROR_TARGET = re.compile(r"^(?:[^#]*/)?(?P<key>CLE-[A-Z0-9-]+)\.md$")
@@ -115,29 +128,17 @@ def slug(text: str) -> str:
 
 
 def _outside_code(body: str) -> Iterator[tuple[int, str]]:
-    """(본문 줄 번호, 줄) — 코드 블록 울타리와 그 안의 줄은 뺀다.
+    """(본문 줄 번호, 줄) — 코드 블록 울타리와 그 안의 줄은 뺀다(`_lib/md_lines.py`).
 
-    울타리 판정은 `_lib/spec_heading.py` 와 같다(CommonMark: 닫는 울타리는 같은 문자로 여는 것 이상 길이이고
-    뒤에 공백만 온다. 백틱 울타리 뒤 info 문자열에 백틱이 있으면 울타리가 아니다). 닫히지 않은 울타리는
-    CommonMark 대로 문서 끝까지 코드 블록이다. 렌더러가 그 뒤를 제목으로 만들지 않기 때문이다.
+    닫히지 않은 울타리는 CommonMark 대로 문서 끝까지 코드 블록이다. 렌더러가 그 뒤를 제목으로 만들지 않아
+    앵커도 생기지 않기 때문이다. 날짜 제목 훅은 같은 함수를 반대 정책으로 쓴다.
     """
-    fence: str | None = None
-    for no, line in enumerate(body.splitlines(), 1):
-        m = _FENCE.match(line)
-        if fence is not None:
-            if m and m.group("fence")[0] == fence[0] and len(m.group("fence")) >= len(fence) \
-                    and not line.strip()[len(m.group("fence")):].strip():
-                fence = None
-            continue
-        if m and not (m.group("fence")[0] == "`" and "`" in line[m.end():]):
-            fence = m.group("fence")
-            continue
-        yield no, line
+    return lines_outside_fences(body, unclosed_hides_rest=True)
 
 
 def headings(body: str) -> list[str]:
     """본문의 ATX 제목 문구를 나온 순서대로. 코드 블록 안의 `#` 줄은 뺀다."""
-    return [(h.group("text") or "") for _, line in _outside_code(body) if (h := _HEADING.match(line))]
+    return [(h.group("text") or "") for _, line in _outside_code(body) if (h := ATX_HEADING.match(line))]
 
 
 def heading_slugs(body: str) -> set[str]:

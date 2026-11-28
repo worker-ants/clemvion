@@ -139,6 +139,20 @@ jobs:
         if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter frontend test src/lib/docs/__tests__/
 
+      # 스펙 미러 앵커 래칫의 slug 대조(NERV Task `CLE-T-NN0DVE`). `anchor_check.py` 의 slug 표와 제목 풀기가
+      # 프런트 docs 가드(mdast + github-slugger)와 같은지 `codebase/frontend` 의 실제 라이브러리로 견준다.
+      # 아래 `spec-mirror-integrity` 잡은 sparse checkout 이라 node 모듈이 없고 harness `unittest` 잡은
+      # 프런트 의존성을 깔지 않아서 그 두 테스트가 건너뛰어졌다. 이 잡은 위 단계에서 프런트 의존성을 이미
+      # 깔았다. `ANCHOR_SLUG_REQUIRED=1` 이면 node 나 라이브러리가 없을 때 건너뛰지 않고 실패한다.
+      # harness `unittest` 잡처럼 unittest 로 돌린다. 이 파일의 `WorkflowTest` 가 `import yaml` 해서 PyYAML 만 깐다.
+      - name: spec anchor slug parity (test_spec_anchor_check.py, node 필수)
+        if: needs.changes.outputs.relevant != 'false'
+        env:
+          ANCHOR_SLUG_REQUIRED: '1'
+        run: |
+          pip install "pyyaml>=6,<7"
+          python3 -m unittest discover -s .claude/tests -p 'test_spec_anchor_check.py'
+
   # NERV 스펙 미러 무결성 (NERV 정본 전환 단계 1). `spec/CLE-*` 는 NERV 스펙의 사본이라 손으로
   # 고치지 않는다. 도구 편집은 `.claude/hooks/guard_nerv_owned_paths.py` 가 막고, 그 훅이 보지
   # 못하는 셸 · 손 편집은 여기서 `pull.py --check` 로 잡는다. 무엇을 잡고 무엇을 못 잡는지는
