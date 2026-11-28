@@ -326,7 +326,7 @@ export class UsersService {
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.REQUIRED,
         message:
-          '비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요.',
+          'This account has no password. Set one with password reset first.',
       });
     }
 
@@ -334,7 +334,7 @@ export class UsersService {
     if (!matches) {
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.INVALID,
-        message: '현재 비밀번호가 일치하지 않아요.',
+        message: 'The password is incorrect.',
       });
     }
 
