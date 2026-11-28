@@ -3,6 +3,7 @@ import {
   MakeshopApiClient,
   MakeshopAuthFailedError,
   MakeshopRateLimitedError,
+  MakeshopTokenRefreshFailedError,
   MakeshopTransportFailedError,
 } from './makeshop-api.client';
 import { IntegrationError } from '../_base/integration-handler-base';
@@ -647,6 +648,65 @@ describe('MakeshopHandler', () => {
       const details = out.error.details as Record<string, unknown>;
       expect(details.retries).toBe(2);
       expect(details.lastRetryAfterSec).toBe(5);
+    });
+
+    // CLE-T-8SCV17 — 자동 추종 뒤에도 남은 3xx 는 성공이 아니다. 판정은 `status < 200 || status >= 300` 이고
+    // 404 · 422 · 5xx 밖이라 MAKESHOP_4XX 로 나간다(REQ-MKSNODE-026).
+    it.each([301, 302, 304])(
+      'MakeShop %i — routes to error port with MAKESHOP_4XX',
+      async (status) => {
+        integrationsService.getForExecution.mockResolvedValue(
+          makeIntegration(),
+        );
+        apiClient.call.mockResolvedValue({
+          status,
+          body: null,
+          headers: {},
+          retries: 0,
+        });
+        const result = await handler.execute(
+          null,
+          {
+            integrationId: 'id',
+            resource: 'product',
+            operation: 'get-product',
+          },
+          makeContext(),
+        );
+        expect(result.port).toBe('error');
+        const out = result.output as { error: Record<string, unknown> };
+        expect(out.error.code).toBe('MAKESHOP_4XX');
+        expect(out.error.message).toBe(`MakeShop API returned ${status}`);
+        expect((result.meta as Record<string, unknown>).statusCode).toBe(
+          status,
+        );
+        expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'MAKESHOP_4XX' }),
+          }),
+        );
+      },
+    );
+
+    // CLE-T-DJGSBR — 갱신 실패 전용 타입은 연결 테스트에서만 MAKESHOP_API_ERROR 다.
+    // 노드 출력은 바꾸지 않아 분류되지 않은 예외와 같이 MAKESHOP_TRANSPORT_FAILED 로 나간다.
+    it('MakeshopTokenRefreshFailedError — node output stays MAKESHOP_TRANSPORT_FAILED', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockRejectedValue(
+        new MakeshopTokenRefreshFailedError(500, '{"error":"server_error"}'),
+      );
+      const result = await handler.execute(
+        null,
+        { integrationId: 'id', resource: 'product', operation: 'get-product' },
+        makeContext(),
+      );
+      expect(result.port).toBe('error');
+      const out = result.output as { error: Record<string, unknown> };
+      expect(out.error.code).toBe('MAKESHOP_TRANSPORT_FAILED');
+      expect(out.error.message).toContain('token refresh failed (500)');
+      expect((result.meta as Record<string, unknown>).statusCode).toBe(0);
     });
 
     it('MakeshopTransportFailedError — MAKESHOP_TRANSPORT_FAILED + statusCode 0', async () => {

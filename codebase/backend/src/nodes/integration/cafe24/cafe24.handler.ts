@@ -299,7 +299,8 @@ export class Cafe24Handler
       // 7. HTTP-level non-2xx → translate to error envelope. 401/403 already
       //    surfaced as Cafe24AuthFailedError inside the client; remaining 4xx/5xx
       //    here mean the body is preserved on `output.response` (debug aid).
-      if (result.status >= 400) {
+      //    자동 추종 뒤에도 남은 3xx 도 에러다(CLE-T-8SCV17) — `codeForStatus` 가 CAFE24_4XX 로 보낸다.
+      if (result.status < 200 || result.status >= 300) {
         const code = this.codeForStatus(result.status);
         const details: Record<string, unknown> = {
           statusCode: result.status,
@@ -555,8 +556,8 @@ export class Cafe24Handler
       throw new IntegrationError('INTEGRATION_INCOMPLETE', err.message);
     }
     if (err instanceof IntegrationError) {
-      // Pre-flight categories — re-throw to surface as node execution
-      // failure (spec §5.8 / Principle 3.1).
+      // 다시 던져 바깥 catch 로 보낸다. 바깥 catch 가 `port: 'error'` + `meta.statusCode: 0` 으로
+      // 바꾸고 `err.code` 를 그대로 싣는다(D4, CLE-NODE-INT-COMMON-ERROR).
       throw err;
     }
     // Unknown failure — surface as transport-failed for consistency.

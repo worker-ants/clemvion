@@ -378,7 +378,8 @@ export class MakeshopHandler
       // 7. HTTP-level non-2xx → translate to error envelope. 401/403 already
       //    surfaced as MakeshopAuthFailedError inside the client; remaining
       //    4xx/5xx here preserve the body on `output.response`.
-      if (result.status >= 400) {
+      //    자동 추종 뒤에도 남은 3xx 도 에러다(CLE-T-8SCV17) — `codeForStatus` 가 MAKESHOP_4XX 로 보낸다.
+      if (result.status < 200 || result.status >= 300) {
         const code = this.codeForStatus(result.status);
         const details: Record<string, unknown> = {
           statusCode: result.status,

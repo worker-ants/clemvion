@@ -173,8 +173,11 @@ App URL 을 발급하고 24시간 안에 **테스트 실행** 으로 설치를 �
 
 ### 실패 시
 
-- 4xx/5xx: `port='error'`, `output.error.code` 가 `CAFE24_404` / `CAFE24_422` / `CAFE24_4XX` / `CAFE24_5XX` 등으로 채워져요.
-- 401/403: `CAFE24_AUTH_FAILED` 로 분기됨과 동시에 통합 상태가 자동으로 `error(auth_failed)` 로 전환돼요. 통합 상세 화면에서 다시 인증해야 해요. Private 앱은 위 5) 절처럼 Cafe24 Developers 에서 테스트 실행까지 눌러야 끝나요.
+- 2xx 가 아닌 응답(3xx · 4xx · 5xx): `port='error'`, `output.error.code` 가 `CAFE24_404` / `CAFE24_422` / `CAFE24_4XX` / `CAFE24_5XX` 등으로 채워져요. 리디렉션을 따라간 뒤에도 남은 3xx 는 `CAFE24_4XX` 예요.
+- 401/403: `CAFE24_AUTH_FAILED` 로 나가고 통합 상태가 자동으로 `error` 로 바뀌어요. 403 이 권한 범위 부족 때문이면 상태 사유가 `insufficient_scope` 이고 그 밖은 `auth_failed` 예요. 코드는 둘 다 `CAFE24_AUTH_FAILED` 라서 사유는 통합 상세 화면에서 확인해요.
+  - `insufficient_scope`: **권한** 탭에 빠진 권한이 보여요. 골라서 **권한 요청** 을 눌러요.
+  - `auth_failed`: **보안** 탭의 **재인증** 을 눌러요.
+  - Private 앱은 두 경우 모두 위 5) 절처럼 Cafe24 Developers 에서 테스트 실행까지 눌러야 끝나요.
 - 429 (요청 한도 초과): wrapper 가 헤더 값만큼 자동 대기 후 최대 2회 재시도. 그래도 실패하면 `CAFE24_RATE_LIMITED`.
 - 네트워크 오류: `CAFE24_TRANSPORT_FAILED`.
 
