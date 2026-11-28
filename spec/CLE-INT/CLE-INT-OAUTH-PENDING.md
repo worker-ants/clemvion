@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-PENDING"
 title: "OAuth 연결과 토큰 갱신 — 설치 대기 행 재사용"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "20fbe05c991e1fdc6ce134f0b34bac781c5409a7d4efa32af3904d5255508ccd"
+content_hash: "6f4999a98e43a2e0171135e60f57b4ab1d156761046657c126f0638a2130b0a9"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-FH3246"
 source_paths: []
-mirror_sha256: "dc871ae08b85c47da5230ef4f121d921dd247a11fefeec727190868fd4bdbef6"
-etag: "sha256-b219550f583a0a2e5be6e7e1e1e5fffa331861793a41221f757a14349f919678"
+mirror_sha256: "463ae08fb4a388c1c8922f275afb59dae498f40ed6dc2917f4e65a10f8699593"
+etag: "sha256-994641c316c93ef05a663867425757421e64daa8c1199455f8e99047de95522d"
 ---
 ## 개요
 
@@ -59,6 +59,7 @@ etag: "sha256-b219550f583a0a2e5be6e7e1e1e5fffa331861793a41221f757a14349f919678"
 - `codebase/backend/src/modules/integrations/pending-install-reuse.ts` (설치 대기 행 재사용 판정 `pickPendingToReuse`·`resolvePendingReuse`, 설치 기한 `pendingInstallExpiresAt`, MakeShop 잠금 키 `makeshopPendingLockKey`)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/auth-step.tsx` (이름 칸과 이름 칸 에러 표시)
 - `codebase/frontend/src/lib/api/integration-error-codes.ts` (통합 에러 코드의 사전 문구 매핑, `isIntegrationNameTaken`·`formatIntegrationErrorToast`)
+- e2e: `codebase/backend/test/integration-pending-install-reuse.e2e-spec.ts` (설치 대기 행 재사용의 권한과 잠금)
 
 ## Rationale
 

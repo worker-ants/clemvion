@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR-OUTPUT"
 title: "정보 추출기 노드 — 출력 구조와 에러"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-EXTRACTOR"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-EXTRACTOR"]
 area: "CLE-NODE-AI"
-content_hash: "bb27e70886a4c833d1dad1572bd1beecd6bf631772956467317fbd02accef275"
+content_hash: "afbf28ab4595651042684da166331e99a75ffa3f9b59514f3941be565c1412e8"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "f15dc603e59ee9f8a5acae06249860450be96e9f9d09eeae82469b130e2cb9e7"
-etag: "sha256-9a429fc032d0b3e42b2f86884c67d9e2d58ebfa1477a924bc1ad645a4cfdc299"
+mirror_sha256: "90fe8ec7e630258c77f60244290256abd2a29fb89c727fe732e555024eb76230"
+etag: "sha256-e31e8cfc2a6c1697688e7895a5cda4570b46a9fb6c415f156a2977018f2012b1"
 ---
 ## 개요
 
@@ -383,7 +383,9 @@ etag: "sha256-9a429fc032d0b3e42b2f86884c67d9e2d58ebfa1477a924bc1ad645a4cfdc299"
 
 `includeSystemContext`·`systemContextSections` 는 기본값과 같으면 설정 에코에서 뺀다([AI 노드 공통](CLE-NODE-AI-COMMON.md)).
 
-### 재개 스냅샷을 구현하고 시점을 LLM 호출 전으로 고친다 (2026-11-12)
+### 재개 스냅샷을 구현하고 시점을 LLM 호출 전으로 고친다
+
+결정일: 2026-11-12
 
 재개 스냅샷은 AI 에이전트와 같은 엔진 코드가 만든다. 결정과 근거는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) Rationale 의 2026-11-12 항목에 있다.
 

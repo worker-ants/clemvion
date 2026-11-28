@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-RENDER"
 title: "채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "8b540939a0a610331f3bc456d770df71bc26ad2502af1f8ad22d2e85f1ed1f83"
+content_hash: "7c56232086eeb30b24a523faa55daec6a57c0023ac1a249468300b67dc6f5100"
 read_as: "approved_fallback"
-task: "CLE-T-P0W82J"
+task: "CLE-T-B4VSS9"
 source_paths: []
-mirror_sha256: "8312ed19af04b751f10c5985cbd6357a9064ab5f83d7ac34fe1ea9fc4281693b"
-etag: "sha256-314bbccffcb2c623f5364472835302879e8d0795f2ae5a5a644a0123d3dd4526"
+mirror_sha256: "51e13c4087f1636153057011e002d741912102a7a48231c267f6d72fb8e8a025"
+etag: "sha256-437399bc9721680ad5fb5c558d016cebd64ca21e8c210ea10babf911f2730dbd"
 ---
 ## 개요
 
@@ -31,7 +31,7 @@ etag: "sha256-314bbccffcb2c623f5364472835302879e8d0795f2ae5a5a644a0123d3dd4526"
 | `execution.waiting_for_input`(ai_conversation) | 없음 | 빈 배열(조용히 넘김). 이유는 R-CCA-6 |
 | `execution.waiting_for_input`(ai_form_render) | 없음 | `ai_conversation` 과 같이 빈 배열. 채팅 채널의 인라인 폼 처리는 후속 범위다 |
 | `execution.ai_message` | `message`(필수), `presentations?[]` | `text` 1건 이상(나눠 보낼 수 있다). `presentations` 가 있으면 표시물마다 1차 범위의 텍스트 fallback 으로 렌더해 텍스트 뒤에 하나씩 `await` 하며 보낸다(`Promise.all` 금지, rate limit 과 표시 순서). 표시 전용 네 가지(`carousel`·`table`·`chart`·`template`)는 시각형 fallback 을 다시 쓴다. `render_form`(`type === 'form'`)은 필드 목록과 답변 안내를 담은 1차 범위의 임시 텍스트다(R-CCA-13). `message` 와 `template` 표시물은 [멘션 무력화](#멘션-무력화) 규칙으로 보낸다. 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 와 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
-| `execution.completed` | 없음(`status` 만). `result.outputs` 는 EIA 에서 미구현 | `text` 1건. `languageHints.executionCompleted` |
+| `execution.completed` | 없음(`status` 만) | `text` 1건. `languageHints.executionCompleted` |
 | `execution.failed` | `error.code`, `error.details.statusCode`(다른 필드 금지) | `text` 1건. [실행 실패 안내 분류](#실행-실패-안내-분류) 결과 `(key, placeholders)` 로 `languageHints[key]` 를 찾고 자리표시자를 채운다. 시스템 의무는 [채팅 채널](CLE-CHAT-CORE.md) 이 정한다 |
 | `execution.cancelled` | `cancelledBy`, `error?.code` | `text` 1건. `error.code` 가 `RESUME_*` 접두 코드면 무엇이든(재개 실패 시스템 취소, [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)) 대화 세션 만료 안내 `languageHints.sessionExpired` 를 보내고, 그 밖은 일반 취소 안내를 보낸다. 이 안내 범위(`RESUME_*` 전부)의 기준은 이 규약이다 |
 | `execution.node.completed`(내부, 표시 전용 Presentation 만) | `node.type ∈ {template, carousel, table, chart}`, `output` | `template` 은 `output.output.rendered` 를 `text` 1건으로 보낸다([멘션 무력화](#멘션-무력화)). 실제 `extractRendered` 는 `rendered` → `payload.rendered` → `output.rendered` 를 훑어 옛 평평한 모양도 받는다. `carousel`·`table`·`chart` 는 시각형 텍스트 fallback(`renderCarouselFallback`·`renderTableFallback`·`renderChartFallback`)을 그대로 쓴다. 버튼 있는(블로킹) 경우는 버튼 입력 대기 행이 처리하므로 미리 거른다. Form 노드는 늘 블로킹이라 대상이 아니다 |
@@ -179,9 +179,11 @@ AI 에이전트 핸들러가 빈 `ai_message` 를 내지 못하게 막는 안은
 
 [채팅 채널](CLE-CHAT-CORE.md) 의 Rationale 에도 이 결정을 가리키는 항목이 있고, 근거는 이 절에 둔다.
 
-### 사용자 입력이 섞이는 본문은 멘션 알림이 울리지 않게 보낸다 (2026-11-14)
+### 사용자 입력이 섞이는 본문은 멘션 알림이 울리지 않게 보낸다
 
-2026-11-14 사람 결정이다(NERV 질문 `01a1d93a-a9dc-76d5-95a0-21a4753b0c50` 의 선택지 1, NERV Task `CLE-T-FQTQ7K`). Template 노드는 `{{ }}` 표현식으로 웹훅 본문, 폼 입력 같은 외부 값을 본문에 넣는다. AI 응답에도 사용자 발화나 도구 결과가 그대로 들어갈 수 있다. 그 안의 멘션 문법이 살아 있으면 워크플로우 작성자가 의도하지 않은 알림이 간다. Telegram 렌더러는 MarkdownV2 escape 를 해 왔지만 Slack · Discord 렌더러는 두 본문을 그대로 보냈다.
+결정일: 2026-11-14
+
+사람 결정이다(NERV 질문 `01a1d93a-a9dc-76d5-95a0-21a4753b0c50` 의 선택지 1, NERV Task `CLE-T-FQTQ7K`). Template 노드는 `{{ }}` 표현식으로 웹훅 본문, 폼 입력 같은 외부 값을 본문에 넣는다. AI 응답에도 사용자 발화나 도구 결과가 그대로 들어갈 수 있다. 그 안의 멘션 문법이 살아 있으면 워크플로우 작성자가 의도하지 않은 알림이 간다. Telegram 렌더러는 MarkdownV2 escape 를 해 왔지만 Slack · Discord 렌더러는 두 본문을 그대로 보냈다.
 
 의무는 이 규약에 두고 방법은 프로바이더 문서에 둔다. Slack 멘션은 꺾쇠 문법이라 `&` · `<` · `>` escape 로 막는다. Discord 는 발송 옵션 `allowed_mentions` 가 있어 글자를 바꾸지 않고 알림만 막는다. 방법이 프로바이더마다 달라 규약은 무엇을 막는지만 정한다.
 
@@ -193,7 +195,7 @@ escape 한 뒤에 나누는 까닭은 escape 가 본문을 늘리기 때문이�
 
 ### R-CCA-16 따라가지 않은 3xx 는 거부로 안내하지 않는다
 
-HTTP Request 노드는 따라가지 않은 3xx 응답도 `HTTP_4XX` 로 낸다. 3xx 는 서버가 요청을 거부한 결과가 아니고 노드가 리다이렉트를 따라가지 않은 결과라서 거부 안내(`executionFailedThirdParty4xx`) 대신 일반 외부 서비스 실패 안내(`executionFailedThirdParty`)를 보낸다. 3xx 전용 안내 키를 두려면 트리거 설정 DTO · 기본 문구 · 사용자 가이드를 함께 바꿔야 해서 두지 않았다. 결정의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 이고, 사람 결정은 NERV 질문 `01a1d937-d34d-7705-9f4f-7a8e1880967e` 의 1안이다(근거 NERV Task `CLE-T-43KCNP`).
+HTTP Request 노드는 따라가지 않은 3xx 응답도 `HTTP_4XX` 로 낸다. 3xx 는 서버가 요청을 거부한 결과가 아니고 노드가 리다이렉트를 따라가지 않은 결과라서 거부 안내(`executionFailedThirdParty4xx`) 대신 일반 외부 서비스 실패 안내(`executionFailedThirdParty`)를 보낸다. 3xx 전용 안내 키를 두려면 트리거 설정 DTO · 기본 문구 · 사용자 가이드를 함께 바꿔야 해서 두지 않았다. 결정의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다) 이고, 사람 결정은 NERV 질문 `01a1d937-d34d-7705-9f4f-7a8e1880967e` 의 1안이다(근거 NERV Task `CLE-T-43KCNP`).
 
 `HTTP_4XX` 가 따라가지 않은 3xx 도 담는다는 사실은 에러 코드 카탈로그에도 있다. 코드의 조건은 [에러 코드 카탈로그 — 워크플로우 실행 §6.6](../CLE-API/CLE-API-ERRCODES-EXEC.md#66-워크플로우-실행-노드-수준-런타임) 이 적고, 이름이 규칙 1 과 맞지 않는데도 유지하는 예외 등록은 [에러 코드 — 예외 · 내부 분류 · 은퇴 코드 §3](../CLE-API/CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 이 적는다.
 
@@ -209,6 +211,8 @@ Telegram 은 2026-11-15 사람 결정으로 현행 방식을 유지한다(NERV �
 
 2026-11-19 에 요구사항 문장도 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 위에서 요구사항 문장은 그대로 두고 뜻만 정한 결정을 뒤집었다. 그 결정 때문에 프로바이더 문서마다 「단어·문장 경계」를 이 규칙으로 읽으라는 보정 문장이 남았고, 문장 끝 부호를 찾는다고 잘못 읽을 여지도 있었다. 동작은 바뀌지 않는다. 고친 곳은 REQ-SLACK-018 · REQ-DISCORD-010 · REQ-TGRAM-008 과 세 프로바이더의 아웃바운드 문서다.
 
-### 실행 엔진이 내지 않는 이름을 분류 표에서 뺐다 (2026-11-26)
+### 실행 엔진이 내지 않는 이름을 분류 표에서 뺐다
 
-NERV Task `CLE-T-P0W82J` 에서 사람이 2026-11-26 에 정했다. 발행처가 없는 이름이 표에 있으면 실제로 나가는 코드처럼 읽히고 enum 과 다른 문서로 다시 번진다. 그런 이름은 모르는 코드와 같이 안내한다. 실제로 나가는 코드의 안내는 바뀌지 않는다.
+결정일: 2026-11-26
+
+NERV Task `CLE-T-P0W82J` 에서 사람이 정했다. 발행처가 없는 이름이 표에 있으면 실제로 나가는 코드처럼 읽히고 enum 과 다른 문서로 다시 번진다. 그런 이름은 모르는 코드와 같이 안내한다. 실제로 나가는 코드의 안내는 바뀌지 않는다.

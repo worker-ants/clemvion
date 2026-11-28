@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 17
+version: 18
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "621cd0d2578239de606b5e8ebdf9a20b219ed0d1f6d44937bb1a52463709cbab"
+content_hash: "65705f5a6d4e8cee2d4b12083356302cba90edaa03bfa72972159dbfc2e8cbb3"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-3WDHJT"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "04fa03356f66bb0a23e4e544ee11a4fdef246372b69f47333dc681fc8030f292"
-etag: "sha256-16037dd4dcbba7b1c4bde701ffd48e020526877c962b2de3b489cfe707dd34c4"
+mirror_sha256: "d51710e2eb00a950a6290113e55afc250f2ebc83e202bfae5cec0d77869d5fff"
+etag: "sha256-9e026efdc1c20c32bee7cf70cb8e5459cb6cd80032519a74b99b9b1234c5f596"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -201,7 +201,7 @@ flowchart TD
 
 결정일: 2026-07-07
 
-→ [웹훅 — 인증과 워크플로우 입력](CLE-TRIG-WEBHOOK-AUTH.md#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)
+→ [웹훅 — 인증과 워크플로우 입력](CLE-TRIG-WEBHOOK-AUTH.md#수신-헤더-마스킹을-저장-시점에-하는-이유)
 
 ### 본문 크기를 공개와 인증으로 나눈 이유
 

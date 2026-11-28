@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTNODE"
 title: "에러 코드 카탈로그 — 통합 노드 · MCP"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "2e76fa32f482a8d599709205106ebdd7452be1f3a838eafcc4ff9e9c9d2d57d5"
+content_hash: "2ad864d0744c593514921eb255409d7ecc6b3fbbffc26360872748cbb075850f"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-BN449Z"
 source_paths: []
-mirror_sha256: "920dba56d8bdac78b136f84d9fa4cd07f5ed23c81bfccbb5f61e72e4f132968b"
-etag: "sha256-a4994ad16b1ed0ca4141a734092c3b6410436433383a18d17d60292df441a038"
+mirror_sha256: "0fce9f3a9c8fdcf184c2ccd1daa4e300711c57a0305923aea4db1a9b0f9d0da2"
+etag: "sha256-53a0b156890b8292411c341667f4239b5ce96a128695eb147fd213a6b563021f"
 ---
 ## 개요
 
@@ -36,7 +36,7 @@ etag: "sha256-a4994ad16b1ed0ca4141a734092c3b6410436433383a18d17d60292df441a038"
 | `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` | 없음 (노드 `output.error.code`) | MakeShop API 가 2xx 가 아닌 상태로 답함. 상태별 분류와 이름의 경위는 §3. `details` 에 `statusCode` · `shopUid` · `resource` · `operation` 을, 응답에 있으면 `makeshopErrorCode` · `makeshopMessage` 도 싣는다. 서버 본문은 `output.response` 에 둔다 | [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error` 가 되고 사유는 403 에 권한 범위 부족 신호가 있으면 `insufficient_scope`, 그 밖은 `auth_failed` 다. 연결 테스트: 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 두 경우 모두 통합은 `error(auth_failed)` 가 된다. 401 · 403 이 아닌 상태는 `CAFE24_API_ERROR` 다 | [Cafe24 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24) |
 | `MAKESHOP_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error(auth_failed)` 가 된다. 연결 테스트: 첫 요청이나 다시 보낸 요청이 403 이거나, 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 갱신 거절과 다시 보낸 요청의 401 만 통합 상태를 바꾼다. 그래서 같은 403 에 노드는 통합을 `error(auth_failed)` 로 낮추고 연결 테스트는 낮추지 않는다. 이름은 두 경로가 같은 API 클라이언트를 써서 같다([통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트)). 401 · 403 이 아닌 상태는 `MAKESHOP_API_ERROR` 다 | [MakeShop 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop), [통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트) |
-| `CAFE24_TRANSPORT_FAILED` · `MAKESHOP_TRANSPORT_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 요청이 응답을 받지 못함(DNS · 연결 · 타임아웃). 노드는 API 호출 중 분류되지 않은 예외도 이 코드로 내고 `meta.statusCode` 는 0 이다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
+| `CAFE24_TRANSPORT_FAILED` · `MAKESHOP_TRANSPORT_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 요청이 응답을 받지 못함(DNS · 연결 · 타임아웃). 노드는 API 호출 중 분류되지 않은 예외도 이 코드로 내고 `meta.statusCode` 는 0 이다. 노드는 토큰 갱신 요청이 401 · 403 밖 상태로 실패할 때도 이 코드를 낸다. 이 실패는 연속 전송 실패 횟수에 세지 않는다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_RATE_LIMITED` · `MAKESHOP_RATE_LIMITED` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | 429 를 받고 재시도를 다 씀. 노드는 `details` 에 `retries` · `lastRetryAfterSec` 를 싣는다. 설치 엔드포인트의 `*_INSTALL_RATE_LIMITED`(§6.21)와 다른 코드다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_UNKNOWN_OPERATION` · `MAKESHOP_UNKNOWN_OPERATION` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | `operation` 이 메타데이터에 없음. 도구는 도구 이름의 operation 이 그 통합의 도구 목록에 없을 때 낸다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_MISSING_FIELDS` · `MAKESHOP_MISSING_FIELDS` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | 필수 필드가 비었거나 조건부 필수 제약을 어김. MakeShop 도구는 경로의 자리표시자가 채워지지 않아도 이 코드를 낸다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
@@ -44,19 +44,19 @@ etag: "sha256-a4994ad16b1ed0ca4141a734092c3b6410436433383a18d17d60292df441a038"
 | `INTEGRATION_TYPE_MISMATCH` · `INTEGRATION_NOT_CONNECTED` | 없음 (노드 `output.error.code`) | 참조한 통합의 서비스 유형이 노드와 다름 / 통합 상태가 `connected` 가 아님 | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) |
 | `INTEGRATION_INCOMPLETE` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) | 자격 증명에 서비스별 필수 필드가 없음. 연결 테스트는 설치 대기(`pending_install`) 통합에도 이 코드를 돌려준다 | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드), [통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트) |
 | `INTEGRATION_CALL_FAILED` | 없음 (노드 `output.error.code`) | 분류되지 않은 그 밖의 실패. `IntegrationError` 가 아닌 예외의 기본 코드다 | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) |
-| `INTEGRATION_SERVICE_UNAVAILABLE` | 없음 (노드 `output.error.code`) | 통합 서비스가 주입되지 않았거나 워크스페이스 컨텍스트가 없음(배포 구성 에러) | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) |
+| `INTEGRATION_SERVICE_UNAVAILABLE` | 없음 (노드 `output.error.code`) | 통합 서비스가 주입되지 않았거나 현재 워크스페이스가 없음(배포 구성 에러) | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) |
 | `INTEGRATION_AUTH_UNSUPPORTED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) | HTTP 통합의 인증 방식을 지원하지 않음 | [서비스별 인증 방식과 자격 증명 「HTTP/REST」](../CLE-INT/CLE-INT-AUTH.md#httprest) |
 | `INTEGRATION_CREDENTIALS_UNREADABLE` | 200 (연결 테스트 결과 `code`) | 저장된 자격 증명을 지금 키로 복호화하지 못함. 다시 연결해야 한다 | [통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트) |
 | `HTTP_AUTH_FAILED` · `HTTP_SERVER_ERROR` · `HTTP_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) | HTTP 통합 연결 테스트가 401 · 403 을 받음 / 5xx 를 받음 / `base_url` 이 URL 이 아니거나 연결 · 타임아웃으로 실패함. 노드의 `HTTP_*`(§6.6)와 다른 이름이다 | [서비스별 인증 방식과 자격 증명 「HTTP/REST」](../CLE-INT/CLE-INT-AUTH.md#httprest) |
 | `DB_AUTH_FAILED` · `DB_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) | Database 통합 연결 테스트가 인증 거부를 받음 / 그 밖의 이유로 연결하지 못함. 노드의 `DB_CONNECTION_ERROR`(§6.6)와 다른 이름이다 | [서비스별 인증 방식과 자격 증명 「Database」](../CLE-INT/CLE-INT-AUTH.md#database) |
 | `EMAIL_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) | SMTP 통합 연결 테스트가 서버에 연결하거나 인증하지 못함 | [서비스별 인증 방식과 자격 증명 「Email (SMTP)」](../CLE-INT/CLE-INT-AUTH.md#email-smtp) |
 | `CAFE24_INSUFFICIENT_SCOPE` | 200 (연결 테스트 결과 `code`) | Cafe24 연결 테스트가 403 을 받음(권한 범위 부족 · 앱 미설치). 통합 상태는 바꾸지 않는다. 노드는 같은 403 을 `CAFE24_AUTH_FAILED` 로 낸다(§6.21 표 아래) | [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24) |
-| `CAFE24_API_ERROR` · `MAKESHOP_API_ERROR` | 200 (연결 테스트 결과 `code`) | 인증 실패가 아닌 응답 실패다. 401 · 403 은 `*_AUTH_FAILED` · `CAFE24_INSUFFICIENT_SCOPE` 이고 토큰 갱신 요청의 실패는 이 코드가 아니다. Cafe24 · MakeShop 연결 테스트가 2xx 가 아닌 상태 가운데 401 · 403 을 뺀 나머지(429 · 5xx · 404 등)를 받음. 첫 요청이면 토큰을 갱신하지 않는다. 토큰을 갱신하고 다시 보낸 요청이면 더 시도하지 않는다. 통합 상태는 바꾸지 않는다. 받은 상태는 `message` 에 싣는다. 노드는 같은 응답을 `CAFE24_5XX` · `CAFE24_RATE_LIMITED` 같은 노드 코드로 낸다 | [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop) |
+| `CAFE24_API_ERROR` · `MAKESHOP_API_ERROR` | 200 (연결 테스트 결과 `code`) | 인증 실패가 아닌 응답 실패다. 401 · 403 은 `*_AUTH_FAILED` · `CAFE24_INSUFFICIENT_SCOPE` 다. Cafe24 · MakeShop 연결 테스트가 2xx 가 아닌 상태 가운데 401 · 403 을 뺀 나머지(429 · 5xx · 404 등)를 받음. 401 을 받아 보낸 토큰 갱신 요청이 401 · 403 밖 상태(5xx · 429 · 400 등)로 실패해도 이 코드다. 노드에서는 같은 갱신 실패가 분류되지 않은 예외라 `*_TRANSPORT_FAILED` 다. 도구 호출에서 나는 경우는 `*_CALL_FAILED` 행에 적는다. 첫 요청이면 토큰을 갱신하지 않는다. 토큰을 갱신하고 다시 보낸 요청이면 더 시도하지 않는다. 통합 상태는 바꾸지 않는다. 받은 상태는 `message` 에 싣는다. 노드는 같은 응답을 `CAFE24_5XX` · `CAFE24_RATE_LIMITED` 같은 노드 코드로 낸다 | [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop) |
 | `CAFE24_MCP_TOOL_NAME_INVALID` · `MAKESHOP_MCP_TOOL_NAME_INVALID` | 없음 (도구 결과 `error.code`) | LLM 이 부른 도구 이름에서 서버 id 나 operation 을 읽지 못함 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 | `CAFE24_MCP_NO_SESSION` · `MAKESHOP_MCP_NO_SESSION` | 없음 (도구 결과 `error.code`) | 이 실행에서 도구 목록을 만들지 않았는데 도구가 불림 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 | `CAFE24_MCP_INTEGRATION_UNKNOWN` · `MAKESHOP_MCP_INTEGRATION_UNKNOWN` | 없음 (도구 결과 `error.code`) | 도구 이름의 서버 id 에 맞는 통합이 이 실행의 도구 목록에 없음 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 | `CAFE24_MCP_TOOL_ARGS_INVALID` · `MAKESHOP_MCP_TOOL_ARGS_INVALID` | 없음 (도구 결과 `error.code`) | 도구 인자가 JSON 으로 해석되지 않음 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
-| `CAFE24_CALL_FAILED` · `MAKESHOP_CALL_FAILED` | 없음 (도구 결과 `error.code`) | 도구 호출 중 분류되지 않은 예외. 도구 경로에서만 쓰는 대체값이다. 노드는 API 호출 중 분류되지 않은 예외를 `*_TRANSPORT_FAILED` 로 낸다 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
+| `CAFE24_CALL_FAILED` · `MAKESHOP_CALL_FAILED` | 없음 (도구 결과 `error.code`) | 도구 호출 중 분류되지 않은 예외. 도구 경로에서만 쓰는 대체값이다. 노드는 API 호출 중 분류되지 않은 예외를 `*_TRANSPORT_FAILED` 로 낸다. 도구 호출 중 토큰 갱신이 401 · 403 밖 상태로 실패해도 이 코드다(Cafe24 는 갱신 큐를 거치면 `CAFE24_TRANSPORT_FAILED`) | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 
 - **경로 자리표시자 접두는 코드가 아니다(규칙 9).** Cafe24 · MakeShop 노드는 operation 경로의 자리표시자가 채워지지 않으면 메시지가 `CAFE24_UNRESOLVED_PATH_PARAM: …` · `MAKESHOP_UNRESOLVED_PATH_PARAM: …` 로 시작하는 에러를 던진다. 출력 코드는 `INTEGRATION_CALL_FAILED` 다. 이 접두로 분기하지 않는다(규칙 4). 메시지 전체는 [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드) · [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) 에 있다.
 
@@ -84,14 +84,14 @@ etag: "sha256-a4994ad16b1ed0ca4141a734092c3b6410436433383a18d17d60292df441a038"
 
 결정일: 2026-11-06
 
-NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요청이 401 · 403 이 아닌 상태로 실패해도 401 처럼 토큰을 갱신하고 다시 보냈다. 다시 보낸 요청이 5xx · 429 로 실패하면 `*_AUTH_FAILED` 로 답해 서버 장애나 호출 제한을 인증 실패로 안내했다. 정의는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md#연결-테스트는-401-만-토큰-문제로-본다-2026-11-06) 에 있다.
+NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요청이 401 · 403 이 아닌 상태로 실패해도 401 처럼 토큰을 갱신하고 다시 보냈다. 다시 보낸 요청이 5xx · 429 로 실패하면 `*_AUTH_FAILED` 로 답해 서버 장애나 호출 제한을 인증 실패로 안내했다. 정의는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md#연결-테스트는-401-만-토큰-문제로-본다) 에 있다.
 
 - **401 · 403 이 아닌 상태는 새 코드로 낸다.** 인증 실패가 아닌 새 조건이라 새 코드를 만들었다(규칙 6). 사용자가 할 일이 상태와 관계없이 «잠시 뒤 다시 시도하거나 상점 쪽 상태를 확인» 으로 같아서 코드를 하나로 묶고 받은 상태는 `message` 에 싣는다.
 - `*_TRANSPORT_FAILED` 를 쓰는 안은 기각했다. 그 코드는 응답을 받지 못한 실패다. 응답을 받은 실패까지 담으면 뜻이 갈린다.
 - 노드의 `*_RATE_LIMITED` 를 429 에 쓰는 안도 기각했다. 그 코드는 429 재시도를 다 썼다는 뜻인데 연결 테스트는 429 를 다시 시도하지 않는다. §6.21 표 아래 「빈도 제한 코드는 세 부류다」 의 구분도 흐려진다.
 - 노드처럼 `*_5XX` · `*_4XX` 로 상태를 나누는 안도 기각했다. 상태 번호 이름은 §3 예외라 새 코드의 선례가 아니다(규칙 7).
 - HTTP 통합 연결 테스트처럼 401 · 403 이 아닌 4xx 를 성공으로 보는 안도 기각했다. HTTP 통합은 사용자가 정한 주소를 부르므로 4xx 응답도 서버가 살아 있다는 신호다. Cafe24 · MakeShop 연결 테스트는 정해진 진단 주소를 부르므로 4xx 도 실패다.
-- 토큰 갱신 요청 자체가 401 · 403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 `*_TRANSPORT_FAILED` 의 뜻(응답을 받지 못한 실패)과 어긋난다. 위에서 `*_TRANSPORT_FAILED` 를 기각한 근거와 같은 어긋남이며 NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.
+- 토큰 갱신 요청 자체가 401 · 403 이 아닌 상태로 실패한 경우도 처음에는 `*_TRANSPORT_FAILED` 로 답했다. 응답을 받은 실패라 위에서 `*_TRANSPORT_FAILED` 를 기각한 근거와 어긋나 2026-11-28 에 `*_API_ERROR` 로 옮겼다(NERV Task `CLE-T-DJGSBR`). `invalid_grant`(400) 를 인증 실패로 보는 일은 NERV Task `CLE-T-S0BJBV` 가 정한다.
 
 ### 통합 · MCP · Background Runs 코드를 도메인 참조 절 6.21~6.24 로 등재했다
 
@@ -112,3 +112,4 @@ NERV Task `CLE-T-DDN3MS` 가 MCP 서버의 주소 차단(리터럴 판정 · 연
 - 이름은 `DB_HOST_BLOCKED` · `EMAIL_HOST_BLOCKED` 와 짝이다. 이름 규칙을 따르므로 §3 에 올리지 않는다.
 - AI 에이전트 노드 실행의 도구 목록 구성은 전처럼 `MCP_CONNECT_FAILED` 로 모은다. 그래서 `mcpDiagnostics.errors[].code` 에는 이 코드가 나오지 않는다.
 - 결정의 근거와 기각한 대안(파싱 실패용 `MCP_URL_INVALID`)은 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md) Rationale 「주소 차단을 `MCP_HOST_BLOCKED` 로 가른다 (2026-11-20)」 에 있다.
+

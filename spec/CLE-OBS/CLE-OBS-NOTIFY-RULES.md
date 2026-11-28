@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY-RULES"
 title: "알림 — 알림 규칙"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-NOTIFY"]
 area: "CLE-OBS"
-content_hash: "a594b28663f474a911e6615841c05a9bac11627e5552177d9f9d6f5d1f870846"
+content_hash: "4d826e32ee39c623e89bbc78c5b14a11034adb6bd93c3fd0715c9d1d2eceb07b"
 read_as: "approved_fallback"
-task: "CLE-T-42VJAY"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "de22ebe9fe192afc07755e4e5b594ce73b443706485812b2a51701fc400a33f0"
-etag: "sha256-a9d831f8cdce14f6ec93423c7a9f66df8dd0397ab7a3f45b27153fa161e2d37c"
+mirror_sha256: "f4e61445f427461ac184473baf58c47038a26543247125fb6c33a29dd5745590"
+etag: "sha256-7122c36c1c2544b8cce517eac859eaac98c62fd105508287c57901753670d05c"
 ---
 ## 개요
 
@@ -116,7 +116,9 @@ sequenceDiagram
 
 ## Rationale
 
-### 알림 규칙 컬럼 정의를 한 곳에 둔다 (2026-08-31)
+### 알림 규칙 컬럼 정의를 한 곳에 둔다
+
+결정일: 2026-08-31
 
 V016 이 만든 `alert_rule` 의 컬럼 정의가 데이터 모델 문서에 없는데도 다른 문서는 거기 있다고 가리켰다. "컬럼이 어딘가에는 적혀 있다" 는 것은 기준이 아니고 링크만 지우는 것도 문제를 숨길 뿐이다. 그래서 엔티티 정의를 한 곳에 등재했다. 지금은 이 문서의 [AlertRule](#alertrule) 이 그 자리다.
 
@@ -130,6 +132,8 @@ V016 이 만든 `alert_rule` 의 컬럼 정의가 데이터 모델 문서에 없
 
 평가 기간 안 실행이 아주 적으면 비율 지표는 흔들림이 크다. 1건 중 1건 실패(100%)가 50% 규칙을 울리면 알림을 믿을 수 없게 된다. 표본이 5건 미만이면 평가하지 않아 이런 흔들림을 누른다. 대가로 실행이 드문 워크플로우의 실패는 비율 규칙으로 잡히지 않을 수 있다.
 
-### 「평균 실행 시간」을 「평균 전체 경과」로 바꿨다 (2026-11-14)
+### 「평균 실행 시간」을 「평균 전체 경과」로 바꿨다
+
+결정일: 2026-11-14
 
 `duration` 유형의 이름만 바꿨다. 값은 그대로 완료(`completed`) 실행의 `duration_ms` 평균이라 입력 대기 시간이 들어간다. 실행 화면의 「실행 시간」은 입력 대기를 뺀 시간이라 옛 이름으로는 기준이 달라 보였다. 알림 제목과 본문도 같은 이름을 쓴다(제목 「평균 전체 경과 임계값 초과」). 이름은 [통계](CLE-OBS-STATS.md) 와 [용어 사전 — 관측과 운영](../CLE-GLOSSARY-OBS.md) 을 따른다.

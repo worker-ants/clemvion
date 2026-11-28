@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PASSKEY"
 title: "가입과 로그인 — Passkey 기능과 등록"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "c2dbd832d62e324e5a6bc72e02db60545324a50d0c77f5c02b0c2c413590e8b9"
+content_hash: "85edf0709b587f683757d954aa24b44b5babedf01e73eaa5a6980b8acc05f3c9"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-1C2JE0"
 source_paths: []
-mirror_sha256: "dc4a523a2999024eea552bf79a6ddb3d0b40e0b77ae5ae07f90a860d9b7e648c"
-etag: "sha256-96c23568bfeb703fee5489d0b2fcd9c60152610d3acffb08c0f259886b5ad2a3"
+mirror_sha256: "bb7762670c9da7861fbca62b568d097d34ac0225650b5e6dede05c584edced4c"
+etag: "sha256-2d9e86673989f8cc2eed0fafb0b5918c0e4fdb39a621280665187f49c78005f1"
 ---
 ## 개요
 
@@ -105,7 +105,7 @@ Passkey 복구 코드(`user.webauthn_recovery_codes`)를 읽고 쓰는 경로와
 - 사용자가 마지막 credential 을 지운 뒤에는 겹친 재발급 · 복구 코드 사용 · counter 역행 삭제가 있어도 복구 코드가 남지 않는다. 삭제가 아직 커밋되지 않은 등록을 보지 못하고 복구 코드를 비우는 일도 없다.
 - 같은 복구 코드를 동시에 두 번 보내면 한 번만 통과하고 다른 요청은 401 `RECOVERY_CODE_INVALID` 다.
 - counter 역행으로 마지막 credential 이 지워질 때는 복구 코드를 비우지 않는다([sign counter 역행과 동시성](CLE-ACCT-SIGNIN-PKAUTH.md#sign-counter-역행과-동시성)).
-- 잠금 대기 상한은 5초다(`SET LOCAL lock_timeout`). 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다.
+- 잠금 대기 상한은 5초다(`SET LOCAL lock_timeout`). 넘기면(PostgreSQL `55P03`) 롤백하고 503 `SERVICE_UNAVAILABLE` 로 끝난다.
 
 ## 구현 위치
 
@@ -248,7 +248,7 @@ NERV Task `CLE-T-Q6E11N` 에서 사람이 정했다(NERV 질문 `01a1d82c-12ac-7
 
 - **모든 삭제에 비밀번호만 다시 받는다.** 확인 방식 · 에러 코드 · 한도는 등록 옵션 · 복구 코드 재발급과 같고 기능 꺼짐 503 을 먼저 낸다.
 - **비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED` 로 막는다.** 2026-11-02 전에 Passkey 를 등록한 OAuth 전용 계정이다. 화면에서 비밀번호 재설정을 안내한다. 복구 코드 재발급과 같은 규칙이다.
-- **`DELETE` 를 없애고 `POST …/:id/delete` 로 옮겼다.** 이유는 [HTTP URL 규약 「본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다」](../CLE-API/CLE-API-CONV-URL.md#본문을-받아야-하는-삭제를-post-delete-로-받는다-2026-11-14) 에 있다. `DELETE` 를 남기면 토큰만으로 지우는 길이 남는다. 프런트엔드와 함께 배포한다.
+- **`DELETE` 를 없애고 `POST …/:id/delete` 로 옮겼다.** 이유는 [HTTP URL 규약 「본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다」](../CLE-API/CLE-API-CONV-URL.md#본문을-받아야-하는-삭제를-post-delete-로-받는다) 에 있다. `DELETE` 를 남기면 토큰만으로 지우는 길이 남는다. 프런트엔드와 함께 배포한다.
 - **이름 변경(`PATCH`)은 그대로 둔다.** 인증 수단을 바꾸지 않는다.
 - **기각: 마지막 credential 삭제에만 받는다.** 다른 credential 을 지우는 것도 쓰던 인증 수단을 없애고, 남은 개수에 따라 규칙이 갈린다.
 - **기각: 비밀번호 또는 TOTP 로 재인증한다.** 비밀번호만 받는 다른 민감 동작과 규칙이 갈린다(등록 옵션과 같은 이유).

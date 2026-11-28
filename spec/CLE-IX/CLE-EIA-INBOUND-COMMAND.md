@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND-COMMAND"
 title: "EIA 수신 API — 명령 제출과 에러"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-INBOUND"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-INBOUND"]
 area: "CLE-IX"
-content_hash: "4fa8d2ef797700d9a4d313d39517935ac54c76f61f33422d535663432216b340"
+content_hash: "b948b6077b396c42fd391aedb2ac5b642d1c99f24649165b904be817d67369a3"
 read_as: "approved_fallback"
-task: "CLE-T-YFVEPK"
+task: "CLE-T-B4VSS9"
 source_paths: []
-mirror_sha256: "6551f127508e77d8065d4561588ce9dff04c3562145dce3b8fbb66492698690b"
-etag: "sha256-d02d549d5d2c508fbf73050ea70393e6d332b21067ade92861c46254867a4dd2"
+mirror_sha256: "6c946b9b04573120e8f827cbcea72afdf0f024464bda489a52b99e2fb4e13f77"
+etag: "sha256-dd2b672903f0c5945a59867af3b1e9d3253af6d6fbe2fbf8a35fbf37f968f000"
 ---
 ## 개요
 
@@ -172,6 +172,18 @@ Authorization: Bearer <iext_jwt | itk_token>
 범위를 토큰(jti)으로 잡으면 `refresh-token` 으로 토큰이 바뀐 뒤의 재시도가 다른 키로 떨어져, 멱등이 보장하려는 바로 그 재시도 시나리오를 깬다. 범위를 다시 전역으로 되돌리면 위 두 축이 다시 열린다. 실행 단위로 묶은 Redis 전역 키에는 선례가 있다. 실행 엔진의 `exec:seq:<executionId>`·`exec:cont:seq:<executionId>` 가 "executionId 가 이미 전역 유일 UUID" 라는 근거로 같은 형태를 쓴다([비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md)).
 
 손상 항목의 예외를 그대로 올리면 500 이 되어 fail-open 원칙과 정반대가 된다. `req.interaction` 이 없을 때 전역 키로 조용히 대신하면 이 결정이 닫은 문을 그대로 다시 연다. 인터셉터의 다른 실패 경로(Redis 미주입·GET/SET 실패·직렬화 실패)가 모두 "멱등성을 포기하고 요청은 통과" 인 것과도 맞다.
+
+### 멱등 캐시의 GET · SET 창을 잠금으로 닫지 않는다
+
+결정일: 2026-11-28
+
+사용자 결정 질문 23 A(2026-11-28)로 정했다(NERV Task `CLE-T-7TDHC7`). [멱등 키](#멱등-키) 의 「저하 구간」 항목이 말하는 GET 과 SET 사이 창은 그대로 둔다. 본문 규칙은 바꾸지 않았다.
+
+- **창에서 생기는 일**: 같은 키의 요청 둘이 모두 GET 을 마친 뒤 SET 하면 핸들러가 두 번 돈다. 뒤에 SET 한 응답이 앞 값을 덮으므로 캐시된 응답이 바뀔 수 있다. 재현 테스트가 `idempotency.interceptor.spec.ts` 에 있다.
+- **닫지 않는 이유**: 다운스트림 중복은 두 장치가 흡수한다. 재개 진입 원자 claim 은 `waiting_for_input → running` 조건부 UPDATE 라 affected=1 인 워커만 재개한다([장애 복구와 안전 종료 — 체크포인트와 rehydration 「재개 진입 원자 claim」](../CLE-EXEC/CLE-EXEC-RECOVERY-REHYDRATE.md#재개-진입-원자-claim)). 같은 노드에 온 두 번째 명령은 입력 대기 상태 검사가 `409 STATE_MISMATCH` 로 거부한다([동시성](#동시성)). 두 명령이 모두 그 검사를 지나 큐에 들어가면 늦은 워커는 claim 이 affected=0 이라 재개하지 않고 작업을 버린다.
+- **기각한 대안 (a) `SET NX` 로 먼저 잡는 잠금**: 처리 중 상태를 뜻하는 새 응답이 필요하다. `503` · `400` 처럼 캐시하지 않는 결과에서는 잡은 키를 다시 풀어야 해 실패 경로가 늘어난다.
+- **기각한 대안 (b) 먼저 claim 하고 겹치면 `409`**: 정상 재시도가 `409` 를 받는다. 「캐시 대상은 닫힌 목록이다」가 재시도를 막지 않으려는 취지와 부딪친다.
+- 다운스트림이 이미 이중 실행을 막으므로 두 대안으로 얻는 것이 적다.
 
 ### WS 코드와 EIA 코드는 경로마다 다르게 쓴다
 

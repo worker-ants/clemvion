@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "e8702c61147ebeaecbff78129aa88eeabf29211128a5bda3f4e00979e58d4997"
+content_hash: "f0ba695dce962205983f9b8862de7db5f40168b74170b0101db1c37842b1241a"
 read_as: "approved_fallback"
-task: "CLE-T-CNGC0P"
+task: "CLE-T-3WDHJT"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "b2e17ffdae3e4130291d7f1c4f09bd9271bb620dc0df60e4cb4e98dd162b4fa5"
-etag: "sha256-bc161ac959f4397ca1da47603fef0c0c7f1b1e1e0f5451a449b2561ea045b094"
+mirror_sha256: "083b8ecedbc6dcce754b539fc5744035fcaef2c75441a2b9caf03eacdd97fed1"
+etag: "sha256-4680cce47b1c68f80cdbbf731d06a13fff7b3e0e917cecd21a1cbd264e62cad9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -270,7 +270,7 @@ SSE `error` 이벤트의 데이터는 `{code, message}` 평면 객체다. HTTP �
 
 결정일: 2026-11-13
 
-지정한 모델 설정을 찾지 못해 기본 설정으로 대신할 때 턴을 끝내지 않고 이벤트 하나로 알린다. 근거와 기각한 대안(별도 에러 코드, 알리지 않는 대체)은 [워크플로우 AI 어시스턴트 「모델 설정을 찾지 못하면 기본 설정으로 대신한다 (2026-11-13)」](CLE-WF-ASSIST.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13) 에 있다. 이 문서는 이벤트 계약만 정한다. `requestedConfigId` 는 어느 설정을 찾지 못했는지 알리려고 싣는다. 지금 프론트엔드는 이 값을 쓰지 않고 `configName` 만 토스트 문구에 넣는다.
+지정한 모델 설정을 찾지 못해 기본 설정으로 대신할 때 턴을 끝내지 않고 이벤트 하나로 알린다. 근거와 기각한 대안(별도 에러 코드, 알리지 않는 대체)은 [워크플로우 AI 어시스턴트 「모델 설정을 찾지 못하면 기본 설정으로 대신한다」](CLE-WF-ASSIST.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다) 에 있다. 이 문서는 이벤트 계약만 정한다. `requestedConfigId` 는 어느 설정을 찾지 못했는지 알리려고 싣는다. 지금 프론트엔드는 이 값을 쓰지 않고 `configName` 만 토스트 문구에 넣는다.
 
 ### 유지보수 점검
 

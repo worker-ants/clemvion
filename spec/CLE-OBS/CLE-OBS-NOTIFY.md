@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052", "REQ-NOTIFY-053", "REQ-NOTIFY-054"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "5b3504a29706c1cb08e1609384c8c1c6700bbd934e739d30759b688fa32d1e3f"
+content_hash: "6b1da27ef1acae6e58f52eb70fd9a96cd081851d949d7cd74babbfff63f249ad"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-KD2AZ2"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "0aaa679b7269a1badc3a6973ead1abbbd6aa31a0353deba3b5fb48a3c7ba943a"
-etag: "sha256-37c539f7748338836e0c6ede304408e1d399be92da122c1861390fe8e78b2c2e"
+mirror_sha256: "fbf1687a83c497078aab2988c9d57a2e423674d1ed12435ffcc9da9d589150e1"
+etag: "sha256-66e382724ad4fbc1694d9e31b60cd5b4643196343365a212a665d5b82e1a303c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,10 +42,10 @@ etag: "sha256-37c539f7748338836e0c6ede304408e1d399be92da122c1861390fe8e78b2c2e"
 - REQ-NOTIFY-003 WHEN 알림 채널이 `email` 이나 `both` 인 알림을 저장하면 THE SYSTEM SHALL 단일 범용 템플릿으로 알림 이메일을 보내고 성공하면 `email_sent_at` 을 채운다. (원본: data-flow/8 §2.2)
 - REQ-NOTIFY-004 IF 알림 이메일 발송이 실패하면 THE SYSTEM SHALL 재시도하지 않고 경고 로그를 남기며 `email_sent_at` 을 NULL 로 둔다. (원본: data-flow/8 §3)
 - REQ-NOTIFY-005 WHEN 발사원이 알림을 보내면 THE SYSTEM SHALL 수신자의 알림 설정을 발사원 쪽에서 읽어 알림 채널을 계산한다. 저장 경로는 알림 설정을 읽지 않는다. 채널을 계산하거나 받는 사람을 고르려고 알림 설정을 읽는 곳은 발사원과 일일 요약 작업뿐이고, 설정 조회 · 수정 API 는 이 제한에 들지 않는다. (원본: data-flow/8 §1)
-- REQ-NOTIFY-006 WHEN 최상위 실행이 실패로 끝나면 THE SYSTEM SHALL 워크플로우 소유자와 실행자에게 `execution_failed` 알림을 보낸다. (원본: data-flow/8 §1.1)
+- REQ-NOTIFY-006 WHEN 최상위 실행이 실패로 끝나면 THE SYSTEM SHALL 워크플로우 작성자와 실행자에게 `execution_failed` 알림을 보낸다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-007 IF 실패한 실행이 Background 본문이나 서브 워크플로우 같은 하위 실행이면 THE SYSTEM SHALL `execution_failed` 알림을 보내지 않는다. (원본: data-flow/8 §1.1)
-- REQ-NOTIFY-008 WHEN 스케줄이 실행을 시작하지 못하면 THE SYSTEM SHALL 워크플로우 소유자에게 `schedule_failed` 알림을 보낸다(예외: REQ-NOTIFY-009 · 052). (원본: data-flow/8 §1.1)
-- REQ-NOTIFY-009 IF 스케줄 대상 워크플로우에 소유자(`createdBy`)가 없으면 THE SYSTEM SHALL `schedule_failed` 알림을 건너뛴다. (원본: data-flow/8 §1.1)
+- REQ-NOTIFY-008 WHEN 스케줄이 실행을 시작하지 못하면 THE SYSTEM SHALL 워크플로우 작성자에게 `schedule_failed` 알림을 보낸다(예외: REQ-NOTIFY-009 · 052). (원본: data-flow/8 §1.1)
+- REQ-NOTIFY-009 IF 스케줄 대상 워크플로우에 작성자(`createdBy`)가 없으면 THE SYSTEM SHALL `schedule_failed` 알림을 건너뛴다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-010 WHEN `notifyOnFailure` 가 켜진 Background 본문이 실패하면 THE SYSTEM SHALL 워크스페이스 관리자 전원에게 `background_failed` 알림을 보낸다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-011 WHEN 이미 가입한 비멤버를 워크스페이스에 초대하면 THE SYSTEM SHALL 그 사용자에게 인앱 채널로만 `team_invite` 알림을 보낸다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-012 WHEN 설치한 마켓플레이스 템플릿이나 에이전트에 새 버전이 나오면 THE SYSTEM SHALL `marketplace_update` 알림을 보낸다. (원본: data-flow/8 §1.1) (미구현)
@@ -106,14 +106,16 @@ etag: "sha256-37c539f7748338836e0c6ede304408e1d399be92da122c1861390fe8e78b2c2e"
 
 | 유형 | 상태 | 발사원 | 발사 조건 | 수신자 | 알림 채널 | 딥링크 대상 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `execution_failed` | 구현됨 | `ExecutionEngineService.dispatchExecutionFailedNotification` | 최상위 실행(`!parentExecutionId`)이 `failed` 로 끝남. 초기 세그먼트(`runExecution` 의 catch)와 재개 세그먼트(`finalizeResumedExecutionOutcome`) 양쪽에서 보낸다. 대부분의 실행은 재개 세그먼트에서 끝나므로 두 경로 모두 보내야 빠지지 않는다. Background 본문·서브 워크플로우 같은 하위 실행은 `background_failed` 와 겹치지 않게 뺀다 | 워크플로우 소유자와 실행자(`executedBy`). 겹치면 한 번만 | 기본 `both`. 수신자 설정으로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `workflow` / 워크플로우 ID. 실행 단위 딥링크는 없다 |
-| `schedule_failed` | 구현됨 | `ScheduleRunnerService.dispatchScheduleFailedNotification` | 스케줄이 실행을 **시작하지 못함**(파라미터 해석·큐 등록 실패). 시작된 실행의 이후 실패는 `execution_failed` 가 맡는다. 워크플로우가 스케줄의 워크스페이스에 없어 건너뛴 발사는 보내지 않는다(REQ-NOTIFY-052). 수신자인 워크플로우 소유자가 다른 워크스페이스 사람이기 때문이다([스케줄 「다른 워크스페이스의 워크플로우」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#다른-워크스페이스의-워크플로우)) | 워크플로우 소유자(`createdBy`). 없으면 건너뛴다 | 기본 `both`. 수신자 설정으로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `workflow` / 워크플로우 ID |
+| `execution_failed` | 구현됨 | `ExecutionEngineService.dispatchExecutionFailedNotification` | 최상위 실행(`!parentExecutionId`)이 `failed` 로 끝남. 초기 세그먼트(`runExecution` 의 catch)와 재개 세그먼트(`finalizeResumedExecutionOutcome`) 양쪽에서 보낸다. 대부분의 실행은 재개 세그먼트에서 끝나므로 두 경로 모두 보내야 빠지지 않는다. Background 본문·서브 워크플로우 같은 하위 실행은 `background_failed` 와 겹치지 않게 뺀다 | 워크플로우 작성자와 실행자(`executedBy`). 겹치면 한 번만 | 기본 `both`. 수신자 설정으로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `workflow` / 워크플로우 ID. 실행 단위 딥링크는 없다 |
+| `schedule_failed` | 구현됨 | `ScheduleRunnerService.dispatchScheduleFailedNotification` | 스케줄이 실행을 **시작하지 못함**(파라미터 해석·큐 등록 실패). 시작된 실행의 이후 실패는 `execution_failed` 가 맡는다. 워크플로우가 스케줄의 워크스페이스에 없어 건너뛴 발사는 보내지 않는다(REQ-NOTIFY-052). 수신자인 워크플로우 작성자가 다른 워크스페이스 사람이기 때문이다([스케줄 「다른 워크스페이스의 워크플로우」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#다른-워크스페이스의-워크플로우)) | 워크플로우 작성자(`createdBy`). 없으면 건너뛴다 | 기본 `both`. 수신자 설정으로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `workflow` / 워크플로우 ID |
 | `background_failed` | 구현됨 | `BackgroundExecutionProcessor`(`background-execution.processor.ts`) | `config.notifyOnFailure=true` 인 Background 본문 실패([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)) | 워크스페이스 관리자 전원(`findAdminUserIds`) | `in_app` | `workflow` / 워크플로우 ID. 본문 실행 귀속은 `background_run_id` 에 따로 담는다([데이터](CLE-OBS-NOTIFY-INBOX.md#notification)) |
 | `integration_expired` | 구현됨 | `IntegrationExpiryScanner`(`integration-expiry-scanner.service.ts`) | refresh token 이 없는 통합의 토큰 만료 7일·3일·당일 임계. 조건과 문구는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 기본 `in_app`. 인앱 키와 `integrationExpiryEmail` 로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `integration` / 통합 ID |
 | `integration_action_required` | 구현됨 | `IntegrationActionRequiredNotifier.notify`(`integration-action-required-notifier.service.ts`) | 인증 실패(`auth_failed`), transport 3회 연속 실패(`network`), 권한 범위 부족(`insufficient_scope`). 인증 실패는 세 경로에서 나간다. API 호출(Cafe24·MakeShop 클라이언트의 401·403과 토큰 갱신 실패), 연결됨 통합을 `error(auth_failed)` 로 바꾼 OAuth 콜백 코드 교환 실패, MCP 도구 호출 인증 실패다. 설치 대기의 콜백 실패와 상태를 바꾸지 않는 콜백 실패는 보내지 않는다. 경로별 조건과 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](../CLE-INT/CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 같은 `integrationExpiryEmail` 토글로 계산(전용 토글 없음). 인앱은 끌 수 없다 | `integration` / 통합 ID |
 | `alert_failure_rate`, `alert_duration`, `alert_llm_cost` | 구현됨 | `AlertsEvaluatorService.dispatchBreach` | 알림 규칙 위반. 유형 값은 `alert_` + `AlertRule.type` 이다(`` `alert_${rule.type}` ``) | 워크스페이스 관리자 | 규칙 채널이 `email` 이면 `both`, 아니면 `in_app` | `resource_type='alert_rule'`. 딥링크 매핑이 없어 누르면 이동하지 않는다 |
 | `team_invite` | 구현됨 | `WorkspaceInvitationsService.dispatchTeamInviteNotification` | 초대 대상 이메일이 이미 가입한 비멤버일 때 | 초대받은 사용자. 아직 그 워크스페이스 멤버가 아니라서 벨 조회는 이 유형만 워크스페이스 조건을 따르지 않는다([알림 API](CLE-OBS-NOTIFY-INBOX.md#알림-api)) | `in_app`. 이메일은 초대 링크 이메일이 맡는다([Rationale](CLE-OBS-NOTIFY-SETTINGS.md#팀-초대-알림은-인앱-채널로만-보낸다)) | `resource_id` 는 초대 ID. 누르면 그 초대의 수락 페이지로 이동 |
 | `marketplace_update` | 미구현 | (도입하면) 마켓플레이스 모듈 | 설치한 템플릿·에이전트의 새 버전([마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md)) | — | 기본 인앱. 이메일은 도입할 때 opt-in 으로 둔다 | — |
+
+워크플로우가 비활성이라 웹훅 · 채팅 채널 · 스케줄 발사를 건너뛰면 실행이 생기지 않는다. 그래서 `execution_failed` 도 `schedule_failed` 도 보내지 않는다([트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)).
 
 통합 알림 두 유형은 성격으로 나눈다. `integration_expired` 는 토큰 만료가 다가오거나 닥쳤음을 알리는 수동적 안내다. `integration_action_required` 는 운영 중 생긴 장애라 사용자가 바로 손봐야 하는 능동적 경보다. 설치 대기가 만료되는 `install_timeout` 에는 알림을 보내지 않는다. 자세한 기준은 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) 에 있다.
 
@@ -214,6 +216,6 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 결정일: 2026-10-05
 
-스케줄의 연결 트리거가 다른 워크스페이스의 워크플로우를 가리키면(저장 경계 이전의 교차 행) Cron 발사를 건너뛴다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 이때 `schedule_failed` 의 수신자인 워크플로우 소유자는 다른 워크스페이스 사람이다. 보내면 그 사람이 남의 스케줄 실패를 받고 알림의 `workspaceId` 는 스케줄의 워크스페이스라 맞지 않는다. 재시도해도 결과가 같아 발사마다 같은 알림이 쌓인다.
+스케줄의 연결 트리거가 다른 워크스페이스의 워크플로우를 가리키면(저장 경계 이전의 교차 행) Cron 발사를 건너뛴다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 이때 `schedule_failed` 의 수신자인 워크플로우 작성자는 다른 워크스페이스 사람이다. 보내면 그 사람이 남의 스케줄 실패를 받고 알림의 `workspaceId` 는 스케줄의 워크스페이스라 맞지 않는다. 재시도해도 결과가 같아 발사마다 같은 알림이 쌓인다.
 
 스케줄 워크스페이스의 관리자 전원에게 보내는 안(REQ-NOTIFY-010 의 `background_failed` 수신자 방식)은 택하지 않았다. 교차 행은 저장 경계 이전에 남은 일회성 데이터라 운영 점검으로 찾아 정리하는 것이 맞다. 새 수신자 규칙을 두면 그 행이 사라진 뒤에도 규칙이 남는다. 그래서 연결된 워크플로우가 없을 때처럼 알림 없이 건너뛰고 서버 에러 로그를 남긴다. 연결된 워크플로우가 없을 때의 로그는 경고 등급이다. 운영 점검은 2026-10-05 에 0 행이어서 걷었고([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다)) 건너뛴 스케줄은 서버 에러 로그로만 보인다. 복합 FK 검증(V147) 뒤로 새 교차 행은 FK 를 우회한 쓰기에서만 생겨 수신자 규칙을 둘 만큼 자주 나오지 않으므로 알림을 보내지 않는 결정은 유지한다.
