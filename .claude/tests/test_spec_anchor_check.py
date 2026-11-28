@@ -11,14 +11,22 @@ slug table `slug_ranges.py` (NERV Task `CLE-T-9X3K5D`).
 - 래칫: 기준선보다 많은 (문서, 대상#앵커) 쌍은 실패, 줄어든 항목은 알림만. `--update-baseline` 은
   줄이기만 하고 새 항목을 더하지 않는다. 줄 번호는 미러 파일 기준이다.
 - slug 표는 오름차순이고 겹치지 않는다. node 와 github-slugger 가 있으면 표 전체와 미러 전체 제목
-  slug 를 프런트 라이브러리로 직접 대조한다(없으면 건너뛴다).
+  slug 를 프런트 라이브러리로 직접 대조한다. 없으면 건너뛰지만 `ANCHOR_SLUG_REQUIRED=1` 이면 실패한다.
+  CI `spec-link-integrity` 잡이 프런트 의존성을 깐 뒤 그 값으로 이 파일을 돌린다(NERV Task `CLE-T-NN0DVE`).
+- 울타리 · ATX 제목 판정: 이 도구와 날짜 제목 훅(`_lib/spec_heading.py`)이 같은 `_lib/md_lines.py` 를 쓰고
+  복제 정규식이 없다. 닫히지 않은 울타리만 정책이 다르다(이 도구는 뒤를 숨기고 훅은 센다).
+- CLI 출력: `--report` · 알림 · 통과 줄은 stdout, 실패 줄과 안내는 stderr 다. `_LINK` 는 공백 · 괄호가 든 대상을
+  보지 않는다. 읽지 못하는 미러 파일은 건너뛴다.
 - 실제 저장소 미러가 지금 검사를 통과하고, CI `spec-mirror-integrity` 잡이 sparse checkout 에서
   이 도구를 돌린다.
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -26,6 +34,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import _harness
 
@@ -36,6 +45,7 @@ FRONTEND = _harness.REPO_ROOT / "codebase" / "frontend"
 anchor_check = _harness.load_module_by_path("anchor_check_under_test", TOOL_DIR / "anchor_check.py")
 spec_heading = _harness.load_module_by_path(
     "spec_heading_under_test", _harness.REPO_ROOT / ".claude" / "hooks" / "_lib" / "spec_heading.py")
+import _lib.md_lines as md_lines  # noqa: E402  (`_harness` 가 `.claude/hooks` 를 sys.path 에 넣는다)
 slug_ranges = _harness.load_module_by_path("slug_ranges_under_test", TOOL_DIR / "slug_ranges.py")
 
 
@@ -116,8 +126,12 @@ class HeadingsTest(unittest.TestCase):
         self.assertEqual(anchor_check.headings("``` a ` b\n# c\n"), ["c"])
 
 
-class FenceParityTest(unittest.TestCase):
-    """코드 블록 울타리 판정이 `_lib/spec_heading.py` 와 같은 입력에서 같은 제목 줄을 고르는지 본다."""
+class SharedFenceTest(unittest.TestCase):
+    """울타리 · ATX 제목 판정은 `_lib/md_lines.py` 한 곳에 있고 두 도구가 그것을 쓴다(NERV Task `CLE-T-NN0DVE`).
+
+    두 도구의 차이는 닫히지 않은 울타리 정책 하나다. 앵커 래칫은 CommonMark 대로 그 뒤를 숨기고 날짜 제목
+    훅은 그 안의 줄을 센다.
+    """
 
     # 닫는 울타리 길이 · 문자 · info 백틱 · 닫히지 않은 울타리 · 들여쓰기 경계를 모두 건드린다.
     BODIES = [
@@ -128,19 +142,41 @@ class FenceParityTest(unittest.TestCase):
         "``` a`b\n## 2026-01-09 밖(울타리 아님)\n",
         "   ```\n## 2026-01-10 안\n   ```  \n## 2026-01-11 밖\n",
         "    ```\n## 2026-01-12 밖(들여쓰기 코드)\n",
-        "```\n## 2026-01-13 닫히지 않음\n",
-        "```\n```x\n## 2026-01-14 안(닫는 울타리 아님)\n```\n",
+        "## 2026-01-13 밖 ##\n```\n## 2026-01-14 닫히지 않음\n",
+        "```\n```x\n## 2026-01-15 안(닫는 울타리 아님)\n```\n",
     ]
 
-    def test_same_date_headings_outside_fences(self):
+    def test_both_tools_use_the_shared_helper(self):
+        for name, mod in (("anchor_check", anchor_check), ("spec_heading", spec_heading)):
+            with self.subTest(module=name):
+                self.assertIs(mod.lines_outside_fences, md_lines.lines_outside_fences)
+                self.assertIs(mod.ATX_HEADING, md_lines.ATX_HEADING)
+                # 울타리 정규식을 다시 두지 않는다(옛 `_FENCE` · `_HEADING` 복제가 돌아오면 빨갛다).
+                self.assertNotIn("{3,}", Path(mod.__file__).read_text(encoding="utf-8"))
+
+    def test_unclosed_fence_policy(self):
+        body = "# a\n```\n# b\n~~~\n# c\n"
+        self.assertEqual(list(md_lines.lines_outside_fences(body, unclosed_hides_rest=True)), [(1, "# a")])
+        self.assertEqual(list(md_lines.lines_outside_fences(body, unclosed_hides_rest=False)),
+                         [(1, "# a"), (3, "# b"), (4, "~~~"), (5, "# c")])
+
+    def test_closed_fences_do_not_depend_on_the_policy(self):
         for body in self.BODIES:
-            ours = [raw for raw in anchor_check.headings(body) if spec_heading._DATE.search(raw)]
-            lib = [line for line in spec_heading.date_headings(body)]
-            # `date_headings` 는 닫히지 않은 울타리 안의 날짜 제목도 센다(보수적). 그 경우만 다르다.
-            unclosed = body.count("```") % 2 == 1 and "닫히지 않음" in body
-            if unclosed:
-                continue
-            self.assertEqual([l.lstrip("# ").strip() for l in lib], [o.strip() for o in ours], body)
+            hide = list(md_lines.lines_outside_fences(body, unclosed_hides_rest=True))
+            keep = list(md_lines.lines_outside_fences(body, unclosed_hides_rest=False))
+            if "닫히지 않음" in body:
+                self.assertEqual(keep[:len(hide)], hide, body)
+                self.assertGreater(len(keep), len(hide), body)
+            else:
+                self.assertEqual(hide, keep, body)
+
+    def test_same_date_headings_as_the_heading_guard(self):
+        """두 도구가 같은 줄을 제목으로 본다. 닫히지 않은 울타리 안의 날짜 제목만 훅 쪽에 더 있다."""
+        for body in self.BODIES:
+            ours = [raw.strip() for raw in anchor_check.headings(body) if spec_heading._DATE.search(raw)]
+            lib = [md_lines.ATX_HEADING.match(line).group("text") for line in spec_heading.date_headings(body)]
+            extra = ["2026-01-14 닫히지 않음"] if "닫히지 않음" in body else []
+            self.assertEqual(lib, ours + extra, body)
 
 
 class LinksTest(unittest.TestCase):
@@ -154,6 +190,16 @@ class LinksTest(unittest.TestCase):
             """)
         self.assertEqual(anchor_check.anchor_links(body),
                          [(1, "../CLE-X/CLE-X-Y.md#제목"), (1, "#여기"), (1, "https://e.com/#x")])
+
+    def test_targets_with_spaces_or_parentheses_are_not_links(self):
+        """`_LINK` 는 공백 · 괄호가 없는 대상만 본다(`pull.LINK_RE` · `MIRROR_LINK_RE` 와 같다).
+
+        공백이 든 대상과 제목이 붙은 링크, 괄호가 든 대상은 검사 밖이다. 이 범위를 넓히면 이 테스트를 함께 바꾼다.
+        """
+        body = textwrap.dedent("""\
+            [a](#제 목) [b](CLE-X.md#c "제목") [c](x(1).md#d) [d](#e(f)) [e](#ok)
+            """)
+        self.assertEqual(anchor_check.anchor_links(body), [(1, "#ok")])
 
 
 class BrokenLinksTest(unittest.TestCase):
@@ -234,6 +280,51 @@ class RatchetTest(unittest.TestCase):
         self.assertEqual(fails, [])
 
 
+class OutputTest(unittest.TestCase):
+    """CLI 출력 채널. 알림 · `--report` · 통과 줄은 stdout, 실패 줄과 안내는 stderr 다(CI 로그에서 실패만 골라 보게)."""
+
+    LINE = "CLE-T-A:6: `CLE-T-A#없다` — 대상 문서에 그 제목이 없다"
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        write_mirror(Path(self.d), "CLE-T-A", "## 제목\n[x](#없다)\n", area="CLE-T")
+        self.base = Path(self.d) / "baseline.json"
+
+    def run_main(self, *args: str) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = anchor_check.main(["--root", self.d, *args], baseline_path=self.base)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_report_lists_links_in_the_baseline_on_stdout(self):
+        anchor_check.write_baseline({"CLE-T-A": {"CLE-T-A#없다": 1}}, self.base)
+        self.assertEqual(self.run_main("--report"),
+                         (0, f"{self.LINE}\nok: 앵커 링크 검사 — 끊긴 링크 1개, 기준선 1개\n", ""))
+
+    def test_without_report_only_the_summary_is_printed(self):
+        anchor_check.write_baseline({"CLE-T-A": {"CLE-T-A#없다": 1}}, self.base)
+        self.assertEqual(self.run_main(), (0, "ok: 앵커 링크 검사 — 끊긴 링크 1개, 기준선 1개\n", ""))
+
+    def test_failures_go_to_stderr(self):
+        anchor_check.write_baseline({}, self.base)
+        code, out, err = self.run_main()
+        self.assertEqual((code, out), (1, ""))
+        self.assertTrue(err.startswith(f"FAIL: {self.LINE}\n"), err)
+        self.assertIn("CLE-ENG-SPECHEADING 규칙 3", err)
+
+    def test_notes_go_to_stdout(self):
+        anchor_check.write_baseline({"CLE-T-A": {"CLE-T-A#없다": 2}}, self.base)
+        code, out, err = self.run_main()
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out.splitlines()[0],
+                         "note: CLE-T-A: `CLE-T-A#없다` 가 기준선 2개에서 1개로 줄었다 — "
+                         "기준선을 낮출 수 있다(--update-baseline)")
+
+
+SLUG_REQUIRED_ENV = "ANCHOR_SLUG_REQUIRED"
+
+
 def _node() -> str | None:
     node = shutil.which("node")
     if not node:
@@ -264,6 +355,21 @@ def _js_removed_ranges(node: str) -> list[list[int]]:
     return json.loads(r.stdout)
 
 
+def _require_node(test: unittest.TestCase) -> str:
+    """node 와 프런트 라이브러리가 있으면 node 경로. 없으면 건너뛴다.
+
+    `ANCHOR_SLUG_REQUIRED=1` 이면 건너뛰지 않고 실패한다. CI `spec-link-integrity` 잡이 프런트 의존성을 깐 뒤
+    이 값으로 이 파일을 돌린다. 그 잡에서 대조 테스트가 조용히 건너뛰어지면 slug 표가 github-slugger 와
+    어긋나도 아무도 모른다(NERV Task `CLE-T-NN0DVE`).
+    """
+    node = _node()
+    if node:
+        return node
+    if os.environ.get(SLUG_REQUIRED_ENV) == "1":
+        test.fail(f"{SLUG_REQUIRED_ENV}=1 인데 node 나 codebase/frontend 의 github-slugger · mdast 가 없다")
+    test.skipTest("node 나 github-slugger · mdast 가 없다")
+
+
 class SlugTableTest(unittest.TestCase):
     def test_table_sorted_and_disjoint(self):
         s, e = slug_ranges.STARTS, slug_ranges.ENDS
@@ -274,9 +380,7 @@ class SlugTableTest(unittest.TestCase):
                 self.assertGreater(s[i], e[i - 1] + 1)
 
     def test_table_matches_installed_github_slugger(self):
-        node = _node()
-        if not node:
-            self.skipTest("node 나 github-slugger 가 없다")
+        node = _require_node(self)
         version = json.loads(subprocess.run(
             [node, "-e", "process.stdout.write(require('fs').readFileSync("
              "require.resolve('github-slugger/package.json'), 'utf8'))"],
@@ -287,9 +391,7 @@ class SlugTableTest(unittest.TestCase):
 
     def test_real_mirror_headings_match_frontend_pipeline(self):
         """미러 전체 제목 slug 를 프런트 docs 가드와 같은 mdast + github-slugger 로 다시 구해 견준다."""
-        node = _node()
-        if not node:
-            self.skipTest("node 나 mdast 가 없다")
+        node = _require_node(self)
         script = textwrap.dedent("""\
             import fs from 'node:fs';
             import { fromMarkdown } from 'mdast-util-from-markdown';
@@ -314,11 +416,41 @@ class SlugTableTest(unittest.TestCase):
         self.assertEqual(got, want)
 
 
+class SlugRequiredTest(unittest.TestCase):
+    def test_required_env_turns_the_skip_into_a_failure(self):
+        with mock.patch(f"{__name__}._node", return_value=None):
+            with mock.patch.dict(os.environ, {SLUG_REQUIRED_ENV: "1"}):
+                with self.assertRaises(self.failureException):
+                    _require_node(self)
+            for value in ("", "0", "true"):
+                with self.subTest(value=value), mock.patch.dict(os.environ, {SLUG_REQUIRED_ENV: value}):
+                    with self.assertRaises(unittest.SkipTest):
+                        _require_node(self)
+
+    def test_node_is_returned_when_present(self):
+        with mock.patch(f"{__name__}._node", return_value="/bin/node"), \
+                mock.patch.dict(os.environ, {SLUG_REQUIRED_ENV: "1"}):
+            self.assertEqual(_require_node(self), "/bin/node")
+
+
 class WorkflowTest(unittest.TestCase):
     def _job(self):
         import yaml  # harness 테스트의 유일한 서드파티 예외(.claude/tests/README.md)
 
         return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["spec-mirror-integrity"]
+
+    def test_slug_parity_runs_where_frontend_deps_are_installed(self):
+        """slug 대조 테스트는 프런트 의존성을 깐 `spec-link-integrity` 잡에서 건너뛰지 않고 돈다(NERV Task `CLE-T-NN0DVE`)."""
+        import yaml
+
+        steps = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["spec-link-integrity"]["steps"]
+        install = next(i for i, st in enumerate(steps) if st.get("uses") == "./.github/actions/pnpm-workspace")
+        runs = [i for i, st in enumerate(steps) if "test_spec_anchor_check.py" in st.get("run", "")]
+        self.assertEqual(len(runs), 1, "slug 대조 단계가 하나 있어야 한다")
+        step = steps[runs[0]]
+        self.assertGreater(runs[0], install, "프런트 의존성을 깐 뒤에 돌아야 한다")
+        self.assertEqual(str(step.get("env", {}).get(SLUG_REQUIRED_ENV)), "1")
+        self.assertIn("frontend", steps[install]["with"]["filter"])
 
     def test_ci_job_runs_anchor_check(self):
         runs = [s.get("run", "") for s in self._job()["steps"]]

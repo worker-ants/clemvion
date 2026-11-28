@@ -18,7 +18,8 @@
   파일 추가, 미러 자리의 링크 · 다른 파일(하위 폴더 · 점 이름 `.md` · 키가 아닌 폴더 포함), `spec/`
   바로 아래의 미러가 아닌 파일 · 폴더(되살린 옛 트리, README 와 `.md` 가 아닌 점 파일은 제외), 읽을 수
   없는 파일과 이상한 frontmatter 값은 예외가 아니라 문제 줄(`test_odd_frontmatter_values_are_reported_not_raised`),
-  빈 미러, CLI 종료 코드, 출력의 제어 문자 이스케이프. `test_limitation_*` 은 문서에 적은 한계(삭제 ·
+  빈 미러, CLI 종료 코드, 출력의 제어 문자 이스케이프, `## 개요` 제목이 없는 잘린 본문(지문이 맞아도 문제.
+  NERV Task `CLE-T-0DY2QN`. fixture 문서는 모두 `## 개요` 로 시작한다). `test_limitation_*` 은 문서에 적은 한계(삭제 ·
   지문까지 맞춘 위조는 못 잡는다)를 고정한다. 한계를 없애는 변경은 이 테스트를 함께 바꾼다.
 - `TaskModeTest`: 활성 클레임 scope(키든 문서 id 든), ETag 304 면 캐시 원문으로 다시 렌더(캐시는
   다시 쓰지 않는다), 캐시가 없거나 다른 버전 · 미러 etag 가 깨졌으면 조건부 요청 없음, 조건부 요청
@@ -65,7 +66,14 @@ pull = _harness.load_module_by_path("nerv_mirror_pull_under_test", PULL_SRC)
 SECRET = "nerv_pat_TESTSECRET_0123456789abcdef"
 
 
-def md(key, *, type_="feature", area=None, parent=None, body="본문\n", crlf=False):
+# 실제 미러 문서는 모두 `## 개요` 제목이 있고 `--check` 가 그것을 본다(NERV Task `CLE-T-0DY2QN`). fixture 도 그 꼴로
+# 쓴다. `overview=False` 는 잘린 본문을 흉내 낼 때만 쓴다.
+OVERVIEW = "## 개요\n\n"
+
+
+def md(key, *, type_="feature", area=None, parent=None, body="본문\n", crlf=False, overview=True):
+    if overview:
+        body = OVERVIEW + body
     fm = {
         "id": key, "title": f"{key} 제목", "type": type_, "version": 1, "status": "draft",
         "requirements": [], "basis_superseded": False, "parent": parent,
@@ -574,6 +582,27 @@ class CheckTest(_Fixture):
         (self.spec / "CLE-VISION.md").write_text("손으로 쓴 파일\n", encoding="utf-8")
         self.assertTrue(any("frontmatter" in p for p in pull.check(self.spec)))
 
+    def test_truncated_body_without_an_overview_is_caught(self):
+        """승인본이 조각으로 잘린 경우(CLE-GLOSSARY v4, 미러 PR #1510): 지문은 자기 내용과 맞아도 `## 개요` 가 없다."""
+        fragment = ("\n\n### 상태값 표의 건강도 행을 둘로 나눴다 (2026-10-05)\n\n"
+                    "「발송·채널 건강도」 한 행을 두 행으로 나눴다.\n")
+        docs = dict(DOCS)
+        docs["specs/CLE-ACCT/CLE-ACCT-SESSION.md"] = md(
+            "CLE-ACCT-SESSION", area="CLE-ACCT", parent="CLE-ACCT", body=fragment, overview=False)
+        self.zip.write_bytes(make_zip(docs))
+        self.pull_all()
+        self.assertEqual(pull.check(self.spec), [
+            "CLE-ACCT/CLE-ACCT-SESSION.md: 본문에 `## 개요` 제목이 없다 — 잘린 본문일 수 있다. NERV 의 그 버전 "
+            "본문을 확인하고 고친 버전을 다시 pull 한다"])
+
+    def test_overview_heading_forms(self):
+        """`## 개요` 줄(뒤 공백 허용)만 개요로 본다. 다른 깊이 · 다른 문구 · 줄 중간은 개요가 아니다."""
+        cases = {"## 개요  \n": True, "> 머리\n\n## 개요\n본문\n": True, "### 개요\n": False,
+                 "## 개요와 범위\n": False, "본문 ## 개요\n": False, "": False}
+        for body, ok in cases.items():
+            with self.subTest(body=body):
+                self.assertEqual(pull.has_overview(body), ok)
+
     def test_empty_mirror_fails(self):
         self.assertEqual(len(pull.check(self.spec)), 1)
 
@@ -593,6 +622,14 @@ class CheckTest(_Fixture):
         del lines[i]
         lines.insert(i, f"mirror_sha256: {json.dumps(pull.fingerprint(text))}")
         path.write_text("\n".join(lines), encoding="utf-8")
+        self.assertEqual(pull.check(self.spec), [])
+
+    def test_limitation_a_body_cut_after_the_overview_passes(self):
+        # 문서에 적은 한계: 본문 구조는 `## 개요` 제목 줄 하나만 본다. 개요 뒤가 잘린 본문은 지나간다.
+        docs = dict(DOCS)
+        docs["specs/CLE-IX/CLE-IX.md"] = md("CLE-IX", type_="area", parent="CLE-VISION", body="")
+        self.zip.write_bytes(make_zip(docs))
+        self.pull_all()
         self.assertEqual(pull.check(self.spec), [])
 
     def test_cli_exit_code(self):

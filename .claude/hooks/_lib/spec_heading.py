@@ -15,6 +15,10 @@
 실수로 연 ``` 하나가 뒤쪽 제목을 모두 검사 밖으로 빼지 않게 하려는 것이다. 미러 기준도 같은 함수로 세므로
 기존 문서의 래칫은 어긋나지 않는다.
 
+울타리 · ATX 제목 판정은 `_lib/md_lines.py` 에 있고 미러 앵커 래칫(`anchor_check.py`)과 함께 쓴다. 이 모듈은
+`unclosed_hides_rest=False` 로 부른다. 날짜는 닫는 `#` 열을 뗀 제목 문구에서 찾는다. 닫는 `#` 열에는 숫자가
+없으니 떼기 전 줄에서 찾던 때와 결과가 같다.
+
 날짜가 제목 이름의 일부인 경우(예: 날짜로 이름 붙인 외부 API 버전)도 날짜 제목으로 센다. 훅이 문서마다
 기존 수를 기준으로 삼으므로(래칫) 이미 있는 제목은 막히지 않고, 새로 쓰는 제목은 규칙 1 을 따른다.
 """
@@ -23,36 +27,19 @@ from __future__ import annotations
 
 import re
 
-_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(?P<text>.*))?$")
-_FENCE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+from _lib.md_lines import ATX_HEADING, lines_outside_fences
+
 _DATE = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)")
 
 
 def date_headings(body: str) -> list[str]:
-    """본문의 날짜 제목 줄을 나온 순서대로(앞뒤 공백을 뗀 줄)."""
-    found: list[str] = []
-    fence: str | None = None
-    inside: list[str] = []  # 열린 울타리 안의 날짜 제목 꼴 줄. 닫히면 버리고, 끝까지 안 닫히면 센다.
-    for line in body.splitlines():
-        m = _FENCE.match(line)
-        if fence is not None:
-            # 닫는 울타리는 같은 문자로 여는 것 이상 길이이고 뒤에 공백만 온다.
-            if m and m.group("fence")[0] == fence[0] and len(m.group("fence")) >= len(fence) \
-                    and not line.strip()[len(m.group("fence")):].strip():
-                fence, inside = None, []
-            elif _is_date_heading(line):
-                inside.append(line.strip())
-            continue
-        if m and not (m.group("fence")[0] == "`" and "`" in line[m.end():]):
-            fence = m.group("fence")
-            continue
-        if _is_date_heading(line):
-            found.append(line.strip())
-    return found + inside
+    """본문의 날짜 제목 줄을 나온 순서대로(앞뒤 공백을 뗀 줄). 닫히지 않은 울타리 안의 줄은 끝에 붙는다."""
+    return [line.strip() for _, line in lines_outside_fences(body, unclosed_hides_rest=False)
+            if _is_date_heading(line)]
 
 
 def _is_date_heading(line: str) -> bool:
-    h = _HEADING.match(line)
+    h = ATX_HEADING.match(line)
     return bool(h and _DATE.search(h.group("text") or ""))
 
 

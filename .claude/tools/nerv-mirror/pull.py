@@ -43,10 +43,13 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`). 스펙의 정본은 NERV 
 - 잡는다: 미러 파일의 손편집(본문 · frontmatter), 파일 이동, 지문 없는 미러 이름 파일의 추가,
   옮겨진 문서의 옛 자리를 가리키는 링크, 미러 자리(`spec/CLE-*` · 미러 폴더 안)의 심볼릭 링크,
   `spec/` 안의 미러가 아닌 파일 · 폴더(옛 트리를 다시 만든 경우와 점 폴더 포함. `.md` 가 아닌 점
-  파일은 뺀다), 읽을 수 없는 미러 파일, 미러 0편.
+  파일은 뺀다), 읽을 수 없는 미러 파일, 미러 0편, 본문에 `## 개요` 제목 줄이 없는 미러 파일(지문이 맞아도
+  잡는다. 잘린 승인본을 그대로 받은 경우다. NERV Task `CLE-T-0DY2QN`).
 - 잡지 않는다: 미러 파일의 삭제(미러는 부분 스냅샷이다), 지문까지 다시 계산한 위조(지문은 같은
   파일 안의 값이라 **무의식적 편집 탐지**이지 변조 방지가 아니다. CI 도 PR 이 넣은 이 도구로
-  돈다), `spec/README.md` 의 손편집.
+  돈다), `spec/README.md` 의 손편집, `## 개요` 가 남은 채 뒤가 잘린 본문(본문 구조는 그 제목 줄 하나만
+  본다. 직전 미러 대비 크기 급감은 미러가 부분 스냅샷이라 견줄 기준이 없어 보지 않는다. 코드 블록 안의
+  `## 개요` 줄도 개요로 센다).
 
 HTTP 는 curl 로 부른다. Python 기본 User-Agent 는 Cloudflare 가 막는다(1010, 실측). 토큰과
 헤더는 `-K -`(stdin 설정)로 넘겨 argv 에 남기지 않는다. 설정 줄에 들어가는 값(토큰 · ETag)은
@@ -97,6 +100,8 @@ LINK_RE = re.compile(r"\]\((CLE-[A-Z0-9-]+)(#[^)\s]*)?\)")
 # 렌더한 미러 링크: ](../CLE-AREA/CLE-KEY.md#anchor) — 1 은 상대 경로, 2 는 키.
 MIRROR_LINK_RE = re.compile(r"\]\(((?:[^()\s#]*/)?(CLE-[A-Z0-9-]+)\.md)(?:#[^)\s]*)?\)")
 SOURCE_LINE_RE = re.compile(r"^>.*?원문:\s*(.+)")
+# 본문 구조 검사(`--check`). 스펙 문서는 `## 개요` · 본문 · `## Rationale` 세 부분으로 쓴다(CLE-ENG-SPECEVIDENCE).
+OVERVIEW_RE = re.compile(r"^## 개요[ \t]*$", re.MULTILINE)
 SOURCE_PATH_RE = re.compile(r"`(spec/[^`]+?\.md)`")
 # `원문:` 은 본문 머리의 인용(`>`) 줄에 있다. 인용 줄이 아니거나 머리 밖에 있는 `원문:` 은 세지 않는다.
 SOURCE_LINE_WINDOW = 5
@@ -569,6 +574,11 @@ def load_env(*, max_time: str = CURL_MAX_TIME) -> Nerv:
 
 # -- --check ---------------------------------------------------------------------
 
+def has_overview(body: str) -> bool:
+    """본문에 `## 개요` 제목 줄이 있는가. 잘린 승인본(개요 없는 조각)을 미러에서 잡는 두 번째 방어선이다."""
+    return bool(OVERVIEW_RE.search(body))
+
+
 def _rel(spec_root: Path, p: Path) -> str:
     return p.relative_to(spec_root).as_posix()
 
@@ -602,7 +612,7 @@ def stale_links(spec_root: Path, files: list[Path]) -> list[str]:
 
 
 def check(spec_root: Path) -> list[str]:
-    """미러 파일의 지문 · 위치 · 링크와 미러 자리의 링크 · 다른 파일을 검사한다. 문제 줄 목록(비면 통과)."""
+    """미러 파일의 지문 · 본문 구조 · 위치 · 링크와 미러 자리의 링크 · 다른 파일을 검사한다. 문제 줄 목록(비면 통과)."""
     files = mirror_files(spec_root)
     if not files:
         return ["미러 파일이 하나도 없다 — spec/CLE-* 가 비면 이 검사는 아무것도 지키지 않는다"]
@@ -626,6 +636,9 @@ def check(spec_root: Path) -> list[str]:
         if recorded != fingerprint(text):
             problems.append(f"{rel}: 내용이 mirror_sha256 과 다르다 — 미러는 손으로 고치지 않는다"
                             " (/nerv:spec edit 로 NERV 에서 고친 뒤 pull)")
+        if not has_overview(split_frontmatter(text)[1]):
+            problems.append(f"{rel}: 본문에 `## 개요` 제목이 없다 — 잘린 본문일 수 있다. NERV 의 그 버전 "
+                            "본문을 확인하고 고친 버전을 다시 pull 한다")
         try:
             expected = mirror_relpath(key, folder).as_posix()
         except PullError:
