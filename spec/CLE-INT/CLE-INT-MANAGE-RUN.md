@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-RUN"
 title: "통합 관리 — 사용처 · 연결 테스트 · 실행 연동"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "6b810ad60d73664e7020d351e2fc7cbcedfe0fc5a8335e94069ce5d2391662b5"
+content_hash: "b5869ac6407bfc27ce0b30882ceb4a113ecea79ca1cf942e6233053c19916784"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-S25D5H"
 source_paths: []
-mirror_sha256: "0f84b6c524ae15a20dafaa99c7a24b7ca6a420715ca597593aeedd11d0af4aa1"
-etag: "sha256-3aec2698057c62b63216c2ee8326240ee8eecf8deb6bf4a8c63b57fa8f947ab7"
+mirror_sha256: "caa85a66d8eef26312d24d916e9466bba060ca3a1f8b8672b3d038f69213ca48"
+etag: "sha256-7b13ef23bcda223fed7bc35828780e76ebf485a6fe367af2e3be758a37654b58"
 ---
 ## 개요
 
@@ -55,11 +55,7 @@ etag: "sha256-3aec2698057c62b63216c2ee8326240ee8eecf8deb6bf4a8c63b57fa8f947ab7"
 
 ## 연결 테스트
 
-| 경로 | 쓰임 |
-| --- | --- |
-| `POST /api/integrations/preview-test` | 저장 전 연결 테스트. 본문 `{ serviceType, authType, credentials }`(`PreviewTestDto`) |
-| `POST /api/integrations/:id/test` | 저장된 자격 증명으로 연결 테스트 |
-| `POST /api/integrations/:id/rotate` | 안에서 새 자격 증명으로 연결 테스트를 하고 성공할 때만 저장 |
+연결 테스트를 하는 경로는 셋이다. 저장 전 연결 테스트 `preview-test`(본문 `{ serviceType, authType, credentials }`, `PreviewTestDto`), 저장된 자격 증명으로 하는 `:id/test`, 안에서 새 자격 증명으로 테스트하고 성공할 때만 저장하는 자격 증명 교체 `:id/rotate` 다. 엔드포인트 목록은 [통합 관리 — API](CLE-INT-MANAGE-API.md#api) 가 정한다.
 
 - 결과는 `IntegrationTestResult`(`{ success, code, message }` 와 서비스별 추가 필드)다. 서비스마다 무엇을 확인하고 어떤 코드를 내는지는 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 이 정한다.
 - 실패 코드는 노드 출력의 `output.error.code` 와 다른 이름공간이다. 노드 코드와 이름이 같은 값도 연결 테스트 결과로 받았으면 연결 테스트의 정의로 읽는다. 이름이 같은 값은 두 무리다.
@@ -77,7 +73,7 @@ etag: "sha256-3aec2698057c62b63216c2ee8326240ee8eecf8deb6bf4a8c63b57fa8f947ab7"
 핸들러 실행 계약은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md) 이 정한다. 통합 쪽에서 보는 핵심은 이렇다.
 
 - 모든 통합 핸들러는 `IntegrationsService.getForExecution` 으로 자격 증명을 꺼내고 호출 결과를 그 통합과 함께 `IntegrationsService.logUsage` 로 기록한다. 개인 통합이면 조회가 [개인 통합 사용 판정](CLE-INT-MANAGE-USE.md#개인-통합-사용-판정) 을 거친다. 부르는 쪽이 넘기는 인자와 통합 서비스가 워크플로우 작성자를 구하는 방법은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다.
-- 통합을 얻기 전에 끝난 실행은 조회 거절이든 그 앞 단계의 실패든 활동 로그를 남기지 않는다. 설정의 통합 ID 가 가리키는 통합의 `last_used_at`·`last_error` 도 쓰지 않는다. 자격 증명을 읽지 못한 통합도 얻지 못한 통합으로 본다([통합 노드 공통 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)).
+- 통합을 얻기 전에 끝난 실행은 조회 거절이든 그 앞 단계의 실패든 활동 로그를 남기지 않는다. 설정의 통합 ID 가 가리키는 통합의 `last_used_at`·`last_error` 도 쓰지 않는다. 자격 증명을 읽지 못한 통합도 얻지 못한 통합으로 본다([통합 노드 공통 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다)).
 - `logUsage` 는 조회가 돌려준 통합을 인자로 받는다. 그래서 얻지 못한 통합에는 기록할 수 없다([활동 로그는 얻은 통합에만 쓴다](CLE-INT-MANAGE-USE.md#활동-로그는-얻은-통합에만-쓴다)).
 - 엔진은 노드 실행 직전에 `ExecutionContext.nodeExecutionId` 를 넣어 활동 로그의 귀속을 보장한다.
 - 실패하면 핸들러는 `IntegrationError(code, message)` 를 throw 하지 않고 `port: 'error'` 와 `output.error` 로 보낸다. 통합을 얻은 뒤의 실패면 `logUsage(통합, { status: 'failed' })` 로 기록한다. config 형식 오류(`handler.validate` 실패)만 throw 로 남는다. 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
@@ -112,11 +108,11 @@ etag: "sha256-3aec2698057c62b63216c2ee8326240ee8eecf8deb6bf4a8c63b57fa8f947ab7"
 
 ## 감사 로그
 
-통합 생성·수정·삭제·교체·재인증·공개 범위 전환을 `resource_type='integration'` 으로 기록한다. 액션은 `integration.created`, `integration.updated`, `integration.deleted`, `integration.rotated`, `integration.reauthorized`, `integration.scope_changed` 다. `integration.scope_changed` 는 개인과 조직 사이의 공개 범위 전환이며 `details { from, to }` 를 싣는다. OAuth 권한 범위 변경이 아니다. 전환이 커밋됐을 때만 남기고 통합을 만든 사람이 멤버가 아니라 거절한 전환은 남기지 않는다. 액션 카탈로그는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), 명명 규약은 [감사 action 명명](../CLE-OBS/CLE-OBS-AUDITNAME.md) 이 정한다.
+통합 생성·수정·삭제·교체·통합 재인증·공개 범위 전환을 `resource_type='integration'` 으로 기록한다. 액션은 `integration.created`, `integration.updated`, `integration.deleted`, `integration.rotated`, `integration.reauthorized`, `integration.scope_changed` 다. `integration.scope_changed` 는 개인과 조직 사이의 공개 범위 전환이며 `details { from, to }` 를 싣는다. OAuth 권한 범위 변경이 아니다. 전환이 커밋됐을 때만 남기고 통합을 만든 사람이 멤버가 아니라 거절한 전환은 남기지 않는다. 액션 카탈로그는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), 명명 규약은 [감사 action 명명](../CLE-OBS/CLE-OBS-AUDITNAME.md) 이 정한다.
 
 멤버가 나가거나 제거되면서 지운 개인 통합도 통합마다 `integration.deleted` 를 남긴다. `details` 에는 일반 삭제와 같은 `serviceType`·`name` 에 `mode` 와 `memberUserId` 를 더한다. 두 키는 같은 요청의 `member.removed` 와 같다. 나가기는 `mode='left'`, 제거는 `mode='removed'` 이고 `memberUserId` 는 나가거나 제거된 멤버다. 일반 삭제에는 두 키가 없다. 감사 행의 행위자는 나가기면 나간 멤버, 제거면 제거한 관리자다. 같은 요청의 `member.removed` 와 함께 남는다. 이 기록은 커밋 뒤 삭제 포트의 후처리가 일반 삭제와 같은 마무리로 남긴다([통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](CLE-INT-DATA.md#멤버가-나가거나-제거될-때)).
 
-`integration.reauthorized` 는 모든 재인증을 포괄하지 않는다. OAuth 제공자가 없는 통합의 reset 경로 전용이다. `reauthorize()` 가 상태를 연결됨으로 되돌리는 즉시 `details.mode='reset'` 으로 기록한다. OAuth 통합의 재인증은 `reauthorize()` 가 `oauth/begin` 에 맡기기만 하므로 시작 시점에 기록하지 않고 이어지는 콜백 완료도 현재 기록하지 않는다. OAuth 재인증 완료는 현재 감사 커버리지의 빈틈이다. 확장할 때 콜백 성공 지점에서 기록한다.
+`integration.reauthorized` 는 모든 통합 재인증을 포괄하지 않는다. OAuth 제공자가 없는 통합의 reset 경로 전용이다. `reauthorize()` 가 상태를 연결됨으로 되돌리는 즉시 `details.mode='reset'` 으로 기록한다. OAuth 통합에서는 `reauthorize()` 가 `oauth/begin` 에 맡기기만 하므로 시작 시점에 기록하지 않고 이어지는 콜백 완료도 현재 기록하지 않는다. OAuth 통합의 통합 재인증 완료는 현재 감사 커버리지의 빈틈이다. 확장할 때 콜백 성공 지점에서 기록한다.
 
 Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통합 재인증과 추가 권한 요청이 재설치 대기 표시를 남길 때도, 그 뒤 «테스트 실행» 콜백이 표시를 지우고 자격 증명을 바꿀 때도 감사 로그를 남기지 않는다. `integration.reauthorized` 는 여전히 reset 경로에서만 남는다.
 
