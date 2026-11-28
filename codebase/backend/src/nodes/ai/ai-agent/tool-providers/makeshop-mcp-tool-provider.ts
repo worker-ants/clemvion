@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { isHttpFailureStatus } from '../../../integration/_base/http-failure-status.util.js';
 import {
   ToolCall,
   ToolDef,
@@ -523,7 +524,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       });
 
       // 2xx 밖은 모두 실패다. 자동 추종 뒤에도 남은 3xx 도 에러로 본다(CLE-T-8SCV17).
-      const isHttpFailure = result.status < 200 || result.status >= 300;
+      const isHttpFailure = isHttpFailureStatus(result.status);
 
       // Usage log — success awaits; fail is fire-and-forget.
       if (ctx.nodeExecutionId && ctx.workflowId) {

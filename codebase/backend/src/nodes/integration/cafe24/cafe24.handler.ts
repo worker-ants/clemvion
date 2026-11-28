@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { isHttpFailureStatus } from '../_base/http-failure-status.util.js';
 import {
   ExecutionContext,
   NodeHandler,
@@ -300,7 +301,7 @@ export class Cafe24Handler
       //    surfaced as Cafe24AuthFailedError inside the client; remaining 4xx/5xx
       //    here mean the body is preserved on `output.response` (debug aid).
       //    자동 추종 뒤에도 남은 3xx 도 에러다(CLE-T-8SCV17) — `codeForStatus` 가 CAFE24_4XX 로 보낸다.
-      if (result.status < 200 || result.status >= 300) {
+      if (isHttpFailureStatus(result.status)) {
         const code = this.codeForStatus(result.status);
         const details: Record<string, unknown> = {
           statusCode: result.status,
