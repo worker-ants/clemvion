@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 19
+version: 20
 status: "approved"
-requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038", "REQ-EIANOTI-039", "REQ-EIANOTI-040"]
+requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038", "REQ-EIANOTI-039", "REQ-EIANOTI-040"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "4493005c7cfeb92f856ccedfc27e4b1905d2716550ab28c028eff08cfcde1e6d"
+content_hash: "2a75760a920e7002049e79e7914ad9a546f124419b1d8b7fdeeb9dedd49d54f3"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-7TDHC7"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "1bd8df543cc3620bd9d2af280efe0558ed113ed9071caf1bf9081edac96a2039"
-etag: "sha256-0021173e9d0c10119ccdcc4952734cfada280d3c534ab89d7609200e4a24e055"
+mirror_sha256: "f5bd2ae5fa6fa6f90cc9cedb722eda41bd7b7c65a6dfb42314f3833300c7062f"
+etag: "sha256-7dd45c4ca65bb0e5c085baddd30da5cfb4e70d865fdd9706889d771cb8dc77d4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -59,7 +59,6 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-029 WHEN 종결 이벤트를 보내면 THE SYSTEM SHALL 영속한 `durationMs` 를 싣고 알 수 없으면 `null` 로 둔다. (원본: §6)
 - REQ-EIANOTI-030 WHEN 입력 대기·AI 메시지 이벤트를 밖으로 보내면 THE SYSTEM SHALL 디버그 전용 필드(`llmCalls` 등 원본 LLM 요청·응답)를 깊이와 관계없이 뺀다. (원본: §6.2, §6.5)
 - REQ-EIANOTI-031 WHEN `execution.ai_message` 에 표시물이 있으면 THE SYSTEM SHALL WebSocket payload 의 `presentations[]` 를 그대로 전달한다. (원본: §6.5)
-- REQ-EIANOTI-032 WHEN `execution.completed` 를 보내면 THE SYSTEM SHALL 실행 결과 출력(`result.outputs`)을 싣는다. (원본: §6) (미구현)
 - REQ-EIANOTI-033 WHEN `waiting_for_input` 알림 웹훅을 보내면 THE SYSTEM SHALL 인터랙션 안내 블록(엔드포인트 묶음·`token`·`expiresAt`·`expectedCommands`)을 싣는다. 실제 필드 이름은 [이벤트와 payload](CLE-EIA-NOTIFY-EVENTS.md) 의 대응표가 정한다. (원본: §6.2)
 - REQ-EIANOTI-034 WHEN 트리거 조회 · 생성 · 수정 응답이 `notificationLastError` 를 돌려주면 THE SYSTEM SHALL 저장값은 두고 응답에서 자격 증명 모양을 가린다. ([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류))
 - REQ-EIANOTI-035 WHEN 시크릿 교체 유예 중에 `rotate-secret` 이 다시 호출되면 THE SYSTEM SHALL 앞서 만든 새 시크릿을 이번 새 시크릿으로 덮어쓰고 24시간 유예를 그 시각부터 다시 시작한다. ([시크릿 교체](#시크릿-교체))
@@ -73,7 +72,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 
 | 문서 | 맡는 내용 | 요구사항 |
 |---|---|---|
-| [EIA 알림 웹훅 — 이벤트와 payload](CLE-EIA-NOTIFY-EVENTS.md) | 구독 이벤트, 이벤트 봉투와 알림 웹훅 페이로드, 종결 이벤트 필드 집합, `execution.cancelled` 행동 계약, 이벤트별 payload | REQ-EIANOTI-002, 010, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033 |
+| [EIA 알림 웹훅 — 이벤트와 payload](CLE-EIA-NOTIFY-EVENTS.md) | 구독 이벤트, 이벤트 봉투와 알림 웹훅 페이로드, 종결 이벤트 필드 집합, `execution.cancelled` 행동 계약, 이벤트별 payload | REQ-EIANOTI-002, 010, 023, 024, 025, 026, 027, 028, 029, 030, 031, 033 |
 | [EIA 알림 웹훅 — 서명과 발송](CLE-EIA-NOTIFY-DELIVERY.md) | 헤더와 서명, 재시도와 실패 처리, 리다이렉트, 낡은 알림 웹훅 차단, 전달 보장, 폭주 감지 | REQ-EIANOTI-001, 003, 004, 005, 006, 007, 008, 009, 014, 015, 018, 020, 021, 022, 034, 038 |
 | [EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md) | 등록 · 발송 직전 URL 검사, userinfo 거부, 차단 대역, IPv4 를 품은 IPv6, DNS 결과 검사, 거부가 보이는 방식 | REQ-EIANOTI-011, 012, 013, 039, 040 |
 | [EIA 알림 웹훅 — 시크릿 교체](CLE-EIA-NOTIFY-SECRET.md) | 알림 서명 시크릿의 첫 발급 · 옛 평문 옮기기 · 교체 · 승격, 알림 설정 해제 때의 정리, 주 시크릿 읽기 | REQ-EIANOTI-016, 017, 019, 035, 036, 037 |
@@ -122,13 +121,21 @@ REQ-EIANOTI-020(`triggerId` 가 없거나 트리거가 삭제됐을 때 보내�
 
 마지막 시도까지 실패해도 발송 건강도만 `degraded` 로 표시하고 트리거는 끄지 않는다. EIA 알림 웹훅은 트리거의 부수 기능이다. 자동으로 끄면 본체(워크플로우 실행)까지 멈추게 되어 사용자 의도와 다를 수 있다. 저하 표시와 인앱 알림, 화면의 명시적 비활성화 버튼이 알맞고, 자동 차단에는 사용자 확인이 필요하다. 다만 2026-10-09 기준 저하 신호는 발송 건강도 배지와 `notification_last_error` 뿐이다. 발송 저하를 알리는 인앱 알림 유형은 없다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-유형)).
 
-### 알림 URL 의 userinfo 를 받지 않는다 (2026-11-20)
+### 알림 URL 의 userinfo 를 받지 않는다
+
+결정일: 2026-11-20
 
 `notification.url` 에 userinfo(`user:pass@`, `tok@`, `:pw@`)가 있으면 등록 · 수정에서 거부하고(REQ-EIANOTI-039) 이미 저장된 URL 은 보내기 직전에 실패로 기록한다(REQ-EIANOTI-040). NERV Task `CLE-T-RCQGCC` 에서 사람이 정했다(2026-11-20).
 
 - Node fetch 는 userinfo 가 든 URL 로 요청을 만들지 않는다. 그런 URL 로는 발송이 늘 실패한다.
-- 받아 두면 자격 증명이 트리거 설정과 `notification_last_error` 에 평문으로 남고 트리거 응답으로 나간다([응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](../CLE-API/CLE-API-EGRESS-TRIGGER.md#310-트리거-응답의-마지막-오류-2026-10-05)).
+- 받아 두면 자격 증명이 트리거 설정과 `notification_last_error` 에 평문으로 남고 트리거 응답으로 나간다([응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](../CLE-API/CLE-API-EGRESS-TRIGGER.md#310-트리거-응답의-마지막-오류)).
 - 기존 행은 마이그레이션하지 않는다. 트리거 응답에서 userinfo 를 가리고 보내기 직전 검사가 요청 없이 실패로 기록한다. 사용자가 URL 을 고치면 그 뒤 알림 웹훅부터 나간다.
+
+### 완료 이벤트에 실행 출력을 싣지 않는다
+
+결정일: 2026-11-28
+
+`execution.completed` 가 `result.outputs` 를 싣는다는 요구사항(옛 REQ-EIANOTI-032)을 지웠다(사용자 결정 질문 21 A, NERV Task `CLE-T-10WN9G`). 근거는 [EIA 알림 웹훅 — 이벤트와 payload 「종결 이벤트 필드를 약속한 만큼만 둔다」](CLE-EIA-NOTIFY-EVENTS.md#종결-이벤트-필드를-약속한-만큼만-둔다) 에 있다. 실행 출력은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 의 상태 조회로 받는다.
 
 ### 정본을 한 곳에 둔다
 
@@ -136,10 +143,14 @@ REQ-EIANOTI-020(`triggerId` 가 없거나 트리거가 삭제됐을 때 보내�
 
 하위 문서로 옮긴 Rationale 가운데 다른 스펙이 이 문서의 앵커로 링크하는 두 항목만 아래에 이동 안내를 남긴다. 나머지는 각 하위 문서의 Rationale 에 있다.
 
-### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)
+### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다
 
-→ [EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01)
+결정일: 2026-11-01
 
-### 공백만 있는 옛 평문도 없는 것으로 본다 (2026-11-06)
+→ [EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다)
 
-→ [EIA 알림 웹훅 — 시크릿 교체](CLE-EIA-NOTIFY-SECRET.md#공백만-있는-옛-평문도-없는-것으로-본다-2026-11-06)
+### 공백만 있는 옛 평문도 없는 것으로 본다
+
+결정일: 2026-11-06
+
+→ [EIA 알림 웹훅 — 시크릿 교체](CLE-EIA-NOTIFY-SECRET.md#공백만-있는-옛-평문도-없는-것으로-본다)
