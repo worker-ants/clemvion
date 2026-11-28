@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "50fab9b9925e7c1ae213d9de52ff92c9d6fbafe2ab29d39da17c453ba5455efb"
+content_hash: "0f570a2c23ad78982024461dc4a3ba48572b2249d2c52275577aede770481fae"
 read_as: "approved_fallback"
-task: "CLE-T-15DBHE"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "6af2f0b981651d2145751e4ea82ad6660e5ed08b33311819f0c6d181af07dbfc"
-etag: "sha256-abbc872af1af9857fdc8c1490e80369986e35b4c6ef4abd1d153d217b4ca38ba"
+mirror_sha256: "851c4e10c78fa159a96999d14ddfbef2b95914b8c0d98f9a8ea9bcba1ef623ac"
+etag: "sha256-db2f306dc8d7fe2bd27a632f1ec1dceed0e6eed51e6c26ffc438c6fc517dd765"
 ---
 > 구현 상태: 구현됨 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,7 +48,7 @@ etag: "sha256-abbc872af1af9857fdc8c1490e80369986e35b4c6ef4abd1d153d217b4ca38ba"
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | EIA 알림 웹훅 1건 발송 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (매일 반복 작업, `0 3 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 180일 지난 로그인 이력 정리 | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
 | `audit-log-pruner` | `audit-logs.module.ts` | `AuditLogPrunerService` (매일 반복 작업, `30 3 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 보존 기간(기본 365일, `AUDIT_LOG_RETENTION_DAYS`)이 지난 감사 로그 정리 | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
-| `workspace-invitations-pruner` | `workspaces.module.ts` | `WorkspaceInvitationsPrunerService` (매일 반복 작업, `0 4 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 만료·미수락 초대 정리 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
+| `workspace-invitations-pruner` | `workspaces.module.ts` | `WorkspaceInvitationsPrunerService` (매일 반복 작업, `0 4 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 만료·미수락 초대 정리 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-OPS.md#redis-와-배치) |
 | `chat-channel-token-rotator` | `triggers.module.ts` | `ChatChannelTokenRotatorService` (매시간 반복 작업) | 같은 서비스 (`@Processor`) | `chat_channel_token_v2` 의 24시간 유예 정리 | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (매시간 반복 작업). 회전 유예가 끝난 알림 서명 시크릿을 승격하는 스케줄러다. 알림 서명 시크릿(`wsk_*`)을 발급해 저장하는 `NotificationSigningSecretService` 와 다르다 | 같은 서비스 (`@Processor`) | `notification_secret_v2` 의 24시간 유예 뒤 승격 | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 종료된 실행에 남은 인터랙션 토큰을 훑어 폐기한다. 최소 1회 폐기를 보강한다(EIA-RL-06) | [External Interaction API](../CLE-IX/CLE-EIA.md) |
@@ -185,7 +185,7 @@ NERV Task `CLE-T-BAXAN4`. `alerts-evaluator` 와 `integration-expiry-scanner` �
 
 결정일: 2026-11-14
 
-NERV Task `CLE-T-GDR39Z`. 새 pub/sub 채널은 이 목록에 한 줄을 더한다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 7 을 따라 `ws:sio` 채널을 올렸다. 이 채널은 2026-08-13 에 지운 `ws:{wsId}:session:{connId}` 와 다르다([지운 키 두 개](#지운-키-두-개)). 연결 상태는 지금도 Redis 에 두지 않는다는 그 결정을 유지하고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 전달 방식을 고른 근거는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다.
+NERV Task `CLE-T-GDR39Z`. 새 pub/sub 채널은 이 목록에 한 줄을 더한다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 7 을 따라 `ws:sio` 채널을 올렸다. 이 채널은 2026-08-13 에 지운 `ws:{wsId}:session:{connId}` 와 다르다([지운 키 두 개](#지운-키-두-개)). 연결 상태는 지금도 Redis 에 두지 않는다는 그 결정을 유지하고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 전달 방식을 고른 근거는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유) 에 있다.
 
 ### 요청 빈도 제한 카운터를 Redis 에 두는 이유
 

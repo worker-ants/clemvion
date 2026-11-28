@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
-import { extractApiMessage, type ApiErrorBody } from "@/lib/api/errors";
+import {
+  serverErrorMessage,
+  type ServerErrorKeyTable,
+} from "@/lib/api/server-error-messages";
 import { establishSession } from "@/lib/auth/establish-session";
 import {
   Card,
@@ -20,6 +22,14 @@ import { useT, translate } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 const RESEND_COOLDOWN_SECONDS = 60;
+
+/**
+ * 인증 링크 확인 실패는 400 `VALIDATION_ERROR` 하나다(무효 · 만료 토큰). 공용 표보다 먼저 이 화면의 문구를 고른다.
+ * 새 에러 코드를 만들지 않고 화면 문구만 둔다(NERV Task CLE-T-7QQPK7).
+ */
+const VERIFY_ERROR_OVERRIDES: ServerErrorKeyTable = {
+  VALIDATION_ERROR: "auth.verifyEmail.linkInvalid",
+};
 
 export function VerifyEmailContent() {
   const t = useT();
@@ -52,9 +62,14 @@ export function VerifyEmailContent() {
         toast.success(translate(currentLocale, "auth.verifyEmail.verifiedToast"));
         setTimeout(() => router.push("/dashboard"), 2000);
       } catch (err) {
-        const message =
-          extractApiMessage(err as AxiosError<ApiErrorBody>) ??
-          translate(currentLocale, "auth.verifyEmail.genericFailed");
+        // 인증 실패는 400 VALIDATION_ERROR 하나라 링크 무효 · 만료를 한 문구로 안내한다. 서버 `message` 는 영문이라
+        // 보이지 않는다(NERV CLE-UI-I18N-BACKEND 규칙 5, Task CLE-T-7QQPK7).
+        const message = serverErrorMessage(
+          err,
+          (key, params) => translate(currentLocale, key, params),
+          translate(currentLocale, "auth.verifyEmail.genericFailed"),
+          VERIFY_ERROR_OVERRIDES,
+        );
         setErrorMessage(message);
         setStatus("error");
         toast.error(message);

@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY"
 title: "에이전트 메모리"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-MEMORY-001", "REQ-MEMORY-002", "REQ-MEMORY-003", "REQ-MEMORY-004", "REQ-MEMORY-005", "REQ-MEMORY-006", "REQ-MEMORY-007", "REQ-MEMORY-008", "REQ-MEMORY-009", "REQ-MEMORY-010", "REQ-MEMORY-011", "REQ-MEMORY-012", "REQ-MEMORY-013", "REQ-MEMORY-014", "REQ-MEMORY-015", "REQ-MEMORY-016", "REQ-MEMORY-017", "REQ-MEMORY-018", "REQ-MEMORY-019", "REQ-MEMORY-020", "REQ-MEMORY-021", "REQ-MEMORY-022", "REQ-MEMORY-023", "REQ-MEMORY-024", "REQ-MEMORY-025", "REQ-MEMORY-026", "REQ-MEMORY-027", "REQ-MEMORY-028", "REQ-MEMORY-029", "REQ-MEMORY-030", "REQ-MEMORY-031", "REQ-MEMORY-032", "REQ-MEMORY-033", "REQ-MEMORY-034", "REQ-MEMORY-035", "REQ-MEMORY-036", "REQ-MEMORY-037", "REQ-MEMORY-038", "REQ-MEMORY-039", "REQ-MEMORY-040", "REQ-MEMORY-041", "REQ-MEMORY-042", "REQ-MEMORY-043", "REQ-MEMORY-044", "REQ-MEMORY-045", "REQ-MEMORY-046", "REQ-MEMORY-047", "REQ-MEMORY-048", "REQ-MEMORY-049", "REQ-MEMORY-050", "REQ-MEMORY-051", "REQ-MEMORY-052", "REQ-MEMORY-053"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "b57c5f28581b2db02cee48339de0c7e35813fd91e66f273df188ea17484dd33a"
+content_hash: "c4e86b412b92d442eeeabcab423569c9fcd623ae6e1f9cb42e192d472358e059"
 read_as: "approved_fallback"
-task: "CLE-T-A4RCZ3"
+task: "CLE-T-N0K4SE"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "63485c6424d045a1ebbdab57b100a593b03f9b0c7f52a6a25e2777d45a255c62"
-etag: "sha256-4252637af119cfe7655c0f01229a121db3ed0a6cace9e566be72090ab7a1399c"
+mirror_sha256: "4408bafc62036728631d45a52611455329cf7245355b935a99664546b37f66a8"
+etag: "sha256-21a880144e9f084490c3ce5175806183325fc3a10e5da374a39a4b9e4153a7a5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -90,7 +90,7 @@ etag: "sha256-4252637af119cfe7655c0f01229a121db3ed0a6cace9e566be72090ab7a1399c"
 - REQ-MEMORY-042 IF 삭제 대상 행이 다른 워크스페이스에 속하면 THE SYSTEM SHALL 404 를 돌려준다. (원본: AGM-13)
 - REQ-MEMORY-043 WHEN 편집자 이상이 `DELETE /api/agent-memories?scopeKey=` 를 부르면 THE SYSTEM SHALL 그 범위의 메모리를 모두 영구 삭제하고 삭제 행 수를 `X-Deleted-Count` 응답 헤더에 싣는다. (원본: AGM-13)
 - REQ-MEMORY-044 WHEN 백엔드가 CORS 응답을 만들면 THE SYSTEM SHALL `exposedHeaders` 에 `X-Deleted-Count` 를 넣는다. (원본: AGM-13)
-- REQ-MEMORY-045 WHEN 워크스페이스 멤버가 사이드바를 보면 THE SYSTEM SHALL "Agent Memory" 메뉴를 보여 준다. (원본: NAV-AM-01)
+- REQ-MEMORY-045 WHEN 워크스페이스 멤버가 사이드바를 보면 THE SYSTEM SHALL "에이전트 메모리" 메뉴를 보여 준다. (원본: NAV-AM-01)
 - REQ-MEMORY-046 WHEN 관리 화면을 열면 THE SYSTEM SHALL 범위 키·건수·최신 갱신 시각의 범위 목록을 검색과 "더 보기" 페이지로 보여 준다. (원본: NAV-AM-02)
 - REQ-MEMORY-047 WHEN 사용자가 범위를 고르면 THE SYSTEM SHALL 내용·메모리 종류 배지·시각·만료 예정 시각의 메모리 목록을 종류 필터와 "더 보기" 페이지로 보여 준다. (원본: NAV-AM-03)
 - REQ-MEMORY-048 WHEN 편집자 이상이 메모리 행의 삭제를 누르면 THE SYSTEM SHALL 확인 모달을 거쳐 그 행을 삭제하고 목록을 갱신한다. (원본: NAV-AM-04)
@@ -103,7 +103,7 @@ etag: "sha256-4252637af119cfe7655c0f01229a121db3ed0a6cace9e566be72090ab7a1399c"
 ## 하위 문서
 
 - [에이전트 메모리 — 추출 · 회수 · 정리](CLE-AI-MEMORY-PIPELINE.md): 턴 경계 추출(큐 · 증분 추출 · 메모리 종류), 회수와 주입 경계, 의미 기반 중복 갱신 · TTL 만료 · 메모리 정리. 요구사항: REQ-MEMORY-009 ~ REQ-MEMORY-037
-- [에이전트 메모리 — 관리 API · 화면](CLE-AI-MEMORY-ADMIN.md): 조회 · 삭제 관리 API 와 사이드바 "Agent Memory" 관리 화면. 요구사항: REQ-MEMORY-038 ~ REQ-MEMORY-052
+- [에이전트 메모리 — 관리 API · 화면](CLE-AI-MEMORY-ADMIN.md): 조회 · 삭제 관리 API 와 사이드바 "에이전트 메모리" 관리 화면. 요구사항: REQ-MEMORY-038 ~ REQ-MEMORY-052
 
 요구사항 REQ-MEMORY-001 ~ 008(저장소 · 메모리 범위 키 · 격리)과 REQ-MEMORY-053(사용자 식별자 도입)은 이 문서가 맡는다.
 

@@ -12,6 +12,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import type { JwtPayload } from '../../common/decorators';
 import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
+import { AUTH_ERROR_BODIES } from './auth-error-bodies';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -640,10 +641,7 @@ describe('AuthController', () => {
 
     it('does not record an audit log when disable2fa password is wrong', async () => {
       authService.disableTwoFactor.mockRejectedValue(
-        new UnauthorizedException({
-          code: 'PASSWORD_INVALID',
-          message: 'The password is incorrect.',
-        }),
+        new UnauthorizedException({ ...AUTH_ERROR_BODIES.passwordInvalid }),
       );
 
       await expect(
@@ -658,10 +656,7 @@ describe('AuthController', () => {
 
     it('비밀번호가 맞아도 코드가 틀리면 감사 로그를 남기지 않는다', async () => {
       authService.disableTwoFactor.mockRejectedValue(
-        new UnauthorizedException({
-          code: 'TOTP_INVALID',
-          message: 'The verification code is incorrect.',
-        }),
+        new UnauthorizedException({ ...AUTH_ERROR_BODIES.totpInvalid }),
       );
 
       await expect(

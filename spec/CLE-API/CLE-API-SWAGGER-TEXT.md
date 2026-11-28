@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER-TEXT"
 title: "OpenAPI 문서화 — 설명 문구와 내부 참조"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-SWAGGER"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-SWAGGER"]
 area: "CLE-API"
-content_hash: "c9a6d8544a2a4ef0eea97c3abc29fa5ee0229a3e8d19a52e6c48dcf62f07530c"
+content_hash: "efd3ec84bd68959593b46e9c0907a16a241daa99da0831c3595978ef4ff30071"
 read_as: "approved_fallback"
-task: "CLE-T-0TBB0Z"
+task: "CLE-T-59D8R2"
 source_paths: []
-mirror_sha256: "c0696f1cf8b9ff67123a90162de6fd37bf48c11f0154b4b0220169fed9bf0c2b"
-etag: "sha256-2cec939d66e583c5bebbbac08c0ecf85a192a7380e91a34d0e911f0d8dbfde52"
+mirror_sha256: "9de13b1372aa2dd4d787c4d77bd530fbe866b2b0073f12a30d1d8899f1393f82"
+etag: "sha256-54c232b3fce46e7864a8fb499b7522258e4702e2b52d953e44f90394c2a19b76"
 ---
 ## 개요
 
@@ -117,7 +117,9 @@ DTO `description` 은 "한 줄로 읽히는가" 가 기준이지 글자 수가 �
 
 **넓히지 않은 것**: 위 34% 는 보안·정책 캐비엇 부류보다 넓다. 즉 기본 수치 규칙 자체가 현실과 벌어져 있을 수 있었는데 그것은 이 캐비엇의 문제가 아니라 별개 판단이라 이때는 건드리지 않았다. 그 판단은 "DTO 길이는 왜 강제가 아닌가" 에서 내려졌다.
 
-### 공개 문장의 저장소 내부 참조를 왜 가드로 세는가 (규칙 17, 2026-10-03)
+### 공개 문장의 저장소 내부 참조를 왜 가드로 세는가 (규칙 17)
+
+결정일: 2026-10-03
 
 2026-09-05 규약화(규칙 14)는 내부 서사만 `//` 주석으로 보냈다. 저장소 내부 참조는 금지하지 않았다. 오히려 §3 보안·정책 캐비엇은 설명에 1~2문장 요약과 기준 문서 링크를 적으라고 했다. EIA `context` 의 `ConversationThreadDto` 문단도 description 이 대화 스레드 문서를 가리킨다고 적었다. 2026-10-03 에 이 두 지시를 뒤집었다. 기준 문서 링크는 바로 위 `//` 주석으로 옮겼고 공개 문장에서는 저장소 내부 참조를 금지했다(규칙 17).
 

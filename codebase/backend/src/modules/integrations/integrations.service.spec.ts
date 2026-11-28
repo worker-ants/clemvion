@@ -534,6 +534,24 @@ describe('IntegrationsService', () => {
     // 응답 DTO 전용 derived 필드. `ServiceDefinition.supportsTokenAutoRefresh`
     // 에서 매 응답 시점에 계산되며 DB 컬럼이 아니다.
     // -----------------------------------------------------------------
+    // CLE-T-M2FG35 — `consecutiveNetworkFailures` 는 health 판정의 내부 카운터라 응답에 싣지 않는다.
+    // 프런트 참조가 0곳이었고 `installToken` 처럼 entity spread 뒤에 뺀다.
+    describe('consecutiveNetworkFailures', () => {
+      it.each([
+        ['읽을 수 있는 행', { access_token: 'tok' }],
+        ['복호화하지 못한 행', { [UNREADABLE_KEY]: true }],
+      ])('%s의 응답에 싣지 않는다', async (_label, credentials) => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            credentials: credentials as Record<string, unknown>,
+            consecutiveNetworkFailures: 3,
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
+        expect(result).not.toHaveProperty('consecutiveNetworkFailures');
+      });
+    });
+
     // CLE-T-NNENG8 — 재설치 대기 표시는 24시간 동안만 유효하다(`isReinstallRequestActive`). 응답은 유효할 때만 값을 싣고
     // 만료됐으면 `null` 이다 — 상세 화면의 안내 배너는 이 값만 보므로 판정을 서버 한곳에서 한다.
     describe('reinstallRequestedAt', () => {

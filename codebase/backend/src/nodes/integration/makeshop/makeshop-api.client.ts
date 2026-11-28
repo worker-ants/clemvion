@@ -116,6 +116,21 @@ export class MakeshopTransportFailedError extends Error {
   }
 }
 
+/**
+ * 토큰 갱신 요청이 응답을 받고 401 · 403 밖 상태(5xx · 429 · 400 등)로 실패했다(CLE-T-DJGSBR).
+ * 연결 테스트(`mapPingError`)는 `MAKESHOP_API_ERROR` 로 답한다. 노드 · 도구 경로는 이 타입을 따로 거르지 않아
+ * 지금처럼 분류되지 않은 예외(`MAKESHOP_TRANSPORT_FAILED`)로 나간다. 그래서 `code` 필드를 두지 않는다.
+ */
+export class MakeshopTokenRefreshFailedError extends Error {
+  constructor(
+    readonly status: number,
+    sanitizedBody: string,
+  ) {
+    super(`MakeShop token refresh failed (${status}): ${sanitizedBody}`);
+    this.name = 'MakeshopTokenRefreshFailedError';
+  }
+}
+
 export class MakeshopIncompleteCredentialsError extends Error {
   readonly code = 'INTEGRATION_INCOMPLETE';
   constructor(reason: string) {
@@ -202,6 +217,9 @@ function mapPingError(err: unknown): {
       code: 'MAKESHOP_TRANSPORT_FAILED',
       message: err.message,
     };
+  }
+  if (err instanceof MakeshopTokenRefreshFailedError) {
+    return { success: false, code: 'MAKESHOP_API_ERROR', message: err.message };
   }
   return {
     success: false,
@@ -707,8 +725,9 @@ export class MakeshopApiClient {
     }
     if (!response.ok) {
       const body = await safeReadJson(response);
-      throw new Error(
-        `MakeShop token refresh failed (${response.status}): ${sanitizeLastErrorMessage(JSON.stringify(body))}`,
+      throw new MakeshopTokenRefreshFailedError(
+        response.status,
+        sanitizeLastErrorMessage(JSON.stringify(body)),
       );
     }
 

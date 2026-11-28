@@ -86,18 +86,19 @@ describe("useInvitationGate", () => {
     expect(result.current.state).toEqual({ kind: "loading" });
   });
 
-  it("메타 조회가 실패하면 상태 코드와 서버 메시지를 담고 가입 여부를 묻지 않는다", async () => {
+  it("메타 조회가 실패하면 상태 코드와 코드별 사전 문구를 담고 가입 여부를 묻지 않는다", async () => {
     mockGetByToken.mockRejectedValue(
-      axiosError(410, { error: { code: "invitation_expired", message: "만료된 초대" } }),
+      axiosError(410, { error: { code: "invitation_expired", message: "This invitation has expired." } }),
     );
 
     const { result } = renderHook(() => useInvitationGate(TOKEN));
 
+    // 초대 코드는 공용 표에 있어 영문 서버 문구 대신 사전 문구를 고른다(CLE-T-MBMPX5).
     await waitFor(() =>
       expect(result.current.state).toEqual({
         kind: "error",
         status: 410,
-        message: "만료된 초대",
+        message: "초대가 만료됐어요. 초대한 사람에게 다시 요청해 주세요.",
       }),
     );
     expect(mockIsRegisteredEmail).not.toHaveBeenCalled();

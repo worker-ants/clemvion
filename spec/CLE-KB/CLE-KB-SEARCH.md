@@ -2,19 +2,19 @@
 id: "CLE-KB-SEARCH"
 title: "RAG 검색"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-RAG-001", "REQ-RAG-002", "REQ-RAG-003", "REQ-RAG-004", "REQ-RAG-005", "REQ-RAG-006", "REQ-RAG-007", "REQ-RAG-008", "REQ-RAG-009", "REQ-RAG-010", "REQ-RAG-011", "REQ-RAG-012", "REQ-RAG-013", "REQ-RAG-014", "REQ-RAG-015", "REQ-RAG-016", "REQ-RAG-017", "REQ-RAG-018", "REQ-RAG-019", "REQ-RAG-020", "REQ-RAG-021", "REQ-RAG-022", "REQ-RAG-023", "REQ-RAG-024", "REQ-RAG-025", "REQ-RAG-026", "REQ-RAG-027", "REQ-RAG-028", "REQ-RAG-029", "REQ-RAG-030", "REQ-RAG-031", "REQ-RAG-032", "REQ-RAG-033", "REQ-RAG-034", "REQ-RAG-035", "REQ-RAG-036", "REQ-RAG-037", "REQ-RAG-038", "REQ-RAG-039", "REQ-RAG-040", "REQ-RAG-041", "REQ-RAG-042"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "2b0d82aca40100ae1ffe49d82d9b73a6c16b71de6fd55deaf527b2647f114718"
+content_hash: "f6d9faa65c04978908805c29880fe4559de33f71950e87c322718d9cf9173d17"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-95K2Q9"
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/9-rag-search.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "4380504c5f7ce365271146f3ab1e900284165612ac3f77c3a068decd7ae469ab"
-etag: "sha256-d33720b2007190a9546b305132952e9d7f46d886687e926fcc5688f6086c0fab"
+mirror_sha256: "785dbee3681c45f5cc1118e29a6065522cfebdd517c9994a7e5e089dd38302d1"
+etag: "sha256-e54bfd0587805a9b46d5c12ca5158b5c23dfce8c57de2e46ad3a014280c99369"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/9-rag-search.md`, `spec/data-flow/6-knowledge-base.md` (§1.3·§1.4), `spec/4-nodes/3-ai/_product-overview.md` (§3.5 KB-AG, §5 NF-AI-03), `spec/4-nodes/4-integration/_product-overview.md` (§3.4 KB-AG), `spec/2-navigation/_product-overview.md` (§3.5 NAV-KB-06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -120,7 +120,7 @@ sequenceDiagram
   N-->>N: 응답과 meta.ragSources, meta.ragDiagnostics 반환
 ```
 
-엔진은 LLM 호출 전에 지식 저장소를 미리 검색(prefill)하지 않는다. 검색은 LLM 이 `kb_*` 를 부를 때만 일어난다. 워크플로우 실행 중에 검색 서비스를 부르는 곳은 지식 저장소 도구 경로뿐이다. 그 밖에는 디버그 API 와 오프라인 평가 스크립트([RAG 품질 평가](CLE-KB-EVAL.md))가 부른다([LLM 호출 전 자동 검색을 두지 않는다](#llm-호출-전-자동-검색을-두지-않는다-2026-10-10)).
+엔진은 LLM 호출 전에 지식 저장소를 미리 검색(prefill)하지 않는다. 검색은 LLM 이 `kb_*` 를 부를 때만 일어난다. 워크플로우 실행 중에 검색 서비스를 부르는 곳은 지식 저장소 도구 경로뿐이다. 그 밖에는 디버그 API 와 오프라인 평가 스크립트([RAG 품질 평가](CLE-KB-EVAL.md))가 부른다([LLM 호출 전 자동 검색을 두지 않는다](#llm-호출-전-자동-검색을-두지-않는다)).
 
 도구 정의와 결과 형식은 [RAG 검색 — 도구 결과 · 출력 메타 · 에러](CLE-KB-SEARCH-TOOL.md) 에서 정한다.
 
@@ -159,11 +159,15 @@ sequenceDiagram
 
 ## Rationale
 
-### 부분 구현 상태를 유지하는 이유 (2026-07-16)
+### 부분 구현 상태를 유지하는 이유
+
+결정일: 2026-07-16
 
 동적 점수 컷 계획이 끝났어도 [남은 과제](#남은-과제) 네 가지가 실제로 남아 있어 구현됨으로 올리지 않는다. 그 계획은 D1 동적 점수 컷과 D2 조건부 그레이딩 구조만 맡았으므로 추적 계획을 RAG 품질 개선 계획으로 바꿨다. 상태는 구현 현실의 진술이다.
 
-### LLM 호출 전 자동 검색을 두지 않는다 (2026-10-10)
+### LLM 호출 전 자동 검색을 두지 않는다
+
+결정일: 2026-10-10
 
 대화 미리보기의 🔎 `rag` 행은 "엔진이 LLM 호출 전에 자동으로 한 검색" 으로 정의돼 있었다. 이 문서의 검색 흐름과 AI 노드 문서, 구현은 검색을 `kb_*` 도구 호출로만 한다. 2026-10-10 에 사람이 정해 문서를 구현에 맞춰 `rag` 행을 `kb_*` 도구 호출이 가져온 청크의 타임라인 표시로 고쳤다.
 

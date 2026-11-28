@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "1b1fe2070b9ae635ba4338e1bab496fe8c9a72cfa37203bd875aaa12d211e3dd"
+content_hash: "a3af0da2872a65be885437084f2153070ab0ad787c0f5d1a7fc1db3560153116"
 read_as: "approved_fallback"
-task: "CLE-T-RDCXYT"
+task: "CLE-T-95K2Q9"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "a8674974b74973b4aec0c301be0df0299fa561d4cb4f42e6cb65e1d643346cc2"
-etag: "sha256-a605c0f2dd2bd0b81dacfd69978d6321bc6ce7771fd661df3af14ce46986d639"
+mirror_sha256: "a61317ca1b165ff817454001b82bd5450e3e7cc993bae148785ead8a32485b28"
+etag: "sha256-7169d0f23384bae23e24bd8bf63ff1d6f331b49efc38e598dc281a354e0f166c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -137,7 +137,7 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 
 ## 미결 사항
 
-- **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](CLE-AI-LLM-IFACE.md#gemini-api-버전을-v1beta-로-고정한다-2026-11-12) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
+- **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](CLE-AI-LLM-IFACE.md#gemini-api-버전을-v1beta-로-고정한다) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
 
 ## 구현 위치
 
@@ -170,7 +170,9 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 
 자가호스팅 `tei` 리랭커는 사설망 엔드포인트를 받으므로 LLM 과 같은 SSRF 공격 면이 있다. Chat·Embedding 의 `local` 에 쓰는 사설망 예외 규칙을 그대로 적용해 인프라를 두 번 만들지 않는다. 시크릿 암호화 인프라도 같은 이유로 공유한다.
 
-### LLM 가드도 CGNAT 와 `::` 를 막는다 (2026-11-20)
+### LLM 가드도 CGNAT 와 `::` 를 막는다
+
+결정일: 2026-11-20
 
 LLM 가드(`ssrf.util.ts`)는 따로 만든 좁은 대역표를 써서 CGNAT `100.64.0.0/10` 과 미지정 주소 `::` 를 통과시켰다. 통합 노드 · 알림 웹훅 · MCP 가드는 둘 다 막았다. 2026-11-20 에 사람이 LLM 가드도 둘을 막기로 정했다(NERV Task `CLE-T-63RSH6`). 같은 날 네 가드의 IP 리터럴 판정을 공용 표 하나로 모았다(NERV Task `CLE-T-753725` · `CLE-T-4YHEKF`).
 
@@ -182,7 +184,9 @@ LLM 가드(`ssrf.util.ts`)는 따로 만든 좁은 대역표를 써서 CGNAT `10
 
 - **LLM 가드에 우회 플래그를 둔다**: 사설망 엔드포인트를 써야 하는 경우는 이미 `local` · `tei` 프로바이더가 받는다. `local` 은 API 키를 선택으로 받으므로 키가 필요한 OpenAI 호환 엔드포인트도 등록할 수 있다. 플래그를 두면 외부 프로바이더 경로에서 키가 사설망으로 나가는 길이 다시 열린다.
 
-### 연결 시점 판정을 OpenAI · Azure OpenAI · Cohere 경로에만 둔다 (2026-11-20)
+### 연결 시점 판정을 OpenAI · Azure OpenAI · Cohere 경로에만 둔다
+
+결정일: 2026-11-20
 
 저장 · 미리보기 검사는 그때 한 번 푼 결과만 본다. 그 뒤 DNS 응답이 바뀌면 실행할 때 막는 대역으로 연결할 수 있었다. 2026-11-20 에 사람이 LLM 호출에도 연결 시점 판정을 넣기로 정했다(NERV Task `CLE-T-PT5YB5`). 판정 함수는 HTTP Request · MCP · 알림 웹훅과 같은 공용 헬퍼(`createGuardedLookupDispatcher`)에 넘긴다.
 
@@ -192,21 +196,29 @@ LLM 가드(`ssrf.util.ts`)는 따로 만든 좁은 대역표를 써서 CGNAT `10
 - IP 리터럴 호스트에는 연결 조회가 일어나지 않는다. 그래서 요청 전에 따로 판정한다.
 - 사전 검사의 해석 실패 fail-open 은 바꾸지 않았다. 해석에 실패해 저장된 설정도 실행할 때는 연결 시점 판정을 거친다.
 
-Database Query · Send Email 노드에도 같은 날 연결 시점 판정을 넣었다. 두 노드는 `fetch` 를 쓰지 않아 드라이버의 소켓 훅(pg · mysql2 의 `stream`, nodemailer 의 `getSocket`)에서 판정한다. 규칙은 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 에, 배경은 [같은 문서 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+Database Query · Send Email 노드에도 같은 날 연결 시점 판정을 넣었다. 두 노드는 `fetch` 를 쓰지 않아 드라이버의 소켓 훅(pg · mysql2 의 `stream`, nodemailer 의 `getSocket`)에서 판정한다. 규칙은 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 에, 배경은 [같은 문서 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다) 에 있다.
 
-### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다 (2026-10-31)
+### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다
+
+결정일: 2026-10-31
 
 가드 대상이 늘 때마다(예: 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY`) 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 세션과 토큰 문서를 가리킨다(NERV Task `CLE-T-KQ37NJ`). 목록은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 절에 있다(NERV Task `CLE-T-NAT45Z`). 가드는 `LLM_STUB_MODE` 의 `true` 와 `1` 을 모두 켜짐으로 본다. 켜짐 판정은 그 절을 따른다. 스텁을 실제로 켜는 설정(`llm.config.ts` 의 `stubMode`)은 `true` 만 본다. 가드가 막는 값이 더 넓어서 운영 환경에서 스텁이 켜진 채 기동하는 일은 없다.
 
-### Anthropic 에 샘플링 파라미터를 보내지 않는다 (2026-11-12)
+### Anthropic 에 샘플링 파라미터를 보내지 않는다
 
-→ [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)
+결정일: 2026-11-12
 
-### 스트림 오류 `message` 는 진단용으로 둔다 (2026-11-13)
+→ [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md#anthropic-에-샘플링-파라미터를-보내지-않는다)
 
-→ [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md#스트림-오류-message-는-진단용으로-둔다-2026-11-13)
+### 스트림 오류 `message` 는 진단용으로 둔다
 
-### 스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다 (2026-11-14)
+결정일: 2026-11-13
+
+→ [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md#스트림-오류-message-는-진단용으로-둔다)
+
+### 스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다
+
+결정일: 2026-11-14
 
 OpenAI 계열(OpenAI · Azure · Local) 클라이언트의 `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던졌다. Anthropic · Google 클라이언트는 같은 실패를 `error` 이벤트로 냈다. 그래서 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic · Google 이면 `LLM_RATE_LIMIT` 로, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 냈다. 2026-11-14 에 사람이 다음과 같이 정했다(NERV Task `CLE-T-0R5SYN`, 질문 `01a1d93a-cb58-7714-9af6-56974232f95e` 의 답).
 
@@ -214,7 +226,7 @@ OpenAI 계열(OpenAI · Azure · Local) 클라이언트의 `stream()` 은 스트
 - 스트림을 여는 중에 취소되면 도중 취소와 같은 `done`(finishReason=`aborted`)으로 끝낸다. 전에는 Anthropic · Google 이 이 경우를 `LLM_CONNECTION_ERROR` 로 냈다.
 - `chatStream` 에는 앱 재시도를 두지 않는다.
 - OpenAI · Anthropic SDK 생성자에 `maxRetries` 2 를 적는다. SDK 기본값과 같은 값이다. 생성자에 적어 두면 SDK 기본값이 바뀌어도 재전송 횟수가 그대로다.
-- 어시스턴트 턴의 시간 제한은 이 결정에서 다루지 않는다. 2026-10-10 에 기각한 안이다([AI 노드 공통 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10)).
+- 어시스턴트 턴의 시간 제한은 이 결정에서 다루지 않는다. 2026-10-10 에 기각한 안이다([AI 노드 공통 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다)).
 
 이제 어시스턴트는 같은 429 를 모델 프로바이더와 상관없이 `LLM_RATE_LIMIT` 로 낸다. 계약은 [스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 에 있다.
 
@@ -223,7 +235,9 @@ OpenAI 계열(OpenAI · Azure · Local) 클라이언트의 `stream()` 은 스트
 - **OpenAI 계열의 예외를 그대로 둔다**: 같은 실패가 프로바이더에 따라 예외와 이벤트로 갈린다. 호출하는 쪽이 두 경로를 모두 처리해야 해서 프로바이더 차이가 클라이언트 계층 밖으로 샌다. [모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유) 와 맞지 않는다.
 - **`chatStream` 에 앱 재시도를 둔다**: OpenAI · Anthropic SDK 가 이미 429 와 요청 타임아웃을 두 번 더 보낸다. 앱 재시도를 더하면 두 재시도가 곱해져 한 턴의 요청 수와 대기 시간이 불어난다.
 
-### LLM 호출의 공통 상한을 정한다 (2026-11-14)
+### LLM 호출의 공통 상한을 정한다
+
+결정일: 2026-11-14
 
 2026-10-10 결정은 문서를 코드에 맞추는 데까지였고 앱 타임아웃이 없는 호출의 상한은 정하지 않았다. Google 클라이언트에는 SDK 요청 타임아웃도 없어서 `timeoutMs` 를 주지 않은 Google `chat` 호출에는 상한이 없었다. 2026-11-14 에 사람이 다음과 같이 정했다(NERV Task `CLE-T-0R5SYN`, 질문 `01a1d93a-cd66-73ab-a2e9-37ffa7ee1312` 의 답).
 
@@ -233,11 +247,11 @@ OpenAI 계열(OpenAI · Azure · Local) 클라이언트의 `stream()` 은 스트
 - 스트림 유휴 감지는 하지 않는다.
 - AI 에이전트 롤링 요약에는 취소 신호와 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분)를 넘긴다.
 
-계약은 [서비스 계층 「호출 신뢰성 계약」](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약) 에 있다. 호출 경로별 값은 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. 롤링 요약과 AI 노드 호출에서 본 배경은 [AI 노드 공통 「앱 타임아웃이 없던 호출의 상한을 정한다」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#앱-타임아웃이-없던-호출의-상한을-정한다-2026-11-14) 에 있다. 정상 응답이 10분을 넘는 일은 드물다. OpenAI 계열과 Anthropic 은 SDK 요청 타임아웃(재전송 포함 최대 약 6분)이 먼저 걸린다. 그래서 공통 기본값은 주로 Google 호출과 SDK 가 멈춘 경우에 걸린다.
+계약은 [서비스 계층 「호출 신뢰성 계약」](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약) 에 있다. 호출 경로별 값은 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. 롤링 요약과 AI 노드 호출에서 본 배경은 [AI 노드 공통 「앱 타임아웃이 없던 호출의 상한을 정한다」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#앱-타임아웃이-없던-호출의-상한을-정한다) 에 있다. 정상 응답이 10분을 넘는 일은 드물다. OpenAI 계열과 Anthropic 은 SDK 요청 타임아웃(재전송 포함 최대 약 6분)이 먼저 걸린다. 그래서 공통 기본값은 주로 Google 호출과 SDK 가 멈춘 경우에 걸린다.
 
 기각한 대안은 둘이다.
 
 - **스트림 유휴 감지**: 응답 헤더가 온 뒤 일정 시간 조각이 오지 않으면 스트림을 끊는 안이다. 추론 모델은 첫 토큰 전에 몇 분씩 조각 없이 기다리는 일이 정상이다. 유휴 감지를 두면 이런 정상 응답을 끊는다.
 - **Google SDK 에 개별 타임아웃을 건다**: `chat` 의 공통 기본값으로 Google `chat` 호출에도 상한이 생긴다. 그래서 따로 걸 필요가 없다.
 
-AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 어시스턴트 턴에 시간 제한을 두는 안은 2026-10-10 에 기각했다. 근거는 [AI 노드 공통 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
+AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 어시스턴트 턴에 시간 제한을 두는 안은 2026-10-10 에 기각했다. 근거는 [AI 노드 공통 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다) 에 있다.

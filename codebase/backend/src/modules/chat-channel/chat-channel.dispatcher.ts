@@ -545,7 +545,6 @@ export function toChatChannelEvent(
       return {
         ...base,
         type: 'execution.completed',
-        result: (event.payload as { result?: unknown }).result ?? {},
         durationMs: (event.payload as { durationMs?: number | null })
           .durationMs,
       };

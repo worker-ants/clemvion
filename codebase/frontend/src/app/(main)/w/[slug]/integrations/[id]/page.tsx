@@ -39,7 +39,7 @@ import {
   type TranslationKey,
   type Locale,
 } from "@/lib/i18n";
-import { tryTranslateLabel } from "./activity-label";
+import { resolveActivityApiLabel } from "./activity-label";
 import { ActivityDisconnectedBanner } from "./activity-disconnected-banner";
 import { ScopeTab } from "./scope-tab";
 import { SecurityTab } from "./security-tab";
@@ -599,7 +599,7 @@ function ActivityTab({
 
 /**
  * `§4.6` 활동 탭의 `API` 컬럼 렌더링.
- *  - 라벨 dict lookup 성공: 굵게 라벨 + 작게 endpoint subtext (2줄)
+ *  - 라벨 dict lookup 성공 또는 카탈로그 키가 아닌 라벨: 굵게 라벨 + 작게 endpoint subtext (2줄)
  *  - 라벨 없음 + endpoint 있음: endpoint 한 줄
  *  - 둘 다 NULL: `—` (i18n key `activityApiUnknown`)
  * SoT: spec/2-navigation/4-integration.md §4.6.
@@ -622,10 +622,11 @@ function renderApiCell(args: {
 
   // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 사람 친화 라벨 사용.
   // cafe24(485 op)·makeshop(161 op) dict 모두 채워져 있어 라벨이 렌더되고,
-  // dict miss 면 endpoint subtext fallback 으로 흐른다.
+  // dict miss 면 endpoint subtext fallback 으로 흐른다. 카탈로그 키가 아닌 라벨
+  // (외부 MCP 도구 이름)은 그대로 보인다.
   const catalogEntry = apiLabel ? catalog.get(apiLabel) : undefined;
   const labelKey = catalogEntry?.labelKey ?? apiLabel ?? null;
-  const humanLabel = labelKey ? tryTranslateLabel(labelKey, locale) : null;
+  const humanLabel = labelKey ? resolveActivityApiLabel(labelKey, locale) : null;
 
   if (humanLabel) {
     return (

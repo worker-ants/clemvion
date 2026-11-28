@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "eb3c3b411009653d3925dce90f746d2ea3b9fc793ee1b65ca4b5b9fae1f75626"
+content_hash: "0e173040bd112cb740b790fef796ad86cfc91a9144b7429daa2343bd67c2a653"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-59D8R2"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "d6c4a34e21a8c584cadfe40daf93417823d1db295b85cd4a7243ee2687c2895d"
-etag: "sha256-79d63c2a93c29c83ded37fb7a2e111e5aa4608d8e0739deec898a79cccbfdf77"
+mirror_sha256: "6bcb328686855c06bbab9e68307a8dabcadefb34678e1fd5f6936e80f7506b9e"
+etag: "sha256-4993f35dd0f8907cd516493802ee3343eb0d6c5e3430a465c93cc94c1f2d63c4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -130,7 +130,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 
 결정일: 2026-10-05
 
-→ [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md#310-트리거-응답의-마지막-오류-2026-10-05)
+→ [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md#310-트리거-응답의-마지막-오류)
 
 ## 4. 다시 쓰이는 값과 재제출 거부
 
@@ -193,4 +193,4 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 
 결정일: 2026-10-05
 
-→ [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md#트리거-응답의-마지막-오류를-표면에-올린-이유-2026-10-05)
+→ [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md#트리거-응답의-마지막-오류를-표면에-올린-이유)

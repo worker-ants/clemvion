@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-DELETE"
 title: "트리거 관리 — 삭제"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "494a3b35c448ad9a04bc3b52e2babe8ea049ddb5f14555c9ca0b3ce4c7e8fd41"
+content_hash: "2267c6f39acd9040a0bedbdcb6df000e0bdd00ca0a85faa156dd0d3b35d3a282"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1C2JE0"
 source_paths: []
-mirror_sha256: "7e998433c624b950c23290334b74b770228937bacd55802967e97ade4d4d8fba"
-etag: "sha256-1332f8f521152d865e3a75a2a74d088971bb240631e0589241a56f97398cdf43"
+mirror_sha256: "e8de48cd0af2d3dc1d9f9bef4b95ea76fa2060fb3f76283972c89d060db5639f"
+etag: "sha256-2c0e9fe0a62debe5095a35b6bde17924b90f1ffd00f4bfc73d9cb9468894a91c"
 ---
 ## 개요
 
@@ -76,8 +76,8 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 - 성공: `204 No Content`(본문 없음). 클라이언트는 목록·상세 query 를 무효화한다.
 - 동시 삭제: 두 클라이언트가 같은 트리거를 동시에 지우면 두 번째는 `404 RESOURCE_NOT_FOUND` 다. 클라이언트는 무시해도 되고 사용자에게 토스트를 한 번 보인다.
 - 스케줄 유형을 트리거 화면에서 지우는 경우: 연쇄 영향 표대로 스케줄도 함께 지워진다. 지우기 전에 `removeJob` 으로 BullMQ job scheduler 엔트리를 해제한다. 스케줄 화면에서 지워도 결과는 같다. 양방향 동기화 규칙은 [트리거 데이터와 흐름](CLE-TRIG-DATA.md) 이 정한다.
-- 잠금 대기 상한 5초: 삭제는 [동시 쓰기 직렬화](CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)의 트리거 단위 잠금을 잡기 전에 되돌릴 수 없는 외부 자원 해제를 먼저 끝낸다. 트리거 화면 삭제는 스케줄 유형이면 BullMQ 작업 해제 다음에 채팅 채널 해제를 하고 스케줄 화면 삭제는 BullMQ 작업을 해제한다. 그래서 잠금을 5초 안에 못 잡으면 기다리지 않고 에러로 끝낸다. 이때 그 트리거가 "외부 등록은 해제됐는데 행은 남은" 상태라는 사실을 서버 로그에 남긴다. 비밀은 행 삭제가 커밋된 뒤에 지우므로 이때는 지워지지 않는다.
-- 워크플로우·워크스페이스 삭제도 외부 해제를 먼저 끝내므로 그 트랜잭션의 모든 잠금 대기(부모 행, 멤버십, CASCADE 되는 트리거 행)에 같은 5초 상한을 건다. 넘기면 에러로 끝내고 "외부 해제는 이미 끝났다" 를 서버 로그에 남긴다.
+- 잠금 대기 상한 5초: 삭제는 [동시 쓰기 직렬화](CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)의 트리거 단위 잠금을 잡기 전에 되돌릴 수 없는 외부 자원 해제를 먼저 끝낸다. 트리거 화면 삭제는 스케줄 유형이면 BullMQ 작업 해제 다음에 채팅 채널 해제를 하고 스케줄 화면 삭제는 BullMQ 작업을 해제한다. 그래서 잠금을 5초 안에 못 잡으면 기다리지 않고 503 `SERVICE_UNAVAILABLE` 로 끝낸다([계정과 워크스페이스 데이터 흐름 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」](../CLE-ACCT/CLE-ACCT-DATA.md#잠금-대기-초과는-503-service_unavailable-로-낸다)). 이때 그 트리거가 "외부 등록은 해제됐는데 행은 남은" 상태라는 사실을 서버 로그에 남긴다. 비밀은 행 삭제가 커밋된 뒤에 지우므로 이때는 지워지지 않는다.
+- 워크플로우·워크스페이스 삭제도 외부 해제를 먼저 끝내므로 그 트랜잭션의 모든 잠금 대기(부모 행, 멤버십, CASCADE 되는 트리거 행)에 같은 5초 상한을 건다. 넘기면 503 `SERVICE_UNAVAILABLE` 로 끝내고 "외부 해제는 이미 끝났다" 를 서버 로그에 남긴다.
 
 ## 구현 위치
 

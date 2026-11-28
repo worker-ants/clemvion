@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-AUTH"
 title: "에러 코드 카탈로그 — 인증 · 인가 · 워크스페이스"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "0bfb29bfab8006d27d14c1e7bfde7a35b196d1099ba16d1977bf8639fa639597"
+content_hash: "4a0d0940cc3ac3db019907ec1849054f3162aa88bc12405dc4d16f1e0535adee"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-BN449Z"
 source_paths: []
-mirror_sha256: "ddb0103f17378c277488d4df55a205e1832b25fccb8f47f77c949965df61fc78"
-etag: "sha256-3e82e68245252833ca2bb88b7a9b063baba73debd0804a85bbce78f623b7e3a4"
+mirror_sha256: "db4ff1703f8a6e5eb99c974fd56a5b50d710babc72bb0c8573b2d2672d76219e"
+etag: "sha256-b4db7f0350df961d20cb830f632c253bcbf0fef7fa9e184f147a0d602dbf1612"
 ---
 ## 개요
 
@@ -26,15 +26,15 @@ etag: "sha256-3e82e68245252833ca2bb88b7a9b063baba73debd0804a85bbce78f623b7e3a4"
 |------|------|------|------|-----------|
 | `AUTH_REQUIRED` | 인증 필요 | 토큰 없음. 401 기본 코드. 현재 구현은 만료된 액세스 토큰도 코드 없이 거부해 이 코드가 나간다 | 401 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
 | `TOKEN_EXPIRED` | 토큰 만료 | 리프레시 토큰 단순 만료. 재사용 감지와 달리 세션 무효화·이력 기록 없이 거부한다(Rationale "`TOKEN_EXPIRED` 설명") | 401 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `TOKEN_INVALID` | 토큰 무효 | 변조·형식 에러, refresh 토큰이 없거나 소유자가 없음, 또는 refresh 회전 때 조건부 폐기가 0건과 맞음(같은 토큰을 동시에 회전하는 경합) | 401 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
+| `TOKEN_INVALID` | 토큰 무효 | 변조·형식 에러, refresh 토큰이 없거나 소유자가 없음, 또는 refresh 회전 때 조건부 폐기가 0건과 맞음(같은 토큰을 동시에 회전하는 경합) | 401 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [계정과 워크스페이스 데이터 흐름 — 인증 흐름](../CLE-ACCT/CLE-ACCT-DATA-AUTH.md#토큰-회전) |
 | `FORBIDDEN` | 권한 없음 | 역할 권한 부족(일반). 403 기본 코드 | 403 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `ADMIN_REQUIRED` | 관리자 권한 필요 | 워크스페이스 소유자·관리자 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드. `RolesGuard` 의 `@Roles('admin')` 미달, `WorkspacesService.assertAdmin()`, `IntegrationsService` 의 조직 통합 변경 판정이 발행한다. 통합 OAuth 에서도 세 곳이 낸다. 관리자 미만 요청자가 조직 공개 범위로 `oauth/begin`(`new`)을 부를 때(다시 쓸 설치 대기 행을 찾기 전), `oauth/begin`(`new`)으로 조직 통합의 설치 대기 행을 다시 쓰려 할 때, 콜백의 커밋 직전 재판정(`assertOrgScopeModifiable`)이다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
+| `ADMIN_REQUIRED` | 관리자 권한 필요 | 워크스페이스 소유자·관리자 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드. `RolesGuard` 의 `@Roles('admin')` 미달, `WorkspacesService` 의 관리자 판정(`assertAdmin()` · `requireAdminRole()`, 멤버 제거 `removeMember()` 의 `throwAdminRequired()`), `IntegrationsService` 의 조직 통합 변경 판정이 발행한다. 통합 OAuth 에서도 세 곳이 낸다. 관리자 미만 요청자가 조직 공개 범위로 `oauth/begin`(`new`)을 부를 때(다시 쓸 설치 대기 행을 찾기 전), `oauth/begin`(`new`)으로 조직 통합의 설치 대기 행을 다시 쓰려 할 때, 콜백의 커밋 직전 재판정(`assertOrgScopeModifiable`)이다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
 | `EDITOR_REQUIRED` | 편집자 권한 필요 | 편집자 이상 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드(`RolesGuard` 의 `@Roles('editor')` 미달). 통합 관리에서는 뷰어가 쓰기 라우트(생성 · 별칭 수정 · 자격 증명 교체 · 통합 재인증 · 추가 권한 요청 · 저장 전 연결 테스트)나 `oauth/begin`을 부르면 라우트 가드가 대상의 공개 범위와 상관없이 이 코드를 낸다. 통합 OAuth 콜백의 커밋 직전 재판정(`assertPersonalWriteRole`)도 낸다. 개인 통합을 재인증하는 요청자의 역할이 편집자 미만이거나 역할을 모를 때(멤버가 아니게 됐거나 조회하지 못함)다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리 「권한」](../CLE-INT/CLE-INT-MANAGE.md#권한), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
 | `OWNER_REQUIRED` | 소유자 권한 필요 | 소유자만 하는 동작을 소유자가 아닌 멤버가 요청함. 가드(`@Roles('owner')` 미달)와 서비스 계층(소유자 이양 재검증, 관리자 역할 규칙)이 함께 내고 메시지는 발행처마다 다르다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [워크스페이스와 멤버 「관리자 역할 규칙」](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과(5회 실패 시 10분). `UnauthorizedException` 이다(Rationale "423 오기 정정") | 401 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `EMAIL_VERIFICATION_REQUIRED` | 이메일 인증 필요 | 비밀번호는 맞지만 이메일 인증을 마치지 않은 계정의 로그인. 비밀번호가 틀리면 `LOGIN_FAILED` 다 | 401 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
-| `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패. `RolesGuard` 의 멤버십 거부(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않고 요구 역할과도 무관)와 전환(`/api/auth/workspaces/:id/switch`)·탈퇴·멤버십 확인 경로(`auth.service`, `workspaces.service`)가 발행한다. 통합 행을 만드는 트랜잭션의 첫 잠금(`integration-owner-write-lock.ts`)도 이 코드를 낸다. 통합 생성과 Cafe24 Private · MakeShop `oauth/begin` 의 설치 대기 행 쓰기에서 개인 통합을 만드는 요청자가 그 사이 나갔거나 제거됐을 때와 워크스페이스가 그 사이 지워졌을 때다. 워크스페이스가 지워진 경우는 조직 통합에도 해당한다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패. `RolesGuard` 의 멤버십 거부(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않고 요구 역할과도 무관)와 전환(`/api/auth/workspaces/:id/switch`)·탈퇴·멤버 제거(`removeMember` 의 비멤버 차단)·멤버십 확인 경로(`auth.service`, `workspaces.service`)가 발행한다. 통합 행을 만드는 트랜잭션의 첫 잠금(`integration-owner-write-lock.ts`)도 이 코드를 낸다. 통합 생성과 Cafe24 Private · MakeShop `oauth/begin` 의 설치 대기 행 쓰기에서 개인 통합을 만드는 요청자가 그 사이 나갔거나 제거됐을 때와 워크스페이스가 그 사이 지워졌을 때다. 워크스페이스가 지워진 경우는 조직 통합에도 해당한다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [워크스페이스와 멤버 — API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 
 `NOT_A_MEMBER`·`EDITOR_REQUIRED`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드 거부 코드(guard rejection codes)다. 가드 거부에 전용 코드를 쓰게 된 결정은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부에-에러-코드를-붙인다) 의 「가드 거부에 에러 코드를 붙인다」 Rationale(2026-09-25)에 있고 403 응답 설명에 싣는 규칙은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 새 엔드포인트 체크리스트에 있다. 이 가운데 `NOT_A_MEMBER`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드를 통과한 뒤 서비스 계층에서도 난다. 서비스 계층은 같은 뜻의 거부에 가드와 같은 코드를 쓴다. `EDITOR_REQUIRED` 도 서비스 계층에서 한 곳 난다. 라우트 가드를 거치지 않는 통합 OAuth 콜백의 커밋 직전 재판정이다. 예외는 초대 모듈이다. 초대 모듈(`WorkspaceInvitationsService`)의 서비스 계층 두 번째 방어선은 비멤버와 관리자 미만 멤버를 모두 §3 의 소문자 `admin_required` 로 거부한다. 초대 라우트는 가드가 먼저 `NOT_A_MEMBER` · `ADMIN_REQUIRED` 로 거부하므로 이 코드는 HTTP 로 나가지 않는다.
 
@@ -58,20 +58,20 @@ etag: "sha256-3e82e68245252833ca2bb88b7a9b063baba73debd0804a85bbce78f623b7e3a4"
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `CANNOT_REVOKE_CURRENT_SESSION` | 400 | 단일 세션 강제 종료(`POST /api/auth/sessions/:familyId/revoke`)로 현재 요청의 refresh 토큰 쿠키와 맞는 세션 family 를 끝내려 함(자기 세션 종료 차단). 로그아웃을 쓰게 안내한다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
-| `OAUTH_STATE_MISMATCH` | 400 | OAuth state 가 없거나 만료·소비됐거나 provider 가 다름. 로그인 콜백에서는 URL 신호 `invalid_state`(§3)로 바뀐다. 통합 OAuth 콜백도 같은 코드를 쓴다. 통합 콜백에서 이 코드가 어디에 남는지는 §6.21 표 아래에 있다 | [가입과 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-처리), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
+| `CANNOT_REVOKE_CURRENT_SESSION` | 400 | 단일 세션 강제 종료(`POST /api/auth/sessions/:familyId/revoke`)로 현재 요청의 refresh 토큰 쿠키와 맞는 세션 family 를 끝내려 함(자기 세션 종료 차단). 로그아웃을 쓰게 안내한다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [계정과 워크스페이스 데이터 흐름 — 인증 흐름](../CLE-ACCT/CLE-ACCT-DATA-AUTH.md#세션-강제-종료) |
+| `OAUTH_STATE_MISMATCH` | 400 | OAuth state 가 없거나 만료·소비됐거나 provider 가 다름. 로그인 콜백에서는 URL 신호 `invalid_state`(§3)로 바뀐다. 통합 OAuth 콜백도 같은 코드를 쓴다. 통합 콜백에서 이 코드가 어디에 남는지는 §6.21 표 아래에 있다 | [가입과 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-처리), [계정과 워크스페이스 데이터 흐름 — 인증 흐름](../CLE-ACCT/CLE-ACCT-DATA-AUTH.md#소셜-로그인), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
 | `CANNOT_DELETE_PERSONAL` | 403 | personal 워크스페이스는 삭제할 수 없음(team 전용) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `CANNOT_LEAVE_PERSONAL` | 403 | personal 워크스페이스는 탈퇴할 수 없음(team 전용) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `SOLE_OWNER_CANNOT_LEAVE` | 403 | 유일한 소유자는 탈퇴할 수 없음 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `TARGET_IS_SELF` | 400 | 소유자 이양 대상으로 자기 자신을 지정함 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `TARGET_ALREADY_OWNER` | 409 | 소유자 이양 대상이 이미 소유자임 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
-| `CURRENT_SESSION_REQUIRED` | 400 | 다른 세션 일괄 종료(`POST /api/auth/sessions/revoke-others`)에서 리프레시 쿠키가 없거나 그 쿠키로 현재 세션을 찾지 못함. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#세션-강제-종료) |
-| `MEMBER_NOT_FOUND` | 404 | 역할 변경·소유자 이양·멤버 제거의 대상 멤버가 없음. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#멤버-변경과-직접-추가) |
-| `OWNER_ROLE_PROTECTED` | 403 | 역할 변경 대상이나 새 역할이 소유자임. 소유자 부여·박탈은 소유자 이양으로만 한다. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#멤버-변경과-직접-추가), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
-| `CANNOT_TRANSFER_PERSONAL` | 403 | personal 워크스페이스는 소유자를 이양할 수 없음. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#멤버-변경과-직접-추가) |
-| `CANNOT_REMOVE_OWNER` | 403 | 소유자를 멤버에서 제거하려 함. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#멤버-변경과-직접-추가), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
+| `CURRENT_SESSION_REQUIRED` | 400 | 다른 세션 일괄 종료(`POST /api/auth/sessions/revoke-others`)에서 리프레시 쿠키가 없거나 그 쿠키로 현재 세션을 찾지 못함. 현재 구현 | [계정과 워크스페이스 데이터 흐름 — 인증 흐름](../CLE-ACCT/CLE-ACCT-DATA-AUTH.md#세션-강제-종료) |
+| `MEMBER_NOT_FOUND` | 404 | 역할 변경·소유자 이양·멤버 제거의 대상 멤버가 없음. 현재 구현 | [계정과 워크스페이스 데이터 흐름 — 워크스페이스 데이터와 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#멤버-변경과-직접-추가) |
+| `OWNER_ROLE_PROTECTED` | 403 | 역할 변경 대상이나 새 역할이 소유자임. 소유자 부여·박탈은 소유자 이양으로만 한다. 현재 구현 | [계정과 워크스페이스 데이터 흐름 — 워크스페이스 데이터와 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#멤버-변경과-직접-추가), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
+| `CANNOT_TRANSFER_PERSONAL` | 403 | personal 워크스페이스는 소유자를 이양할 수 없음. 현재 구현 | [계정과 워크스페이스 데이터 흐름 — 워크스페이스 데이터와 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#멤버-변경과-직접-추가) |
+| `CANNOT_REMOVE_OWNER` | 403 | 소유자를 멤버에서 제거하려 함. 현재 구현 | [계정과 워크스페이스 데이터 흐름 — 워크스페이스 데이터와 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#멤버-변경과-직접-추가), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 
-- 세션 API 의 경로는 `/api/auth/sessions` 다. 이 경로에 둔 근거는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 과 [HTTP API 규약](CLE-API-CONV.md) 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」 Rationale 에 있다.
+- 세션 API 의 경로는 `/api/auth/sessions` 다. 이 경로에 둔 근거는 [세션과 토큰 — 세션 정책과 세션 관리 「세션 API 를 리프레시 쿠키 Path 아래로 옮겼다」](../CLE-ACCT/CLE-ACCT-SESSION-POLICY.md#세션-api-를-리프레시-쿠키-path-아래로-옮겼다) 에 있다.
 - **비슷한 이름 주의**: 소유자가 들어간 403 코드는 두 부류다. `OWNER_REQUIRED`(§6.2)는 요청자의 역할이 부족할 때 난다. `OWNER_ROLE_PROTECTED` · `CANNOT_ASSIGN_OWNER`(§6.12) · `CANNOT_REMOVE_OWNER` 는 대상 멤버나 부여하려는 역할 값이 소유자일 때 난다. 한 요청이 두 부류에 다 걸리면 소유자 대상 검사가 관리자 역할 규칙의 `OWNER_REQUIRED` 보다 먼저다. 동작마다 검사 순서는 [워크스페이스와 멤버 「관리자 역할 규칙」](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) 이 정한다.
 
 ## Rationale
@@ -92,7 +92,7 @@ etag: "sha256-3e82e68245252833ca2bb88b7a9b063baba73debd0804a85bbce78f623b7e3a4"
 
 결정일: 2026-10-10
 
-2026-10-10 에 관리자 역할을 주고 빼는 일을 소유자 전용으로 정했다(NERV Task `CLE-T-0W7CA7`, [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할을-주고-빼는-일은-소유자만-한다)). 소유자가 아닌 요청자의 요청은 가드를 통과한 뒤 서비스 계층이 403 `OWNER_REQUIRED` 로 거부한다. 거부 본문은 `workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER` 이고 코드 값은 가드의 소유자 미달 코드(`ROLE_REQUIRED.owner.code`)를 그대로 쓴다. 메시지만 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 로 이 동작에 맞췄다.
+2026-10-10 에 관리자 역할을 주고 빼는 일을 소유자 전용으로 정했다(NERV Task `CLE-T-0W7CA7`, [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할을-주고-빼는-일은-소유자만-한다)). 소유자가 아닌 요청자의 요청은 가드를 통과한 뒤 서비스 계층이 403 `OWNER_REQUIRED` 로 거부한다. 거부 본문은 `workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER` 이고 코드 값은 가드의 소유자 미달 코드(`ROLE_REQUIRED.owner.code`)를 그대로 쓴다. 메시지만 «Only the owner can grant or revoke the admin role.» 로 이 동작에 맞췄다.
 
 - **규칙 6 의 새 조건으로 보지 않았다.** 뜻이 "이 동작은 소유자만 한다" 로 가드의 소유자 미달과 같다. 클라이언트가 할 일도 소유자에게 맡기는 것 하나다. 서비스 계층이 가드 코드를 다시 쓰는 선례도 있다. 소유자 이양의 서비스 재검증이 같은 코드를 낸다.
 - **초대 모듈의 소문자 관례를 따르지 않았다.** 「예외 등록 근거에 "모듈 안 일관성 보존" 도 들어가는 이유」 는 이미 소문자로 굳은 코드를 지키는 근거다. 새 코드를 소문자로 만들라는 규칙이 아니다(규칙 7). 초대 라우트는 2026-09-25 부터 가드의 대문자 코드(`NOT_A_MEMBER`, `ADMIN_REQUIRED`)를 이미 낸다. 그래서 대문자 `OWNER_REQUIRED` 가 더해져도 그 엔드포인트 응답에 새로운 대소문자 혼재는 생기지 않는다.

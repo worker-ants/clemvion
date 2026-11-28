@@ -39,8 +39,8 @@ async function submitNewPassword() {
 /**
  * NERV Task `CLE-T-MFWBE1` 항목 2 — 에러 봉투는 `{ error: { code, message } }` 다. 예전 화면은
  * `data.message` 를 읽어 늘 기본 문구만 보였다. 재설정 실패는 모두 400 `VALIDATION_ERROR` 이고
- * 클라이언트는 `details` 유무로 원인을 가르지 않으므로(CLE-ACCT-SIGNIN 「API」) 봉투의
- * `error.message` 를 그대로 보인다.
+ * 클라이언트는 `details` 유무로 원인을 가르지 않는다(CLE-ACCT-SIGNIN 「API」). 서버 문구는 영문이라 화면은
+ * 링크 만료와 비밀번호 규칙을 함께 안내하는 사전 문구를 고른다(CLE-T-7QQPK7).
  */
 describe("ResetPasswordForm — 재설정 실패 안내", () => {
   beforeEach(() => {
@@ -49,18 +49,47 @@ describe("ResetPasswordForm — 재설정 실패 안내", () => {
     vi.mocked(toast.error).mockReset();
   });
 
-  it("에러 봉투의 error.message 를 보여 준다", async () => {
+  // CLE-T-7QQPK7 — 서버 `message` 는 영문이라 보이지 않고 링크 만료와 비밀번호 규칙을 함께 안내하는 화면 문구를 고른다.
+  it.each([
+    "Invalid or expired reset token",
+    "Reset token has expired",
+    "Password must contain at least one special character",
+  ])(
+    "VALIDATION_ERROR(%s)는 링크 만료와 비밀번호 규칙을 함께 안내한다",
+    async (serverMessage) => {
+      mockResetPassword.mockRejectedValue(
+        apiError(400, "VALIDATION_ERROR", serverMessage),
+      );
+      render(<ResetPasswordForm token="reset-token" />);
+
+      await submitNewPassword();
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "재설정 링크가 만료됐거나 새 비밀번호가 규칙에 맞지 않아요. 비밀번호 규칙을 확인하고, 그래도 안 되면 새 링크를 요청해 주세요.",
+        ),
+      );
+      expect(toast.error).not.toHaveBeenCalledWith(serverMessage);
+      expect(mockResetPassword).toHaveBeenCalledWith(
+        "reset-token",
+        "NewPass123!@#",
+      );
+    },
+  );
+
+  it("공용 표에 있는 코드는 공용 문구를 고른다", async () => {
     mockResetPassword.mockRejectedValue(
-      apiError(400, "VALIDATION_ERROR", "Invalid or expired reset token"),
+      apiError(429, "RATE_LIMITED", "Too many requests"),
     );
     render(<ResetPasswordForm token="reset-token" />);
 
     await submitNewPassword();
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Invalid or expired reset token"),
+      expect(toast.error).toHaveBeenCalledWith(
+        "요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.",
+      ),
     );
-    expect(mockResetPassword).toHaveBeenCalledWith("reset-token", "NewPass123!@#");
   });
 
   it("제출 전에는 재요청 링크를 보여 주지 않는다", () => {

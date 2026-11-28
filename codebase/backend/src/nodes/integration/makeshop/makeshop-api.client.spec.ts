@@ -1081,6 +1081,40 @@ describe('MakeshopApiClient', () => {
       },
     );
 
+    // CLE-T-DJGSBR — 갱신 요청이 응답을 받고 401 · 403 밖 상태로 실패하면 전송 실패가 아니다.
+    // 400 invalid_grant 의 상태 전이는 후속 Task 몫이라 지금은 같은 경로를 탄다.
+    it.each([
+      [500, { error: 'server_error' }],
+      [429, { error: 'too_many_requests' }],
+      [400, { error: 'invalid_grant' }],
+    ])(
+      '401 → 갱신 %i 실패 — MAKESHOP_API_ERROR, 상태 격하 없이',
+      async (refreshStatus, refreshBody) => {
+        const integration = makeIntegration();
+        fetchMock
+          .mockResolvedValueOnce(
+            makeJsonResponse({ message: 'unauthorized' }, { status: 401 }),
+          )
+          .mockResolvedValueOnce(
+            makeJsonResponse(refreshBody, { status: refreshStatus }),
+          );
+
+        const result = await client.pingConnection(integration);
+
+        expect(result.success).toBe(false);
+        expect(result.code).toBe('MAKESHOP_API_ERROR');
+        expect(result.message).toContain(
+          `token refresh failed (${refreshStatus})`,
+        );
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          integration.id,
+          expect.objectContaining({ status: 'error' }),
+        );
+        expect(integration.status).toBe('connected');
+      },
+    );
+
     it('네트워크 실패 — MAKESHOP_TRANSPORT_FAILED, 던지지 않는다', async () => {
       fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
       const integration = makeIntegration();

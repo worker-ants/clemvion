@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { workspacesApi } from "@/lib/api/workspaces";
 import { invitationsApi, type InvitationMeta } from "@/lib/api/invitations";
@@ -19,7 +18,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useT, translate } from "@/lib/i18n";
+import { useT, translate, type Locale } from "@/lib/i18n";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 // CLE-ACCT-WS 「이미 가입한 사용자의 수락 경로」 — 이미 가입한 사용자가 다른 워크스페이스에 초대된
@@ -28,6 +28,18 @@ import { useLocaleStore } from "@/lib/stores/locale-store";
 // 초대 알림이 여는 초대 id 모드(`?invitationId=`, CLE-T-86E38Q)는 서버가 로그인 이메일로 온 초대만 돌려주므로
 // 불일치 안내가 없다. 없거나 남의 초대(404) · 이미 처리한 초대(410)는 오류 상태로 보인다. 두 값이 다 있으면
 // 토큰을 쓴다.
+/**
+ * 초대 조회 · 수락 실패 문구. 서버 `message` 는 영문이라 에러 코드로 사전 문구를 고른다(NERV CLE-UI-I18N-BACKEND 규칙 5,
+ * Task CLE-T-MBMPX5). 모르는 코드면 서버 문구, 응답이 없으면 기본 실패 문구다.
+ */
+function acceptErrorMessage(err: unknown, locale: Locale): string {
+  return serverErrorMessage(
+    err,
+    (key, params) => translate(locale, key, params),
+    translate(locale, "invitations.accept.acceptFailedDefault"),
+  );
+}
+
 type Status =
   | "loading"
   | "ready"
@@ -70,9 +82,7 @@ export function AcceptInvitationContent() {
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces);
   const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
 
-  const [status, setStatus] = useState<Status>(
-    source ? "loading" : "missing",
-  );
+  const [status, setStatus] = useState<Status>(source ? "loading" : "missing");
   const [meta, setMeta] = useState<InvitationMeta | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -105,11 +115,7 @@ export function AcceptInvitationContent() {
         );
       } catch (err) {
         if (cancelled) return;
-        const error = err as AxiosError<{ message?: string }>;
-        setErrorMessage(
-          error.response?.data?.message ??
-            translate(currentLocale, "invitations.accept.acceptFailedDefault"),
-        );
+        setErrorMessage(acceptErrorMessage(err, currentLocale));
         setStatus("error");
       }
     })();
@@ -136,11 +142,7 @@ export function AcceptInvitationContent() {
         : "/dashboard";
       setTimeout(() => router.push(dest), 1500);
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      setErrorMessage(
-        error.response?.data?.message ??
-          translate(currentLocale, "invitations.accept.acceptFailedDefault"),
-      );
+      setErrorMessage(acceptErrorMessage(err, currentLocale));
       setStatus("error");
     }
   }

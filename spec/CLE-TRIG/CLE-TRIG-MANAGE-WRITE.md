@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-WRITE"
 title: "트리거 관리 — 설정 쓰기와 비밀 발급"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "53042b8cc2e2dbb414e40e196ffae257f0a54019ccb61634bb6f06302aad18ae"
+content_hash: "7ac9f825b996c2efcbe89fe72fba19862e78e5340bacfa273cfa3a139833a2ea"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-FJ3TJ7"
 source_paths: []
-mirror_sha256: "841816a71a05d96532c251dc9cec12fba906b0fb2dbc6398f806de6ec07a6fe0"
-etag: "sha256-4656b6650c8e1378f57ae7ea0478e6ae8a8811c7803ca495896107d538474e49"
+mirror_sha256: "6992ba32b89d83bee4ea5bb3d2d4886e191cd5531fec434845cbc601e0d504e4"
+etag: "sha256-8d85b34f301a6ced305be8d8d6e17513202b68a8361f0921febb9f4eb108f2b6"
 ---
 ## 개요
 
@@ -39,7 +39,8 @@ flowchart TD
 ```
 
 - 외부 서비스 호출은 잠금 밖에서 한다. 잠금 안에서는 다시 읽기와 쓰기만 한다. Cafe24 토큰 갱신이 같은 잠금을 기각한 이유(잠금을 쥔 채 HTTP 요청을 하면 DB 커넥션 점유가 길어진다)가 이 설계의 제약이다([OAuth 연결과 토큰 갱신 「여러 인스턴스의 갱신 경쟁은 BullMQ `jobId` 중복 제거로 푼다」](../CLE-INT/CLE-INT-OAUTH.md#여러-인스턴스의-갱신-경쟁은-bullmq-jobid-중복-제거로-푼다)).
-- 예외로 세 경로는 잠금 안에서 시크릿 저장소에 쓴다. 생성의 첫 알림 서명 시크릿 발급, PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기, 시크릿 승격이다. 세 경로는 잠금을 쥔 트랜잭션의 매니저로 쓴다. 그래서 풀 연결을 하나 더 쓰지 않고 그 트랜잭션이 롤백되면 시크릿 저장소 쓰기도 함께 롤백된다. 지금 시크릿 저장소 백엔드는 같은 DB 의 `secret_store` 테이블이라 이 쓰기에 HTTP 호출이 없다. 외부 백엔드를 들이면 이 경로를 다시 설계한다([시크릿 저장소 「다른 백엔드로 바꾸기」](../CLE-INT/CLE-INT-SECRET.md#다른-백엔드로-바꾸기)).
+- 예외로 네 경로는 잠금 안에서 시크릿 저장소에 쓴다. 생성의 첫 알림 서명 시크릿 발급, PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기, 시크릿 승격, 알림 설정 해제 뒤 정리다. 네 경로는 잠금을 쥔 트랜잭션의 매니저로 쓴다. 그래서 풀 연결을 하나 더 쓰지 않고 그 트랜잭션이 롤백되면 시크릿 저장소 쓰기도 함께 롤백된다. 지금 시크릿 저장소 백엔드는 같은 DB 의 `secret_store` 테이블이라 이 쓰기에 HTTP 호출이 없다. 외부 백엔드를 들이면 이 경로를 다시 설계한다([시크릿 저장소 「다른 백엔드로 바꾸기」](../CLE-INT/CLE-INT-SECRET.md#다른-백엔드로-바꾸기)).
+- 알림 설정 해제 뒤 정리(`deleteAfterUnset`)는 `notification` 을 `null` 로 보낸 PATCH 가 커밋된 뒤 새 트랜잭션에서 같은 잠금을 잡는다. 대기 상한은 두지 않는다. 잠금 안에서 행을 다시 읽어 알림 설정이 없을 때만 알림 서명 시크릿 행을 지운다. 실패하면 경고 로그만 남긴다. 규칙은 [EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](../CLE-IX/CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제), 상태 전이는 [EIA 데이터와 흐름 — 알림 웹훅 발송과 서명 시크릿 「알림 서명 시크릿」](../CLE-IX/CLE-EIA-DATA-NOTIFY.md#알림-서명-시크릿) 이 정한다.
 - 생성은 행 INSERT · 시크릿 저장소 쓰기 · `config` 쓰기 · 첫 비밀 발급을 한 트랜잭션에서 한다. 본문에 `notification` 이나 `interaction` 이 있으면 이 트랜잭션은 INSERT 한 트리거의 설정 잠금을 잡는다. 첫 알림 서명 시크릿은 잠금을 쥔 이 트랜잭션의 매니저로 시크릿 저장소에 쓴다. 트리거 단위 토큰은 같은 트랜잭션에서 `config.interaction.triggerToken` 에 쓴다. 어느 단계든 실패하면 트랜잭션 전체가 롤백되어 행도 비밀도 남지 않는다. 그래서 호출자가 같은 요청을 다시 보내도 `endpointPath` UNIQUE 충돌이나 중복 트리거가 생기지 않는다. 감사 기록(`trigger.created`)은 이 트랜잭션에 넣지 않고 커밋 직후 트랜잭션 밖에서 남긴다. PATCH 의 `trigger.updated` 도 커밋 직후에 남긴다. 그래서 롤백된 생성은 감사에 남지 않는다([Rationale](#rationale) «생성을 한 트랜잭션으로 묶는다»). 채팅 채널 setup 은 커밋과 감사 기록 뒤에 하고 위의 다시 읽기 · 병합 규칙을 따른다.
 - 잠금 대기 상한은 삭제에만 있다(5초, [트리거 관리 — 삭제 「결과와 에러」](CLE-TRIG-MANAGE-DELETE.md#결과와-에러)).
 - `config` 를 건드리지 않는 컬럼 한정 갱신은 이 잠금을 잡지 않는다. 예: 웹훅 수신의 `lastTriggeredAt`, 스케줄 편집의 `name`·`isActive` 동기화.

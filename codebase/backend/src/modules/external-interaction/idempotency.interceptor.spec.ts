@@ -1609,3 +1609,115 @@ describe('IdempotencyInterceptor — readKey / hashBody 경계값', () => {
     },
   );
 });
+
+/**
+ * GET 과 SET 사이 창의 재현(CLE-T-7TDHC7, CLE-EIA-INBOUND-COMMAND 「멱등 키」 저하 구간).
+ *
+ * GET 과 SET 이 원자적이지 않아 같은 키 요청 둘이 모두 GET 을 마친 뒤 SET 하면 핸들러가 두 번
+ * 돈다. 뒤에 SET 한 응답이 앞 값을 덮으므로 첫 클라이언트가 받은 응답과 캐시 값이 갈린다.
+ * 이 창은 잠금으로 닫지 않기로 했다(사용자 결정 질문 23 A). 다운스트림 중복은 재개 진입 원자
+ * claim 과 입력 대기 가드가 흡수한다. 이 블록은 그 동작을 고정한다. 창을 닫는 변경이 들어오면
+ * 여기가 RED 가 되어 스펙 Rationale 과 함께 다시 보게 한다.
+ *
+ * Redis 는 메모리 Map 으로 흉내 낸다. 지금은 `Promise.all` 만으로도 두 GET 이 SET 보다 먼저
+ * 끝나지만, `get` 이 두 요청이 모두 부를 때까지 응답을 미뤄 그 순서가 microtask 순서에 기대지
+ * 않게 한다. `SET ... NX` 로 바꾸는 뮤턴트에서 첫 테스트가 RED 인 것을 확인했다.
+ */
+describe('IdempotencyInterceptor (GET · SET 창 재현)', () => {
+  const KEY = 'race-1';
+  const BODY = { command: 'submit_form' };
+
+  function makeStoreRedis(opts: { holdGets: number }) {
+    const store = new Map<string, string>();
+    const waiting: Array<() => void> = [];
+    const redis: RedisStub = {
+      get: jest.fn((key: string) => {
+        const read = () => store.get(key) ?? null;
+        if (opts.holdGets <= 1) return Promise.resolve(read());
+        return new Promise<string | null>((resolve) => {
+          waiting.push(() => resolve(read()));
+          if (waiting.length === opts.holdGets) waiting.forEach((f) => f());
+        });
+      }),
+      // `NX` 를 받으면 Redis 처럼 이미 있는 키를 덮지 않는다. 창을 닫는 변경이 이 테스트를
+      // RED 로 만드는지 재는 데 쓴다.
+      set: jest.fn((key: string, value: string, ...args: unknown[]) => {
+        if (args.includes('NX') && store.has(key)) return Promise.resolve(null);
+        store.set(key, value);
+        return Promise.resolve('OK');
+      }),
+    };
+    return { redis, store };
+  }
+
+  const handlerReturning = (value: unknown, calls: unknown[]): CallHandler => ({
+    handle: () => {
+      calls.push(value);
+      return of(value);
+    },
+  });
+
+  const cachedResponse = (store: Map<string, string>) =>
+    JSON.parse(
+      (
+        JSON.parse(store.get(scopedKey(DEFAULT_EXECUTION_ID, KEY))!) as {
+          responseJson: string;
+        }
+      ).responseJson,
+    ) as unknown;
+
+  it('GET 둘이 SET 보다 먼저 끝나면 핸들러가 두 번 돌고 뒤 SET 이 캐시를 덮는다', async () => {
+    const { redis, store } = makeStoreRedis({ holdGets: 2 });
+    const interceptor = makeInterceptor(redis);
+    const calls: unknown[] = [];
+
+    const [first, second] = await Promise.all([
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: KEY, body: BODY, statusCode: 202 }),
+          handlerReturning({ n: 1 }, calls),
+        ),
+      ),
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: KEY, body: BODY, statusCode: 202 }),
+          handlerReturning({ n: 2 }, calls),
+        ),
+      ),
+    ]);
+
+    // 같은 키 · 같은 본문인데 두 요청 모두 핸들러까지 갔다.
+    expect(calls).toEqual([{ n: 1 }, { n: 2 }]);
+    expect(first).toEqual({ n: 1 });
+    expect(second).toEqual({ n: 2 });
+    expect(redis.set).toHaveBeenCalledTimes(2);
+    // 첫 클라이언트가 받은 `{ n: 1 }` 이 아니라 뒤에 쓴 값이 남았다.
+    expect(cachedResponse(store)).toEqual({ n: 2 });
+  });
+
+  it('대조: 앞 요청의 SET 뒤에 GET 하면 핸들러는 한 번만 돌고 앞 응답을 재생한다', async () => {
+    const { redis, store } = makeStoreRedis({ holdGets: 1 });
+    const interceptor = makeInterceptor(redis);
+    const calls: unknown[] = [];
+
+    const first = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: KEY, body: BODY, statusCode: 202 }),
+        handlerReturning({ n: 1 }, calls),
+      ),
+    );
+    // SET 은 응답을 막지 않는 `void` 호출이라 다음 GET 전에 한 틱 넘긴다.
+    await Promise.resolve();
+    const second = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: KEY, body: BODY, statusCode: 202 }),
+        handlerReturning({ n: 2 }, calls),
+      ),
+    );
+
+    expect(calls).toEqual([{ n: 1 }]);
+    expect(first).toEqual({ n: 1 });
+    expect(second).toEqual({ n: 1 });
+    expect(cachedResponse(store)).toEqual({ n: 1 });
+  });
+});

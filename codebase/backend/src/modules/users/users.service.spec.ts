@@ -223,10 +223,12 @@ describe('UsersService', () => {
       const err = await rejectionOf(
         service.changePassword('user-uuid', 'anything', strongNewPassword),
       );
-      const body = err.getResponse() as { message: string };
-      // 문구 전문이 아니라 "안내가 있다" 는 계약만 고정한다 — FE 가 서버 message 를
-      // 그대로 노출하므로(실측) 이 안내의 존재 자체가 관측 가능한 계약이다.
-      expect(body.message).toContain('재설정');
+      const body = err.getResponse() as { code: string; message: string };
+      // 문구 전문이 아니라 "안내가 있다" 는 계약만 고정한다. 서버 message 는 영문이고 한국어 화면은
+      // 코드(`PASSWORD_REQUIRED`)로 사전 문구를 고른다(NERV Task CLE-T-MBMPX5). 영문 사용자와 API 호출자가 보는
+      // 이 안내에 비밀번호 재설정 경로가 있어야 한다.
+      expect(body.code).toBe('PASSWORD_REQUIRED');
+      expect(body.message).toContain('password reset');
     });
 
     it('throws BadRequestException when new password violates strength policy', async () => {

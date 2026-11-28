@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA-FK"
 title: "데이터 모델 개요 — 외래 키와 범위 제약"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT-DATA"
 ancestors: ["CLE-VISION", "CLE-PLAT", "CLE-PLAT-DATA"]
 area: "CLE-PLAT"
-content_hash: "2bdcaff550a31e2e1920db2010b153d917cda07b29a55acb2a77201719af33d3"
+content_hash: "366cbb966ec3ec0546a2342229b13d118f8a8aebe46c6d97dff864cca2e4de65"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-JPSHKZ"
 source_paths: []
-mirror_sha256: "2a085fd4b101f9ddd63e3abcb12a275d73565c48cfbda09bc9d3b7acef733aea"
-etag: "sha256-88344eb32f325d46728c566761936cb76f4ceb1ed5014a83d6438283f633c65f"
+mirror_sha256: "5fe48010c5a5caabe285944d3433cb87f10c64b79fe2018c63a481a1ea7d81dc"
+etag: "sha256-4fcc7c5863938f98c226e52659e035a4c0416501714b6f0d5bafb66011483258"
 ---
 ## 개요
 
@@ -74,7 +74,7 @@ etag: "sha256-88344eb32f325d46728c566761936cb76f4ceb1ed5014a83d6438283f633c65f"
 - **NO ACTION 여섯은 모두 사용자를 가리킨다.** 앱에는 사용자를 지우는 경로가 없다. "탈퇴" 는 워크스페이스 멤버십(`workspace_member` 행) 삭제다. 참조 행이 있는 사용자의 삭제는 지금 스키마가 거부한다. 사용자 삭제를 더하는 변경은 사용자를 가리키는 FK 전체의 처분부터 다시 정해야 한다.
 - **범위 참조 열일곱은 복합 FK 다.** 삭제 동작은 위 표 그대로이고 SET NULL 은 참조 컬럼만 비운다([범위 참조의 DB 제약](#범위-참조의-db-제약)).
 - **시크릿 저장소의 `workspace_id` 에는 FK 가 없다.** 이 컬럼을 조건으로 지우는 경로는 없고, 정리는 트리거 단위 접두 삭제로 한다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
-- **워크스페이스 초대(`workspace_invitation`)** 는 코드 엔티티에 관계가 선언되지 않아 워크스페이스 삭제 트랜잭션이 멤버와 함께 명시적으로 지운다. DB 에는 `workspace_id` FK(CASCADE, V017)도 있다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)).
+- **워크스페이스 초대(`workspace_invitation`)** 는 코드 엔티티에 관계가 선언되지 않아 워크스페이스 삭제 트랜잭션이 멤버와 함께 명시적으로 지운다. DB 에는 `workspace_id` FK(CASCADE, V017)도 있다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md)).
 - 통합 OAuth 일시 행 두 테이블의 FK 는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md) 이 정한다. 위 표의 `integration_oauth_state`·`integration_expiry_dispatch` 행은 그 문서의 매핑 표에서 옮겼다.
 
 ## 구현 위치
@@ -91,7 +91,7 @@ etag: "sha256-88344eb32f325d46728c566761936cb76f4ceb1ed5014a83d6438283f633c65f"
 [본문 참조 id 도 저장 전에 소속을 본다](CLE-PLAT-DATA-REFSCOPE.md#본문-참조-id-도-저장-전에-소속을-본다) 는 새 쓰기 경로가 검사를 빠뜨리는 것을 막는 정적 가드가 없다고 적었다. 그 가드는 2026-11-07 에 더했다(그 결정의 «왜 저장 시점인가»). 운영 점검은 저장 경계 이전의 행을 찾으려고 둔 것이지만 어떤 경로로 생긴 교차 행이든 결과에 나왔다. 그 점검을 [저장된 교차 행 결정](CLE-PLAT-DATA-REFSCOPE.md#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다) 에서 걷었으므로 검사를 빠뜨린 경로가 만든 교차 행은 이제 찾을 수단이 없다. 이 공백 가운데 걷은 점검이 보던 열여섯 참조를 DB 가 막도록 복합 외래 키(복합 FK)를 더하기로 했다(사람 결정). 2026-10-05 에 마이그레이션 V134~V147 로 구현했다. 구현 착수 때 대상을 열일곱으로 넓혔다(아래 «대상»).
 
 - **대상**: 걷은 점검 SQL 의 `check_name` 열여섯과 같은 참조 컬럼이다. [참조의 소속](CLE-PLAT-DATA-REFSCOPE.md#참조의-소속) 표에 있는 참조 컬럼 열넷과 표 밖의 둘이다. 표 밖의 둘은 서버가 채우는 스케줄 `trigger_id` 와 어시스턴트 세션 `workflow_id` 다. 세션 `workflowId` 는 구현 때 표에 올리고 이미 나가던 404 `WORKFLOW_NOT_FOUND` 를 예외 3 으로 적었다(사람 결정. 지금 표의 참조 컬럼은 열다섯이다). 워크스페이스 범위 열둘은 트리거 `workflow_id` · `auth_config_id`, 스케줄 `trigger_id`, 알림 규칙 `workflow_id`, 워크플로우 `folder_id`, 폴더 `parent_id`, 어시스턴트 세션 `workflow_id` · `llm_config_id`, 지식 저장소 모델 설정 넷이다. 같은 워크플로우 범위 넷은 노드 `container_id` · `tool_owner_id` 와 연결선 끝점 둘이다. 부모 여섯(워크플로우, 인증 설정, 폴더, 모델 설정, 트리거, 노드)에 `UNIQUE (id, workspace_id)` 나 `UNIQUE (id, workflow_id)` 를 둔다. 구현 착수 때 워크플로우 테스트 데이터셋 `workflow_id` 를 더해 **열일곱**이 됐다(사람 결정). 이 테이블은 `workspace_id` 를 비정규화해 두므로([공통 컬럼 규칙](CLE-PLAT-DATA.md#공통-컬럼-규칙) 6) 두 값이 맞는지가 곧 이 불변식이다. 부모 `workflow` 의 UNIQUE 는 어차피 생기므로 더해지는 비용은 FK 교체 하나다. LLM 사용량 기록(`LlmUsageLog`)의 `workflow_id` · `llm_config_id` 는 넣지 않았다. 서버만 쓰는 기록이라는 이유를 적은 선택지를 사람이 골랐다. 공통 컬럼 규칙 6 의 다른 비정규화 컬럼 가운데 활동 로그의 `workflow_id` 는 부모(노드 실행)에 같은 범위 컬럼이 없어 복합 FK 를 만들 수 없다. 청크의 `knowledge_base_id` 는 문서 `(id, knowledge_base_id)` 로 만들 수 있지만 지식 저장소 범위라 이 결정(워크스페이스 · 워크플로우 범위)에 넣지 않았다. 테스트 데이터셋은 2026-10-05 운영 점검 밖이라 V134 가 처음 본다.
-- **견준 안**: 사람에게 세 안을 물었다. (a) 열여섯 모두 바꾼다. (b) 워크스페이스 범위 열둘만 바꾸고 쓰기가 잦은 노드 테이블에 UNIQUE 를 더하지 않는다. (c) 채택하지 않고 공백을 받아들인다. (a) 를 골랐다. (b) 는 2026-09-27 사고가 난 노드 · 연결선 참조를 저장 시점 검사에만 맡기고, (c) 는 탐지 수단도 없는 공백을 남긴다. 앱 불변식을 DB 로 한 번 더 막은 선례는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 개인 워크스페이스 부분 유니크 인덱스(V109)다.
+- **견준 안**: 사람에게 세 안을 물었다. (a) 열여섯 모두 바꾼다. (b) 워크스페이스 범위 열둘만 바꾸고 쓰기가 잦은 노드 테이블에 UNIQUE 를 더하지 않는다. (c) 채택하지 않고 공백을 받아들인다. (a) 를 골랐다. (b) 는 2026-09-27 사고가 난 노드 · 연결선 참조를 저장 시점 검사에만 맡기고, (c) 는 탐지 수단도 없는 공백을 남긴다. 앱 불변식을 DB 로 한 번 더 막은 선례는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#개인-워크스페이스-유일성은-부분-유니크-인덱스로-강제한다) 의 개인 워크스페이스 부분 유니크 인덱스(V109)다.
 - **기존 단일 FK 를 바꾼다**: 같은 참조에 FK 를 둘 두지 않는다. 삭제 동작은 지금과 같다. SET NULL 참조는 `ON DELETE SET NULL (참조 컬럼)` 으로 참조 컬럼만 비운다. 자식의 `workspace_id` · `workflow_id` 가 NOT NULL 이기 때문이다. 이 문법은 PostgreSQL 15 부터 있다. 운영 DB 는 16 이상이고(사람 확인, 2026-10-05) 개발 · e2e 기본 이미지는 pg18 이다. 최소 15 는 [시스템 아키텍처](CLE-PLAT-ARCH.md) 와 저장소 README · `.env.example` · `migrations/README.md` 에 적었다. V134 가 스키마를 바꾸기 전에 서버 버전을 보고 15 미만이면 멈춘다. 그 확인이 없으면 부모 인덱스 여섯을 만든 뒤에 FK 파일이 실패한다. 제약 이름은 FK 가 `fk_<자식 테이블>_<참조 컬럼>`, UNIQUE 가 `uq_<부모 테이블>_id_<범위 컬럼>` 이다. 옛 이름에는 시스템 생성 `_fkey` 와 줄인 `fk_kb_*` 가 섞여 있어 이 열일곱과 여섯은 한 규칙으로 다시 지었다. 다른 FK 의 이름은 그대로다. 옛 이름과의 대응은 V141~V146 머리 주석에 있다. 소유 문서의 FK 표기에 범위를 덧붙이는 방식은 「모든 FK 행에 삭제 동작을 적는 이유」 의 표기를 넓힌 것이다.
 - **추가 방식**: 부모 UNIQUE 는 [인덱스 전략](CLE-PLAT-DATA-INDEX.md#원칙) 원칙 6 과 [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 규칙 13 을 따라 `CREATE UNIQUE INDEX CONCURRENTLY` 로 만든 뒤 제약에 붙인다. 복합 FK 는 `NOT VALID` 로 더한 뒤 `VALIDATE` 한다. FK 교체는 부모마다 한 파일(V141~V146)이다. 파일 하나가 그 부모의 UNIQUE 를 붙이고 그 부모를 가리키는 FK 를 바꾼다. UNIQUE 를 붙이면 부모가, 옛 FK 를 지우면 자식과 부모가 ACCESS EXCLUSIVE 로 잠기고 그 잠금은 파일이 커밋할 때까지 남는다. 한 트랜잭션에서 열일곱을 모두 바꾸면 워크플로우 · 노드 · 트리거 같은 핵심 테이블이 함께 잠긴 채 다른 테이블의 잠금을 기다릴 수 있어 나눴다. 기존 행을 읽지 않아 노드 · 연결선 10만 행에서 파일마다 2~3 ms, 여섯 합계 약 14 ms 잠갔다(2026-10-05 실측). 행을 넣은 직후의 첫 회는 V146 이 416 ms 였다. `SET LOCAL lock_timeout = '3s'` 는 잠금 하나를 기다리는 한도라서 파일 전체의 시간을 묶지 못하고, 잠그는 순서가 엇갈린 요청과 드물게 교착할 수 있다. 그래서 트래픽이 적을 때 배포한다. 한도를 넘기면 그 파일만 바뀌는 것 없이 실패하고 다시 돌리면 그 파일부터 이어진다. 그 사이 아직 바꾸지 않은 참조는 옛 단일 FK 가 막는다.
 - **바꿀 수 있는 이유**: 정상 경로에는 부모나 자식의 `workspace_id` · `workflow_id` 를 바꾸는 쓰기가 없다. 복제 · 가져오기 · 버전 복원은 새 행을 만들거나 캔버스 저장을 그대로 부른다. 2026-09-27 에 재현된 노드 행 이동(캔버스 저장이 다른 워크플로우의 노드 id 로 `save` 해 그 행의 `workflow_id` 를 바꿨다)은 새 노드 id 검사가 막는다. 캔버스 저장은 한 워크플로우의 노드만 다루므로 복합 FK 가 지금의 단일 FK 보다 더 막는 정상 요청이 없다.

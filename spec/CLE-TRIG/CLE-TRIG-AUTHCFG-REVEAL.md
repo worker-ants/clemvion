@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG-REVEAL"
 title: "외부 호출 인증 설정 — 마스킹과 평문 보기"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-AUTHCFG"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-AUTHCFG"]
 area: "CLE-TRIG"
-content_hash: "27a6f5d2707746e3b8c0f30fcc23778a33dd71d77c10ac3a44a2715540c34524"
+content_hash: "f291d10abfce9c6de2cbaeee9085f165c74b6a94ea87db0759ded2263c2d57fc"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-3WDHJT"
 source_paths: []
-mirror_sha256: "b9044973b75c5c3cd11dd03bc63e1ffb9c90ca6dc22b449bc5864dcd23570dd1"
-etag: "sha256-4a71c7e65523ca46832f8c5e072ee8cea7b8c6b4405b1da8b3ecbc14ba1eed5f"
+mirror_sha256: "0707b6d8c3903b04ab82cf769f94242d8719c6f2180f7ec50cfc6377b1bea5e8"
+etag: "sha256-f49617123a44ca86aade9aa3210cb80ebb2c5446a8af5586e28554602709cb9f"
 ---
 ## 개요
 
@@ -72,7 +72,9 @@ sequenceDiagram
 
 평문이 드러나는 세 경로(생성·재생성·평문 보기)는 같은 보안 자산이므로 노출 시간 제한 정책을 하나로 맞춘다. 전에는 평문 보기만 자동으로 숨기고 생성·재생성 표시는 사용자가 닫을 때까지 남았다. 이 비대칭을 없애 화면을 방치했을 때 어깨너머 보기나 세션 탈취로 평문이 노출되는 창을 30초로 줄인다. 클라이언트 타이머는 `useEffect` cleanup 으로 컴포넌트가 사라지거나 다시 표시될 때 정리해 누수와 늦은 지우기를 막는다.
 
-### 복호화 불가 표식을 응답에 그대로 둔다 (2026-11-05)
+### 복호화 불가 표식을 응답에 그대로 둔다
+
+결정일: 2026-11-05
 
 복호화 불가 설정의 응답 `config` 는 표식 `{ "__unreadable": true }` 그대로다. 통합처럼 `credentialsStatus` 같은 상태 필드로 바꾸지 않는다. 화면은 표식을 보고 행에 «읽을 수 없음» 표시를 붙인다. 전에는 화면이 표식을 처리하지 않아 빈 설정처럼 보였다.
 
@@ -100,7 +102,7 @@ sequenceDiagram
 - 엔티티의 `config` 컬럼을 응답에서 통째로 숨긴다: 정상 행의 마스킹 표시(`***<last4>`)까지 사라진다.
 - 원래 저장값의 키를 비밀 마스킹 대상 키에 넣어 `***<last4>` 로 가린다: 끝 네 글자가 응답에 남는다. 복구용으로 보관하는 내부 값이 사용자 비밀 값의 마스킹 규칙에 섞인다.
 
-표식은 응답 `config` 에 남긴다. 인증 설정 응답에는 통합의 `credentialsStatus` 같은 상태 표시가 없다. 그래서 표식이 «읽지 못한 설정» 을 알리는 유일한 신호다. 표식을 상태 표시로 바꾸지 않기로 한 결정은 [복호화 불가 표식을 응답에 그대로 둔다](#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다.
+표식은 응답 `config` 에 남긴다. 인증 설정 응답에는 통합의 `credentialsStatus` 같은 상태 표시가 없다. 그래서 표식이 «읽지 못한 설정» 을 알리는 유일한 신호다. 표식을 상태 표시로 바꾸지 않기로 한 결정은 [복호화 불가 표식을 응답에 그대로 둔다](#복호화-불가-표식을-응답에-그대로-둔다) 에 있다.
 
 ### 평문 보기의 비밀번호 확인 실패는 401 `AUTH_FAILED` 하나다
 

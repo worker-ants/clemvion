@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-SYSVAL"
 title: "에러 코드 카탈로그 — 시스템 · 유효성 검증"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "59e273280c7071c064bc01bcbf3d00fbf924d9c68516c9fe6cd6533ea828552e"
+content_hash: "9976bb272fb30f13587fad38b10698cf09bf2878b447a84305715c104cf9a5b1"
 read_as: "approved_fallback"
-task: "CLE-T-KKJ2A0"
+task: "CLE-T-1C2JE0"
 source_paths: []
-mirror_sha256: "c3dc7354cd73ccde30a57641ff225b2ee020e4d6ea49c190a3a7e8ee1f243ee2"
-etag: "sha256-6e2bcce809ff718e3cda4fdee33d6dec87abf53dba7de475dfbab04e381b33a3"
+mirror_sha256: "26c40b0b72c0bd7b9c346b8e9b67cfe92a19d4b254c965da46bddfddd0fa1ab6"
+etag: "sha256-6994c8b91de409c3c9010da49374359c349f58df08e7c9d8bf79b2fd79760168"
 ---
 ## 개요
 
@@ -27,7 +27,7 @@ etag: "sha256-6e2bcce809ff718e3cda4fdee33d6dec87abf53dba7de475dfbab04e381b33a3"
 | 코드 | 이름 | 설명 | 사용자 메시지 | 정의 문서 |
 |------|------|------|--------------|-----------|
 | `INTERNAL_ERROR` | 내부 서버 에러 | 예상하지 못한 서버 에러. 5xx 기본 코드. 클라이언트가 분기할 수 없는 예상된 내부 거부도 이 코드로 보낸다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25 · 27) | "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때 낸다. 기록하지 못하는 조건은 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다 | "서비스를 일시적으로 사용할 수 없습니다." | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 두 경우에 낸다. 1) 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때 낸다. 기록하지 못하는 조건은 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다. 2) 잠금 대기 상한(`SET LOCAL lock_timeout`)을 넘긴 요청(PostgreSQL `55P03`)에도 낸다([계정과 워크스페이스 데이터 흐름 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」](../CLE-ACCT/CLE-ACCT-DATA.md#잠금-대기-초과는-503-service_unavailable-로-낸다)) | "서비스를 일시적으로 사용할 수 없습니다." | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
 | `RATE_LIMITED` | 요청 빈도 제한 | 요청 빈도 제한 초과. 429 기본 코드 | "요청이 너무 많습니다. {retry_after}초 후 다시 시도해 주세요." | [HTTP API 규약](CLE-API-CONV.md) |
 
 ## 6.4 유효성 검증

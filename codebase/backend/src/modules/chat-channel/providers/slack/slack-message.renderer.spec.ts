@@ -56,7 +56,6 @@ describe('renderSlackEvent — basic event types', () => {
         workflowId: 'w',
         seq: 1,
         timestamp: '2026-05-24T00:00:00Z',
-        result: {},
       },
       CONFIG,
     );
@@ -812,7 +811,7 @@ describe('renderSlackEvent — languageHints 빈 문자열 덮어쓰기 → 기�
 
   it('executionCompleted 가 빈 문자열이면 완료 기본 문구를 보낸다', () => {
     const msgs = renderSlackEvent(
-      { ...EVENT_FIELDS, type: 'execution.completed', result: {} },
+      { ...EVENT_FIELDS, type: 'execution.completed' },
       { ...CONFIG, languageHints: { executionCompleted: '' } },
     );
     expect(msgs[0].body).toEqual({

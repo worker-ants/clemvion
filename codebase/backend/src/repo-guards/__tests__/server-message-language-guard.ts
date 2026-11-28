@@ -18,17 +18,18 @@ import {
  * - `modules/triggers` — `CLE-T-CP6E9B`
  * - `common/constants/workspace-roles.ts` — 워크스페이스 가드 거부 본문, `CLE-T-CHP94Z`
  *
- * 아직 옮기지 않은 영역은 여기 없다. `modules/workspaces`(workspaces · workspace-invitations 서비스)와 `modules/users` 의
- * 한국어 `message` 는 NERV Task `CLE-T-MBMPX5` 가 옮기고 그 Task 가 이 목록에 더한다.
+ * - `modules/workspaces` · `modules/users` — 워크스페이스 · 초대 · 사용자 서비스, `CLE-T-MBMPX5`
  *
  * 판정은 이름 규칙으로 응답 문구 자리를 추정하는 휴리스틱이다(`isResponseText`). 다른 파일에서 가져온 예외 헬퍼, 화살표 함수
- * 헬퍼, 변수에 담았다가 `throw` 하는 문구는 잡지 못하고 `description` · `summary` · `example` 속성은 늘 제외한다.
- * 범위를 `modules/workspaces` 로 넓힐 때 헬퍼 수집을 파일 간으로 확장할지 함께 정한다.
+ * 헬퍼, 변수에 담았다가 `throw` 하는 문구는 잡지 못하고 `description` · `summary` · `example` 속성과 `notify(…)` 인자는
+ * 늘 제외한다. 판정을 넓히지 않고 못 잡는 꼴을 형제 spec 의 「지금은 안 잡는다」 픽스처로 고정한다(`CLE-T-7QQPK7`).
  */
 export const SCANNED_PATHS: readonly string[] = [
   'modules/auth',
   'modules/triggers',
   'common/constants/workspace-roles.ts',
+  'modules/workspaces',
+  'modules/users',
 ];
 
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
@@ -70,6 +71,17 @@ function calleeName(node: ts.CallExpression | ts.NewExpression): string {
 }
 
 /**
+ * 인앱 알림을 보내는 `notify(…)` 호출 안인가. 알림의 `title` · `message` 는 받는 사람에게 보이는 알림 본문이고 에러 응답이
+ * 아니다(`notificationsService.notify({ message })`). 알림 본문의 다국어화는 따로 다룬다.
+ */
+function isInsideNotifyCall(node: ts.Node): boolean {
+  for (let cur = node.parent; cur !== undefined; cur = cur.parent) {
+    if (ts.isCallExpression(cur) && calleeName(cur) === 'notify') return true;
+  }
+  return false;
+}
+
+/**
  * 문자열 노드가 에러 응답 문구 자리에 있는가. 조상을 올라가며 처음 만나는 판정 노드로 정한다.
  *
  * 응답 문구로 보는 자리:
@@ -79,12 +91,14 @@ function calleeName(node: ts.CallExpression | ts.NewExpression): string {
  *    (`totpNotInitialized(message)` 처럼 예외를 만들어 돌려주는 헬퍼).
  * 4. 이름이 `*_MESSAGES` · `*_HINT` 인 상수의 초기값.
  *
- * 그 전에 Swagger 설명 속성(`description` 등)이나 로거 호출을 만나면 응답 문구가 아니다.
+ * 그 전에 Swagger 설명 속성(`description` 등)이나 로거 호출을 만나면 응답 문구가 아니다. `notify(…)` 호출 안의 문자열은
+ * 어느 자리든 응답 문구가 아니다(`isInsideNotifyCall`).
  */
 function isResponseText(
   node: ts.Node,
   exceptionHelpers: ReadonlySet<string>,
 ): boolean {
+  if (isInsideNotifyCall(node)) return false;
   for (let cur = node.parent; cur !== undefined; cur = cur.parent) {
     if (ts.isPropertyAssignment(cur)) {
       const name = propertyName(cur);

@@ -137,6 +137,7 @@ export const auth = {
     failed: "변경에 실패했어요",
     invalidTokenShort: "유효하지 않은 재설정 링크예요. 새 링크를 요청해 주세요.",
     passwordChanged: "비밀번호가 재설정되었어요!",
+    rejected: "재설정 링크가 만료됐거나 새 비밀번호가 규칙에 맞지 않아요. 비밀번호 규칙을 확인하고, 그래도 안 되면 새 링크를 요청해 주세요.",
     genericFailed: "비밀번호 재설정에 실패했어요. 다시 시도해 주세요.",
   },
   verifyEmail: {
@@ -155,6 +156,7 @@ export const auth = {
     redirecting: "대시보드로 이동하는 중...",
     verifiedToast: "이메일 인증을 완료했어요!",
     genericFailed: "인증에 실패했어요. 다시 시도해 주세요.",
+    linkInvalid: "인증 링크가 유효하지 않거나 만료됐어요. 인증 메일을 다시 받아 주세요.",
     resendCooldown: "{{seconds}}초 후 다시 보낼 수 있어요",
     resendSent: "인증 메일을 다시 보내드렸어요.",
     resendFailed: "메일 재발송에 실패했어요. 잠시 후 다시 시도해 주세요.",

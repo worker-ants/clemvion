@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 21
+version: 22
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "6f32b7a5f1acc2ed7de5543aa8066282f90890ab39d3aa465f9d8ac10ba6a63a"
+content_hash: "937d32c30b7f1eba5a94b971df400bf722131a6705f2ea6cd94083c68e8e2f88"
 read_as: "approved_fallback"
-task: "CLE-T-R8GDTY"
+task: "CLE-T-W50N35"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "732de53676b88f3b5d161a448d8f9ea78b37553fe3a973e7e6bbe96ba62214a3"
-etag: "sha256-848ac1ba0cc6222c525484b26a9f729bd685b13d1269be7915b45013e6c1816d"
+mirror_sha256: "4e0fb090eb70ac448cafba17d9d0766af9ea81017a6a33f36876a5bc0fdfa1ec"
+etag: "sha256-9255f74638c9b609a6af47a9126a9b24c7b419d699d71d3d5f50d458b1b18b6e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ etag: "sha256-848ac1ba0cc6222c525484b26a9f729bd685b13d1269be7915b45013e6c1816d"
 3. 시간 메트릭은 모든 통합 노드에서 `meta.durationMs`(단위 ms) 하나로 쓴다.
 4. 통합 노드는 블로킹 노드가 아니다. 흐름 지시 상태(`status`)는 비워 둔다. 예외는 [Send Email 노드](CLE-NODE-EMAIL.md)가 통합 서비스를 주입받지 못했을 때(의존성 주입 누락) 돌려주는 `requires_integration` 하나다([핸들러 실행 계약 「서비스 미주입과 워크스페이스 누락」](CLE-NODE-INT-COMMON-HANDLER.md#서비스-미주입과-워크스페이스-누락)).
 5. 모든 통합 핸들러는 [핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md#6단계-계약) 의 6단계를 따른다.
-6. 사전 검증 에러(`handler.validate()` 실패)만 throw 로 실행을 실패시킨다. `execute()` 안에서 난 실패는 모두 에러 포트(`port: 'error'`)와 `output.error.{code, message, details?}` 로 내보낸다. 근거는 [Rationale 「핸들러 실패를 에러 포트로 통일」](#핸들러-실패를-에러-포트로-통일-2026-05-17) 에 있다. 예외는 상위 취소 신호(`context.abortSignal`) 때문에 생긴 `AbortError` 하나다. 다섯 노드 모두 이 예외를 에러 포트로 바꾸지 않고 다시 던지므로 노드 실행이 `cancelled` 로 분류된다([노드 취소 「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류)). Send Email 노드는 실행을 시작할 때 신호가 이미 켜져 있는 경우에만 이 예외를 던진다.
+6. 사전 검증 에러(`handler.validate()` 실패)만 throw 로 실행을 실패시킨다. `execute()` 안에서 난 실패는 모두 에러 포트(`port: 'error'`)와 `output.error.{code, message, details?}` 로 내보낸다. 근거는 [Rationale 「핸들러 실패를 에러 포트로 통일」](#핸들러-실패를-에러-포트로-통일) 에 있다. 예외는 상위 취소 신호(`context.abortSignal`) 때문에 생긴 `AbortError` 하나다. 다섯 노드 모두 이 예외를 에러 포트로 바꾸지 않고 다시 던지므로 노드 실행이 `cancelled` 로 분류된다([노드 취소 「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류)). Send Email 노드는 실행을 시작할 때 신호가 이미 켜져 있는 경우에만 이 예외를 던진다.
 7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다. `logUsage` 는 얻은 통합만 받으므로 얻지 못한 통합에는 기록할 수 없다. 통합을 얻기 전에 끝나는 실패의 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다. dry-run 재실행의 모의 출력도 외부로 나가지 않아 활동 로그를 남기지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
    - 노드 취소로 끝난 호출도 활동 로그를 남기지 않는다. 그 호출은 끝나지 않아서 성공도 실패도 아니다. 활동 로그 `status` 에 `cancelled` 값은 두지 않는다. 그래서 이 호출은 통합 관리 화면의 호출 수 차트에도 잡히지 않는다. 취소 사실은 엔진이 노드 실행을 `cancelled` 로 기록해 남긴다. HTTP Request·Cafe24·MakeShop·Database Query 노드가 같다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3, [「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 근거는 [Rationale 「노드 취소로 끝난 호출은 활동 로그를 남기지 않는다」](#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다) 에 있다.
 8. HTTP Request·Database Query·Send Email 노드는 사설망 차단을 기본으로 켠다. 끄는 방법은 `ALLOW_PRIVATE_HOST_TARGETS=true` 하나뿐이다. 막는 대역과 판정 시점은 [사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다.
@@ -133,7 +133,7 @@ etag: "sha256-848ac1ba0cc6222c525484b26a9f729bd685b13d1269be7915b45013e6c1816d"
 - 목록이 확정되지 않았으면 에디터의 붙여넣기와 복제도 통합 참조를 비우지 않는다([에디터 §노드 조작](../CLE-WF/CLE-WF-EDITOR.md#노드-조작)). 남은 참조가 쓸 수 없는 통합이면 저장 검사가 400 으로 막는다.
 - `integrationId` 가 비어 있으면(미선택) 이 배지 대신 각 노드 스키마의 `warningRules`(필드 미선택 경고)가 표시된다. 복제·가져오기·버전 복원·붙여넣기가 비운 참조도 미선택이라 이 배지가 아니라 필드 미선택 경고가 붙는다.
 - 워크플로우 작성자가 아닌 사용자에게는 워크플로우 작성자의 개인 통합이 통합 목록에 없다. 그래서 그 노드에도 이 배지가 붙는다. 통합이 지워진 것은 아니고 노드는 실행된다. 워크플로우 작성자에게는 배지가 붙지 않는다. 이 화면 차이는 받아들인 잔여다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」).
-- 멤버가 나가거나 제거되면 그 사람의 개인 통합은 사용처와 관계없이 지워진다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 의 «나간 멤버의 개인 통합을 지운다» 요구사항, REQ-INTMGMT-065). 그 통합을 참조하던 노드에는 이 배지가 붙는다. 실제로 지워진 통합이라 모든 사용자에게 같다.
+- 멤버가 나가거나 제거되면 그 사람의 개인 통합은 사용처와 관계없이 지워진다([통합 관리 — 권한과 멤버 퇴장](../CLE-INT/CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합은-나갈-때-지운다) 의 «나간 멤버의 개인 통합을 지운다» 요구사항, REQ-INTMGMT-065). 그 통합을 참조하던 노드에는 이 배지가 붙는다. 실제로 지워진 통합이라 모든 사용자에게 같다.
 - HTTP Request 노드의 `integrationId` 는 `authentication === "integration"` 일 때만 유효하다. 다른 인증 방식에 남은 값에는 배지를 붙이지 않는다. 나머지 통합 노드에는 조건 없이 적용한다.
 - 시각적으로는 캔버스의 `⚠ Missing workflow` 배지와 같은 앰버 계열이다. 그래프 경고 배지(`AlertTriangle`)와 겹쳐 보이지 않도록 연결 끊김 아이콘(`Unplug`)과 별도 슬롯에 렌더한다.
 - 백엔드와 `warningRules` DSL 은 바꾸지 않았다.
@@ -174,7 +174,9 @@ etag: "sha256-848ac1ba0cc6222c525484b26a9f729bd685b13d1269be7915b45013e6c1816d"
 
 ## Rationale
 
-### 핸들러 실패를 에러 포트로 통일 (2026-05-17)
+### 핸들러 실패를 에러 포트로 통일
+
+결정일: 2026-05-17
 
 이 결정 전에는 `resolveIntegration` 의 `IntegrationError` 와 환경 에러가 throw 돼 노드 실행 자체가 실패했다. 서비스 미주입도 throw 였다. 이 결정으로 그 경로를 폐기하고, `execute()` 안의 모든 실패를 Send Email 노드가 먼저 쓰던 catch 패턴(에러 포트 + `output.error`)으로 모았다. 설정 형식 자체가 잘못된 경우(`handler.validate()` 실패)만 throw 로 남는다. 실행 엔진 문서의 "workspace 누락 시 `Missing workspace context` throw", "모든 핸들러가 미주입 시 `requires_integration` stub 반환" 서술은 이 결정 전 상태라 이 문서의 현행 규칙으로 대체했다.
 
@@ -184,7 +186,7 @@ etag: "sha256-848ac1ba0cc6222c525484b26a9f729bd685b13d1269be7915b45013e6c1816d"
 
 결정일: 2026-11-19
 
-NERV Task `CLE-T-GZRYQ3` 에서 규칙 7 에 적었다. 결정 자체는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10) 의 2026-10-10 결정과 같다. 활동 로그는 통합 호출 한 건이 성공했는지 실패했는지를 남긴다. 노드 취소로 끊긴 호출은 끝나지 않았으므로 어느 쪽에도 들지 않는다. 취소 사실은 엔진이 노드 실행을 `cancelled` 로 기록해 이미 남긴다.
+NERV Task `CLE-T-GZRYQ3` 에서 규칙 7 에 적었다. 결정 자체는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다) 의 2026-10-10 결정과 같다. 활동 로그는 통합 호출 한 건이 성공했는지 실패했는지를 남긴다. 노드 취소로 끊긴 호출은 끝나지 않았으므로 어느 쪽에도 들지 않는다. 취소 사실은 엔진이 노드 실행을 `cancelled` 로 기록해 이미 남긴다.
 
 - 기각: `failed` 로 남기는 안. 다른 분기의 실패나 사용자 실행 중지로 멈춘 호출이 이 통합의 실패로 세어져 실패 통계가 부풀려진다. 노드 실행은 `cancelled` 인데 활동 로그만 실패라 두 기록이 어긋난다.
 - 기각: 활동 로그 `status` 에 `cancelled` 를 새로 두는 안. 로그 스키마와 통합 관리 화면의 차트 · 필터를 함께 바꿔야 한다. 그렇게 해서 얻는 정보는 엔진의 노드 실행 기록과 겹친다.
@@ -203,7 +205,7 @@ HTTP Request 노드만 `meta.duration` 을 쓰고 나머지 노드와 시스템 
 
 2026-10-24 부터는 정상 경로에서도 배지가 붙는 경우가 생겼다(워크플로우 작성자가 아닌 사용자가 보는 작성자의 개인 통합 노드). 남의 개인 통합이 있다는 것을 드러내지 않으려고 받아들인 위양성이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 에 있다. 이 경우의 배지 문구를 따로 둘지는 [미결 사항](#미결-사항) 에 있다.
 
-2026-10-29 부터는 두 번째 경우(나간 멤버의 개인 통합 삭제)가 생겼다. 사용처 때문에 남기면 아무도 정리할 수 없는 행이 남아서다. 그 노드는 그 전부터 실행에서 실패했으므로 배지가 실행 결과와 맞는다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 에 있다.
+2026-10-29 부터는 두 번째 경우(나간 멤버의 개인 통합 삭제)가 생겼다. 사용처 때문에 남기면 아무도 정리할 수 없는 행이 남아서다. 그 노드는 그 전부터 실행에서 실패했으므로 배지가 실행 결과와 맞는다. 근거는 [통합 관리 — 권한과 멤버 퇴장](../CLE-INT/CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합은-나갈-때-지운다) 에 있다.
 
 비운 참조에는 이 배지를 쓰지 않는다. 값이 비었으니 미선택과 같고 사용자가 다시 골라야 한다는 점도 같다. 배지는 값이 남아 있는데 목록에 없는 경우만 뜻한다.
 
@@ -219,29 +221,41 @@ Database Query 의 "쿼리 첫 줄" 과 Send Email 의 "to: {수신자} +N" 은 
 
 → [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#차단-코드를-판정에만-쓰는-이유)
 
-### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
+### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다
 
-→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#연결-시점-판정은-대역표와-우회-플래그를-호출자가-정한다-2026-11-14)
+결정일: 2026-11-14
 
-### 남의 개인 통합 조회는 없는 통합과 같게 실패한다 (2026-10-24)
+→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#연결-시점-판정은-대역표와-우회-플래그를-호출자가-정한다)
 
-→ [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24)
+### 남의 개인 통합 조회는 없는 통합과 같게 실패한다
 
-### 거절된 조회는 임시 장치로 건너뛴다 (2026-10-25)
+결정일: 2026-10-24
 
-→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#거절된-조회는-임시-장치로-건너뛴다-2026-10-25)
+→ [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다)
 
-### 자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다 (2026-11-05)
+### 거절된 조회는 임시 장치로 건너뛴다
 
-→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)
+결정일: 2026-10-25
 
-### 표현식 여부를 확인하지 못하면 표현식으로 본다 (2026-10-25)
+→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#거절된-조회는-임시-장치로-건너뛴다)
 
-→ [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#표현식-여부를-확인하지-못하면-표현식으로-본다-2026-10-25)
+### 자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다
 
-### 통합을 얻는 단계와 검증하는 단계를 나눈다 (2026-10-25)
+결정일: 2026-11-05
 
-→ [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#통합을-얻는-단계와-검증하는-단계를-나눈다-2026-10-25)
+→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다)
+
+### 표현식 여부를 확인하지 못하면 표현식으로 본다
+
+결정일: 2026-10-25
+
+→ [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#표현식-여부를-확인하지-못하면-표현식으로-본다)
+
+### 통합을 얻는 단계와 검증하는 단계를 나눈다
+
+결정일: 2026-10-25
+
+→ [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#통합을-얻는-단계와-검증하는-단계를-나눈다)
 
 ### 워크스페이스 누락은 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다
 
