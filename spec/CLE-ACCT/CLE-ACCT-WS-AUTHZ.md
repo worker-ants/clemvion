@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "48e852dfb212131ddc9cd966bc9901db1be3bc174b1b52233eca1240cf88815a"
+content_hash: "180766409ed9b886ffe51a6b5887a1bd2b070febe3f0b1daa572c1cc52e47a62"
 read_as: "approved_fallback"
-task: "CLE-T-CHP94Z"
+task: "CLE-T-ZF0VGG"
 source_paths: []
-mirror_sha256: "ea9cacc4098e526587d39e1ec79895ed8f662f2cf2e3833e4b860c839027d25b"
-etag: "sha256-42492b0f4fe00bf615fdca0e7d026892147a638a09e853f301d969cdd231f4d8"
+mirror_sha256: "06be63dc71985ccfb9b3cdc7ce31d54b6552e77dcee7cdd5eec57808c4f236f2"
+etag: "sha256-c5a4c39454324ea59be8be9d8ae87cb25ff9452827e8c34e348dbcfe8545d00b"
 ---
 ## 개요
 
@@ -60,7 +60,7 @@ etag: "sha256-42492b0f4fe00bf615fdca0e7d026892147a638a09e853f301d969cdd231f4d8"
 - `OWNER_REQUIRED` 는 가드 밖에서도 난다. 관리자 역할을 주거나 빼는 요청은 가드를 통과한 뒤 서비스 계층이 같은 코드로 거부한다. 문구는 «Only the owner can grant or revoke the admin role.» 로 가드의 «Owner role is required.» 와 다르다([관리자 역할 규칙](CLE-ACCT-WS-MEMBER.md#관리자-역할-규칙)).
 - 통합 OAuth 콜백도 가드 밖에서 `EDITOR_REQUIRED`·`ADMIN_REQUIRED` 를 낸다. 통합 재인증·추가 권한 요청 콜백의 커밋 직전 인가 재판정이 서비스 계층에서 개인 통합은 편집자 미만을 `EDITOR_REQUIRED` 로, 조직 통합은 관리자 미만을 `ADMIN_REQUIRED` 로 거부한다. 이 거부는 콜백 팝업과 통합의 `last_error` 로 알린다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
 - `NOT_A_MEMBER` 도 가드 밖에서 난다. 통합 행을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 맨 먼저 워크스페이스 행을 잠근다. 그 사이 워크스페이스가 지워졌으면 공개 범위와 관계없이 이 코드로 거부한다. 개인 통합이면 이어서 요청자의 멤버십을 잠가 다시 읽고 없을 때도 이 코드다. 둘 다 가드를 지난 뒤 워크스페이스가 지워지거나 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 경로는 가드처럼 없는 워크스페이스와 비멤버를 구분하지 않는다. 워크스페이스 관리 경로는 같은 경합에서 404 `WORKSPACE_NOT_FOUND` 를 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 코드의 뜻은 [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) 에 있다.
-- 조직 통합을 개인으로 바꾸는 전환은 같은 순서로 잠그지만 `NOT_A_MEMBER` 를 쓰지 않는다. 워크스페이스가 그 사이 지워졌으면 통합도 함께 지워져 404 `RESOURCE_NOT_FOUND` 다. 통합을 만든 사람이 멤버가 아니면 409 `INTEGRATION_OWNER_NOT_MEMBER` 다. 요청자는 멤버이고 거절 이유는 통합을 만든 사람에게 있다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29)).
+- 조직 통합을 개인으로 바꾸는 전환은 같은 순서로 잠그지만 `NOT_A_MEMBER` 를 쓰지 않는다. 워크스페이스가 그 사이 지워졌으면 통합도 함께 지워져 404 `RESOURCE_NOT_FOUND` 다. 통합을 만든 사람이 멤버가 아니면 409 `INTEGRATION_OWNER_NOT_MEMBER` 다. 요청자는 멤버이고 거절 이유는 통합을 만든 사람에게 있다([통합 관리 — 권한과 멤버 퇴장](../CLE-INT/CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다)).
 - 코드를 붙이지 않는 가드 거부 두 자리가 남는다. 미인증 요청이 `@Roles()` 라우트에 닿는 경우(`JwtAuthGuard` 가 먼저 401 을 내므로 실제로 닿지 않는다)와 `@Roles()` 라우트에 헤더 값도 토큰 클레임 값도 없어 현재 워크스페이스가 없는 경우(가입 직후에도 토큰이 개인 워크스페이스를 갖는다)다. 도달 경로가 없어 범위 밖이다.
 
 ### 워크스페이스를 찾지 못할 때
@@ -186,7 +186,7 @@ etag: "sha256-42492b0f4fe00bf615fdca0e7d026892147a638a09e853f301d969cdd231f4d8"
 
 결정일: 2026-11-27
 
-NERV Task `CLE-T-CHP94Z` 에서 가드 거부 본문(`workspace-roles.ts`)과 관리 경로 `WORKSPACE_NOT_FOUND` 의 메시지를 영문으로 옮겼다. 전에는 서비스 계층과 맞춰 한국어였고 영어 로케일 사용자에게도 한국어가 보였다. [백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md) 규칙 3 은 백엔드가 영문 원문을 내게 정하고 규칙 5 는 화면이 에러 코드로 문구를 고르게 정한다. 코드 · 상태 · 판정 순서는 바꾸지 않아서 코드로 분기하는 화면은 영향이 없다. 워크스페이스 · 초대 · 사용자 서비스에 남은 한국어 메시지는 NERV Task `CLE-T-MBMPX5` 가 옮긴다. 그 Task 가 끝날 때까지 코드 매핑이 없는 거부는 화면에 서버 문구가 그대로 보여서 가드 거부는 영문, 서비스 거부는 한국어로 섞인다.
+NERV Task `CLE-T-CHP94Z` 에서 가드 거부 본문(`workspace-roles.ts`)과 관리 경로 `WORKSPACE_NOT_FOUND` 의 메시지를 영문으로 옮겼다. 전에는 서비스 계층과 맞춰 한국어였고 영어 로케일 사용자에게도 한국어가 보였다. [백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md) 규칙 3 은 백엔드가 영문 원문을 내게 정하고 규칙 5 는 화면이 에러 코드로 문구를 고르게 정한다. 코드 · 상태 · 판정 순서는 바꾸지 않아서 코드로 분기하는 화면은 영향이 없다. 워크스페이스 · 초대 · 사용자 서비스에 남은 한국어 메시지도 NERV Task `CLE-T-MBMPX5` 가 2026-11-28 에 영문으로 옮겼다. 그래서 가드 거부와 서비스 거부 모두 영문 원문을 낸다. 화면은 규칙 5 의 공용 코드 매핑으로 문구를 고른다. 서버 문구 언어 가드(`server-message-language-guard`)가 `modules/workspaces` · `modules/users` 도 검사해서 다시 섞이지 않는다.
 
 - **기각: 한국어를 그대로 둔다.** 영어 로케일에서 한국어가 보이고 규칙 3 과 어긋난 채 남는다.
 - **기각: 서버가 `Accept-Language` 로 문구를 고른다.** 규칙 3 이 금지하고 사전이 둘로 갈린다.
