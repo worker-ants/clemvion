@@ -259,6 +259,68 @@ describe('GlobalExceptionFilter', () => {
     error.mockRestore();
   });
 
+  // 잠금 대기 상한(`SET LOCAL lock_timeout`)을 넘긴 요청은 503 `SERVICE_UNAVAILABLE` 이다
+  // (CLE-ACCT-DATA 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」, NERV Task `CLE-T-1C2JE0`).
+  // 23505 처럼 두 표면(wrap 된 `driverError.code`, 최상위 `code`)을 따로 단언한다.
+  it.each([
+    [
+      'QueryFailedError 로 wrap 된 표면',
+      () =>
+        new QueryFailedError(
+          'DELETE ...',
+          [],
+          Object.assign(new Error('canceling statement due to lock timeout'), {
+            code: '55P03',
+          }),
+        ),
+    ],
+    [
+      '최상위 `err.code` 표면',
+      () =>
+        Object.assign(new Error('canceling statement due to lock timeout'), {
+          code: '55P03',
+        }),
+    ],
+  ])(
+    '잠금 대기 초과(55P03)는 503 SERVICE_UNAVAILABLE 로 간다 — %s',
+    (_label, makeErr) => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const { host, status, json } = mockHost();
+      new GlobalExceptionFilter().catch(makeErr(), host);
+
+      expect(status).toHaveBeenCalledWith(503);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('SERVICE_UNAVAILABLE');
+      expect(body.error.requestId).toBeDefined();
+      // 드라이버 원문은 응답에 싣지 않고 서버 로그에만 남긴다.
+      expect(body.error.message).toBe(
+        'The service is temporarily unavailable.',
+      );
+      expect(body.error.message).not.toContain('lock timeout');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('canceling statement due to lock timeout'),
+      );
+      // 신고와 서버 로그를 잇는 requestId 가 로그에도 있다.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(`requestId=${body.error.requestId}`),
+      );
+      warn.mockRestore();
+    },
+  );
+
+  it('55P03 이 아닌 잠금 계열 오류(40P01 교착)는 503 으로 새지 않는다', () => {
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const { host, status, json } = mockHost();
+    const err = Object.assign(new Error('deadlock detected'), {
+      code: '40P01',
+    });
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
+    error.mockRestore();
+  });
+
   it('복합 FK 위반(23503)은 500 INTERNAL_ERROR 로 가리고 제약 이름은 서버 로그에만 남긴다', () => {
     // 저장 시점 검사를 빠뜨린 쓰기가 DB 의 범위 FK(V141~V146, CLE-PLAT-DATA 「워크스페이스 범위 참조를 복합 FK 로도
     // 막는다」)에 걸린 경우다. 사용자가 고칠 수 없는 서버 결함이라 새 코드 없이 500 이다.

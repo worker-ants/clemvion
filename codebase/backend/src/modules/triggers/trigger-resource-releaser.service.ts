@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
@@ -13,10 +13,7 @@ import { Workspace } from '../workspaces/entities/workspace.entity';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { resolveAndCloseTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { Trigger } from './entities/trigger.entity';
-import {
-  setLocalLockTimeout,
-  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
-} from './trigger-config-lock';
+import type { DeleteLockBoundedManager } from './trigger-config-lock';
 import {
   cleanUpDeletedTriggersAfterCommit,
   LockedParentTriggers,
@@ -83,10 +80,9 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
   }
 
   async lockParentAndListTriggerIds(
-    manager: EntityManager,
+    manager: DeleteLockBoundedManager,
     parent: TriggerParent,
   ): Promise<LockedParentTriggers> {
-    await setLocalLockTimeout(manager, TRIGGER_DELETE_LOCK_TIMEOUT_MS);
     // 잠그며 읽은 행을 **돌려준다** — 종전엔 버렸다. 동시 삭제 두 요청이 잠금 없는 선조회를 모두
     // 통과한 뒤, 먼저 커밋한 쪽이 행을 지우면 두 번째는 «잠글 행이 없다» 를 알지 못한 채 진행해
     // 감사 행을 한 번 더 남겼다(`manager.remove` 는 0행이어도 던지지 않는다).

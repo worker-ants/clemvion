@@ -31,7 +31,7 @@ import { waitForLockWaiters } from './helpers/concurrency';
  *
  * 판별력: 쓰기 경로가 멤버십을 잠그지 않으면 (생성, 제거) · (전환, 제거) · (begin 재사용, 제거) 의 선후 어느 한쪽에서
  * 나간 멤버의 개인 통합이 남는다. 멤버십을 워크스페이스보다 먼저 잠그면 (생성, 워크스페이스 삭제 · 소유자 이양) 이
- * 교착하거나 lock_timeout 으로 500 이 된다.
+ * 교착하거나 lock_timeout 으로 503 이 된다.
  *
  * 나가기 · 제거의 lock_timeout(`MEMBER_DEPARTURE_LOCK_TIMEOUT_MS`, 5초)과 워크스페이스 삭제의 lock_timeout(5초) 안에
  * locker 를 풀어야 한다. 관측은 50ms 간격이라 보통 1초 안에 끝난다.

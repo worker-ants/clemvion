@@ -19,7 +19,7 @@ import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
 import { pickSortColumn } from '../../common/utils/list-sort';
 import {
   acquireTriggerConfigLock,
-  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+  runDeleteAfterExternalRelease,
 } from '../triggers/trigger-config-lock';
 import { cleanUpDeletedTriggersAfterCommit } from '../triggers/trigger-resource-release';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
@@ -347,11 +347,14 @@ export class SchedulesService {
     // «삭제도 같은 락을 잡는다» 는 문장이 경로 하나만 덮고 있었다.
     if (schedule.triggerId) {
       const triggerId = schedule.triggerId;
-      await this.triggerRepository.manager
-        .transaction(async (m) => {
-          await acquireTriggerConfigLock(m, triggerId, {
-            timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
-          });
+      // 상한 · 404 통과 · 반쯤 삭제 로그는 `runDeleteAfterExternalRelease` 가 네 삭제 경로에 같게 건다.
+      // `TriggersService.remove()` 와 **대칭**이어야 한다. 위 `removeJob` 은 이미 끝났으므로(되돌릴 수
+      // 없다) 여기서 실패하면 «BullMQ 는 해제됐는데 행은 남은» 반쯤 삭제된 상태다
+      // (`/ai-review` `review/code/2026/09/15/01_09_53` side_effect W2).
+      await runDeleteAfterExternalRelease(
+        this.triggerRepository.manager,
+        async (m) => {
+          await acquireTriggerConfigLock(m, triggerId);
           // **`affected` 를 본다.** 위 `findById` 는 잠금 없는 선조회라 동시 DELETE 두 건이 모두
           // 통과하고, advisory lock 은 둘을 줄 세우기만 한다 — 진 쪽이 그대로 진행하면 아래
           // `scheduleRepository.remove` 와 `recordAudit` 까지 가서 `schedule.deleted` 가 두 번 남는다
@@ -366,23 +369,14 @@ export class SchedulesService {
           // 실패로 뒤집는다(`/ai-review` `review/code/2026/09/21/00_37_06` concurrency WARNING 2).
           const { affected } = await m.delete(Trigger, triggerId);
           if (affected === 0) this.throwScheduleNotFound();
-        })
-        .catch((err: unknown) => {
-          // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
-          // 행도 BullMQ job 도 정리했다. 아래 로그는 «수동 정리가 필요하다» 고 말하므로 이 경우까지
-          // 실으면 거짓 경보가 된다(형제 세 경로와 같은 처리).
-          if (err instanceof NotFoundException) throw err;
-          // `TriggersService.remove()` 와 **대칭**이어야 한다. 위 `removeJob` 은 이미
-          // 끝났으므로(되돌릴 수 없다) 여기서 실패하면 «BullMQ 는 해제됐는데 행은 남은»
-          // 반쯤 삭제된 상태다 — 조용한 실패로 두면 아무도 모른다
-          // (`/ai-review` `review/code/2026/09/15/01_09_53` side_effect W2).
-          this.logger.error(
+        },
+        {
+          logger: this.logger,
+          describe: (reason) =>
             `SchedulesService.remove: trigger=${triggerId} 행 삭제 실패 — BullMQ job 해제는 ` +
-              `**이미 끝났으므로** 반쯤 삭제된 상태다. 수동 정리가 필요하다: ` +
-              `${err instanceof Error ? err.message : String(err)}`,
-          );
-          throw err;
-        });
+            `**이미 끝났으므로** 반쯤 삭제된 상태다. 수동 정리가 필요하다: ${reason}`,
+        },
+      );
       // **커밋된 뒤에** 그 트리거의 비밀을 지우고(spec 트리거 목록 §4.3) 그 트리거 단위 토큰으로 연 SSE 스트림을
       // 닫는다. 스케줄 트리거도 `notification` 서명 비밀을 가질 수 있다 — DTO 에 타입 제한이 없다.
       // `TriggerResourceReleaserService` 를 쓰지 않는 이유는 모듈 순환(`TriggersModule → SchedulesModule`)이라

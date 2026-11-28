@@ -1,9 +1,9 @@
 import type { ModuleRef } from '@nestjs/core';
-import type { EntityManager } from 'typeorm';
 
 import { resolveAndCloseTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { buildSecretRefPrefix } from '../secret-store/secret-ref';
 import type { SecretResolverService } from '../secret-store/secret-resolver.service';
+import type { DeleteLockBoundedManager } from './trigger-config-lock';
 
 /**
  * 트리거 자원 정리의 **순서와 실패 정책** — 한 곳에만 둔다.
@@ -196,17 +196,19 @@ export interface TriggerResourceReleasePort {
    * 트랜잭션**에서 부른다 — 잠금 뒤엔 그 부모를 참조하는 트리거 INSERT 가 FK 검사
    * (`FOR KEY SHARE`)에서 막혀 열거에서 빠지는 트리거가 없다.
    *
-   * **트랜잭션의 첫 호출이어야 한다.** 잠그기 전에 이 트랜잭션의 모든 락 대기에 삭제 상한
-   * (`TRIGGER_DELETE_LOCK_TIMEOUT_MS`)을 건다 — 외부 해제를 이미 되돌릴 수 없게 끝냈으므로, 뒤따르는
-   * 잠금(부모 행 · 멤버십 · CASCADE 되는 트리거 행)을 무한정 기다리면 반쯤 삭제된 상태가 hang 으로
-   * 굳는다. 트리거·스케줄 삭제와 같은 규칙이다(spec 트리거 목록 §4.4).
+   * **`runDeleteAfterExternalRelease` 가 연 트랜잭션 안에서 부른다.** 인자 타입({@link DeleteLockBoundedManager})이
+   * 이 규칙을 컴파일 단계에서 강제한다. 그 헬퍼가 콜백보다 먼저 이 트랜잭션의
+   * 모든 락 대기에 삭제 상한(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`)을 건다. 외부 해제를 이미 되돌릴 수 없게
+   * 끝냈으므로, 뒤따르는 잠금(부모 행 · 멤버십 · CASCADE 되는 트리거 행)을 무한정 기다리면 반쯤 삭제된
+   * 상태가 hang 으로 굳는다. 트리거·스케줄 삭제와 같은 규칙이다
+   * ([트리거 관리 — 삭제 「결과와 에러」](CLE-TRIG-MANAGE-DELETE#결과와-에러)).
    *
    * **잠근 행이 있었는지도 함께 돌려준다**({@link LockedParentTriggers}) — 동시 삭제 두 요청이 잠금 없는
    * 선조회를 모두 통과할 수 있고, 먼저 커밋한 쪽이 행을 지운 뒤 두 번째가 «없는 것을 지운 척» 하며
    * 감사 행을 한 번 더 남기는 것을 호출자가 막아야 한다(트리거 목록 §4.4 의 «두 번째 요청은 404» 대칭).
    */
   lockParentAndListTriggerIds(
-    manager: EntityManager,
+    manager: DeleteLockBoundedManager,
     parent: TriggerParent,
   ): Promise<LockedParentTriggers>;
   /**

@@ -58,6 +58,10 @@ describe('WorkflowsService', () => {
   const removeEvents: string[] = [];
 
   const removeManager = {
+    query: jest.fn((sql: string) => {
+      removeEvents.push(`manager.query:${sql}`);
+      return Promise.resolve([]);
+    }),
     remove: jest.fn((entity: { id?: string }) => {
       removeEvents.push(`manager.remove:${entity.id}`);
       return Promise.resolve(entity);
@@ -1268,6 +1272,8 @@ describe('WorkflowsService', () => {
       expect(removeEvents).toEqual([
         'releaseExternal:{"workflowId":"wf-uuid-9"}',
         'tx:begin',
+        // 반쯤 삭제된 상태가 hang 으로 굳지 않게 잠그기 전에 대기 상한을 건다(1KJZNM 전엔 releaser 가 걸었다).
+        "manager.query:SET LOCAL lock_timeout = '5000ms'",
         'lockAndList:{"workflowId":"wf-uuid-9"}',
         'manager.remove:wf-uuid-9',
         'tx:commit',

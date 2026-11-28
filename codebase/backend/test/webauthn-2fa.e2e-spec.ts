@@ -1182,7 +1182,7 @@ describe('WebAuthn 2FA (e2e)', () => {
      *
      * 고친 코드에서 `second` 는 `first` 뒤에서 사용자 행을 기다린다. 잠금을 거치지 않는 코드에서는 기다리지 않고 끝날 수
      * 있어서 그 대기와 응답 중 먼저 오는 쪽을 보고 푼다. 먼저 끝났을 때 생긴 상태는 호출부의 단언이 잡는다.
-     * locker 는 `USER_ROW_LOCK_TIMEOUT_MS`(5초) 안에 풀어야 한다. 넘기면 기다리던 요청이 55P03 으로 500 이 된다.
+     * locker 는 `USER_ROW_LOCK_TIMEOUT_MS`(5초) 안에 풀어야 한다. 넘기면 기다리던 요청이 55P03 으로 503 이 된다.
      */
     async function interleave(
       lock: { sql: string; params: unknown[] },

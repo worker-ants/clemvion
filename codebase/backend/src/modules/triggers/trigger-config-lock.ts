@@ -1,3 +1,4 @@
+import { NotFoundException, type Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
@@ -57,8 +58,9 @@ function toLockTimeoutMs(value: number): number {
 /**
  * 이 트랜잭션의 **모든** 락 대기에 상한을 건다(`SET LOCAL lock_timeout`). 트랜잭션이 끝나면 풀린다.
  *
- * 되돌릴 수 없는 정리를 락 **전에** 끝내는 삭제 경로가 쓴다 — 무한 대기는 «정리는 끝났는데 행은
- * 남은» 상태를 굳힌다. 파라미터 바인딩이 안 되는 자리라 값의 형태를 {@link toLockTimeoutMs} 가 보장한다.
+ * 되돌릴 수 없는 정리를 락 **전에** 끝내는 삭제 경로({@link runDeleteAfterExternalRelease})와 사용자 행 잠금 ·
+ * 멤버 나가기가 쓴다. 무한 대기는 «정리는 끝났는데 행은 남은» 상태를 굳힌다. 파라미터 바인딩이 안 되는
+ * 자리라 값의 형태를 {@link toLockTimeoutMs} 가 보장한다.
  */
 export async function setLocalLockTimeout(
   manager: Pick<EntityManager, 'query'>,
@@ -74,33 +76,19 @@ export async function setLocalLockTimeout(
  * 자동 해제이므로 트랜잭션 밖에서 부르면 즉시 풀린다).
  *
  * 아래 `rewriteTriggerConfigLocked` 와 `TriggersService.update()` 의 인라인 구현이 이
- * 한 줄을 **각자 손으로 적고 있었다**. 락 획득 SQL 을 바꿀 일(예: `SET LOCAL lock_timeout`
- * 추가 — 위 «대기 상한» 절이 예고한 그 변경)이 생기면 한쪽만 고칠 위험이 구조적으로 남는다
- * (`/ai-review` `review/code/2026/09/14/19_07_43` architecture WARNING#4). 프리미티브로
- * 뽑아 두 자리가 같은 코드를 지나가게 한다.
+ * 한 줄을 **각자 손으로 적고 있었다**. 락 획득 SQL 을 바꿀 일이 생기면 한쪽만 고칠 위험이
+ * 구조적으로 남는다(`/ai-review` `review/code/2026/09/14/19_07_43` architecture WARNING#4).
+ * 프리미티브로 뽑아 모든 자리가 같은 코드를 지나가게 한다.
+ *
+ * 대기 상한은 걸지 않는다. 삭제 경로의 상한은 트랜잭션을 여는 {@link runDeleteAfterExternalRelease} 가
+ * 콜백보다 먼저 건다. 그래서 **삭제 경로에서는 그 헬퍼의 콜백 안에서만 부른다.** 직접 연 트랜잭션에서
+ * 부르면 상한 없이 무한정 기다린다. 이 함수는 인자로 그 구분을 하지 않으므로 이 규칙은 호출부 규약이다.
+ * 타입으로 막는 것은 부모 잠금 포트(`lockParentAndListTriggerIds`, {@link DeleteLockBoundedManager})뿐이다.
  */
 export async function acquireTriggerConfigLock(
   manager: Pick<EntityManager, 'query'>,
   triggerId: string,
-  options: { timeoutMs?: number } = {},
 ): Promise<void> {
-  if (options.timeoutMs !== undefined) {
-    // `SET LOCAL` 이라 트랜잭션이 끝나면 저절로 풀린다 — 세션에 남지 않는다.
-    //
-    // **범위가 advisory lock 하나가 아니다.** `lock_timeout` 은 이 트랜잭션의 **모든** 락
-    // 대기에 걸린다 — 바로 아래 advisory lock 뿐 아니라 뒤따르는 `DELETE` 의 행 잠금,
-    // `Schedule.triggerId` CASCADE 연쇄까지. 그래서 다른 writer 가 그 행을 오래 붙잡고
-    // 있으면 advisory lock 과 **무관한 사유로** `55P03` 이 날 수 있다(트랜잭션 롤백이라
-    // 데이터 손상은 없다). 삭제 경로에서는 그것도 «드러나는 오류» 쪽이 낫다는 판단이다
-    // (`/ai-review` `review/code/2026/09/14/21_18_21` side_effect WARNING#6).
-    //
-    // 파라미터 바인딩이 안 되는 자리다. 호출부는 **모듈 상수만** 넘기므로(실측: 두 자리 모두
-    // `TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 변수·사용자 입력 경로 0건) 현재 익스플로잇은 불가능
-    // 하다. 그래도 보간이 남아 있는 한 **값의 형태를 이 함수가 스스로 보장**한다 — 다음
-    // 호출부가 계산식을 넘겨도 SQL 이 깨지지 않게 (`/ai-review`
-    // `review/code/2026/09/15/01_42_04` security·database INFO#2).
-    await setLocalLockTimeout(manager, options.timeoutMs);
-  }
   await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
     triggerConfigLockKey(triggerId),
   ]);
@@ -116,8 +104,9 @@ export async function acquireTriggerConfigLock(
  * WARNING#2).
  *
  * **소비자와 그 정리 목록을 여기 적지 않는다 — 규칙만 적는다.** 이 상수를 거는 것은 **되돌릴 수
- * 없는 외부 해제를 이미 끝낸 삭제 트랜잭션**이다. 무엇을 해제했는지는 경로마다 다르고, 그 SoT 는
- * spec 트리거 목록 §4.3 의 자원 표다. 비밀은 여기 들지 않는다 — 행 삭제가 커밋된 **뒤에** 지운다.
+ * 없는 외부 해제를 이미 끝낸 삭제 트랜잭션**이고, 거는 자리는 {@link runDeleteAfterExternalRelease} 하나다.
+ * 무엇을 해제했는지는 경로마다 다르고, 그 SoT 는 [트리거 관리 — 삭제 「자원 정리」](CLE-TRIG-MANAGE-DELETE#자원-정리)
+ * 의 자원 표다. 비밀은 여기 들지 않는다 — 행 삭제가 커밋된 **뒤에** 지운다.
  *
  * 목록은 두 번 틀렸다. 첫 소비자의 정리 목록을 적었다가 두 번째 소비자가 생기자 과대 서술이 됐고
  * (`/ai-review` `review/code/2026/09/15/01_42_04` documentation INFO#17), 소비자별로 고쳐 적은 목록은
@@ -126,6 +115,68 @@ export async function acquireTriggerConfigLock(
  * 상한을 두면 그 상태가 **조용한 지연이 아니라 드러나는 오류**가 된다.
  */
 export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
+
+declare const deleteLockBounded: unique symbol;
+
+/**
+ * 삭제 잠금 상한({@link TRIGGER_DELETE_LOCK_TIMEOUT_MS})이 걸린 트랜잭션의 매니저.
+ *
+ * {@link runDeleteAfterExternalRelease} 의 콜백만 이 타입을 받는다. 상한이 있어야 하는 잠금 함수가 인자를
+ * 이 타입으로 받으면, 헬퍼 밖에서 직접 연 트랜잭션의 매니저는 컴파일 단계에서 걸린다(NERV Task `CLE-T-1KJZNM`
+ * 코드 리뷰 architecture WARNING). 런타임 값은 평범한 `EntityManager` 그대로다.
+ */
+export type DeleteLockBoundedManager = EntityManager & {
+  readonly [deleteLockBounded]: true;
+};
+
+/**
+ * 되돌릴 수 없는 외부 해제를 **이미 끝낸** 삭제가 행을 지우는 트랜잭션을 연다.
+ *
+ * 트리거 · 스케줄 · 워크플로우 · 워크스페이스 삭제 네 경로가 같은 단계를 지난다. 각자 손으로 적던
+ * 시절에 두 자리가 글자 그대로 복제됐고 한 번은 그 사이에 어긋났다(NERV Task `CLE-T-1KJZNM`).
+ *
+ * 1. 콜백보다 먼저 이 트랜잭션의 **모든** 잠금 대기에 {@link TRIGGER_DELETE_LOCK_TIMEOUT_MS} 상한을 건다.
+ *    advisory lock 하나가 아니라 뒤따르는 부모 행 · 멤버십 잠금, `DELETE` 의 행 잠금, CASCADE 연쇄까지
+ *    이 상한을 받는다. 그래서 다른 writer 가 그 행을 오래 붙잡으면 advisory lock 과 무관한 사유로도
+ *    `55P03` 이 난다. 트랜잭션 롤백이라 데이터 손상은 없고, 삭제 경로에서는 그것도 드러나는 오류가
+ *    낫다(`/ai-review` `review/code/2026/09/14/21_18_21` side_effect WARNING#6).
+ * 2. 콜백은 잠근 **뒤** 행이 남아 있는지 보고, 없으면 `NotFoundException` 을 던진다. 잠금 없는 선조회는
+ *    동시 DELETE 두 건을 모두 통과시키고, 잠금은 둘을 줄 세우기만 하기 때문이다.
+ * 3. `NotFoundException` 은 로그 없이 그대로 올린다. 먼저 커밋한 요청이 행도 외부 자원도 정리했으므로
+ *    반쯤 삭제된 상태가 아니다. «수동 정리가 필요하다» 로그를 남기면 거짓 경보가 된다.
+ * 4. 그 밖의 실패는 반쯤 삭제된 상태다(외부 해제는 끝났고 행은 남았다). `halfDeleted.describe(reason)` 을
+ *    error 로그로 남기고 같은 값을 다시 던진다. 응답 코드는 전역 예외 필터가 정한다. 잠금 대기 초과(`55P03`)는
+ *    503 `SERVICE_UNAVAILABLE` 이고 그 밖의 오류는 500 이다.
+ *
+ * 비밀 삭제는 여기 들지 않는다. 호출부가 이 함수가 돌아온 뒤(커밋 뒤)에 지운다.
+ *
+ * @param work 잠금 · 존재 확인 · 행 삭제. 받은 매니저는 상한이 걸린 그 트랜잭션의 매니저다
+ *   ({@link DeleteLockBoundedManager}). `work` 가 던진 `NotFoundException` 은 모두 «이미 삭제됨» 으로 보고
+ *   로그 없이 올린다. 다른 이유의 404 를 `work` 안에서 던지지 않는다.
+ * @param halfDeleted 4단계의 로그. `describe` 는 실패 사유 문자열을 받아 «무엇이 이미 해제됐는가» 를 적는다.
+ * @returns `work` 가 돌려준 값.
+ */
+export async function runDeleteAfterExternalRelease<T>(
+  manager: Pick<EntityManager, 'transaction'>,
+  work: (manager: DeleteLockBoundedManager) => Promise<T>,
+  halfDeleted: {
+    logger: Pick<Logger, 'error'>;
+    describe: (reason: string) => string;
+  },
+): Promise<T> {
+  try {
+    return await manager.transaction(async (m) => {
+      await setLocalLockTimeout(m, TRIGGER_DELETE_LOCK_TIMEOUT_MS);
+      return work(m as DeleteLockBoundedManager);
+    });
+  } catch (err: unknown) {
+    if (err instanceof NotFoundException) throw err;
+    halfDeleted.logger.error(
+      halfDeleted.describe(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+}
 
 /**
  * 락 안에서 재읽은 `config` 의 **하위 키를 기준으로** 병합한다.
@@ -235,7 +286,13 @@ export function mergeIntoFreshSubKey(
  *   예외가 그대로 나간다.
  * @param columns `config` 와 함께 쓸 «이번 호출의 결과» 컬럼(health·setupAt·lastError 등).
  *   이들은 머지 대상이 **아니다** — 이번 호출이 산출한 값이 곧 정답이다.
- * @returns 트리거가 그 사이 삭제됐으면 `false` (쓰기 skip).
+ * @returns 쓰지 못했으면 `false` 다. 두 갈래가 있다.
+ *
+ *   - 잠금 안에서 다시 읽은 행이 없으면(`!fresh`) `merge` 를 부르지 않고 `false` 다. 쓰지 않을 거면 계산도
+ *     하지 않는다는 계약은 이 갈래에만 해당한다.
+ *   - 다시 읽은 뒤 UPDATE 가 0행에 매치되면(`affected === 0`) `false` 다. 이때 `merge` 는 이미 불렸다.
+ *     워크플로우 · 워크스페이스 삭제의 FK CASCADE 가 그 사이 커밋된 경우다. 드라이버가 `affected` 를
+ *     보고하지 않으면(`null` · `undefined`) 판정하지 않고 `true` 다.
  *
  *   **부재를 드러내는 방식이 창마다 다르다 — 의도된 비대칭이다.**
  *

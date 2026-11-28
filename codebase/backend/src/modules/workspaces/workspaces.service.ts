@@ -20,7 +20,10 @@ import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto'
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
-import { setLocalLockTimeout } from '../triggers/trigger-config-lock';
+import {
+  runDeleteAfterExternalRelease,
+  setLocalLockTimeout,
+} from '../triggers/trigger-config-lock';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import {
   type MemberDeparture,
@@ -587,14 +590,18 @@ export class WorkspacesService {
     // **커밋 뒤** 정리한다(spec 트리거 목록 §4.3 · data-flow 12-workspace §1.10).
     const releaser = resolveTriggerResourceReleaser(this.moduleRef);
     await releaser.releaseExternalForParent({ workspaceId });
-    const triggerIds = await this.memberRepository.manager
-      .transaction(async (manager) => {
+    // 상한 · 404 통과 · 반쯤 삭제 로그는 `runDeleteAfterExternalRelease` 가 네 삭제 경로에 같게 건다.
+    // 잠금 뒤 재검사 거부(선검사와 재검사 사이의 역할 변경)도 반쯤 삭제 로그로 간다. 외부 해제는 되돌릴
+    // 수 없으므로 «발화하지 않는 트리거가 남은 워크스페이스» 를 소리내어 남긴다.
+    const triggerIds = await runDeleteAfterExternalRelease(
+      this.memberRepository.manager,
+      async (manager) => {
         const memRepo = manager.getRepository(WorkspaceMember);
         const wsRepo = manager.getRepository(Workspace);
         const invRepo = manager.getRepository(WorkspaceInvitation);
 
-        // **첫 호출이다** — 잠금 대기 상한을 걸고 워크스페이스 행을 잠근 뒤 트리거를 연다. 잠금 뒤엔
-        // 새 트리거가 끼지 못하고, 아래 재검사의 잠금(워크스페이스 → 멤버십)에도 상한이 걸린다.
+        // 워크스페이스 행을 잠근 뒤 트리거를 연다. 잠금 뒤엔 새 트리거가 끼지 못한다. 잠금 대기 상한은
+        // 트랜잭션을 연 헬퍼가 이미 걸었으므로 아래 재검사의 잠금(워크스페이스 → 멤버십)에도 걸린다.
         const locked = await releaser.lockParentAndListTriggerIds(manager, {
           workspaceId,
         });
@@ -621,21 +628,15 @@ export class WorkspacesService {
         await memRepo.delete({ workspaceId });
         await wsRepo.remove(workspace);
         return locked.triggerIds;
-      })
-      .catch((err: unknown) => {
-        // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
-        // 워크스페이스도 지우고 같은 자원도 해제했다. 아래 error 로그는 «트리거가 발화하지 않을
-        // 수 있다» 고 말하므로 이 경우까지 실으면 거짓 경보가 된다(워크플로 경로와 같은 가드).
-        if (err instanceof NotFoundException) throw err;
-        // 잠금 뒤 재검사 거부(선검사와 재검사 사이의 역할 변경)도 여기로 온다. 외부 해제는 되돌릴
-        // 수 없으므로 «발화하지 않는 트리거가 남은 워크스페이스» 를 소리내어 남긴다.
-        this.logger.error(
+      },
+      {
+        logger: this.logger,
+        describe: (reason) =>
           `WorkspacesService.deleteWorkspace: workspace=${workspaceId} 삭제가 트랜잭션에서 실패했다 — ` +
-            `그 트리거들의 schedule job·provider teardown·listener 해제는 **이미 끝났으므로** 워크스페이스는 ` +
-            `남았지만 트리거는 발화하지 않을 수 있다(비밀은 남아 있다): ${err instanceof Error ? err.message : String(err)}`,
-        );
-        throw err;
-      });
+          `그 트리거들의 schedule job·provider teardown·listener 해제는 **이미 끝났으므로** 워크스페이스는 ` +
+          `남았지만 트리거는 발화하지 않을 수 있다(비밀은 남아 있다): ${reason}`,
+      },
+    );
     await releaser.releaseSecretsAfterCommit(
       triggerIds,
       'WorkspacesService.deleteWorkspace',
