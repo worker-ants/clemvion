@@ -447,7 +447,10 @@ describe('ExecutionEngineService', () => {
   // 극성이 반대다.
   describe('finalizeCancelledExecution — 0행 매칭의 두 의미', () => {
     const LIVE_FINISHED_AT = new Date('2026-08-15T02:03:04.000Z');
-    const arrange = (liveStatus: ExecutionStatus | null) => {
+    const arrange = (
+      liveStatus: ExecutionStatus | null,
+      liveError: Record<string, unknown> | null = null,
+    ) => {
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
       ).eventEmitter;
@@ -466,6 +469,7 @@ describe('ExecutionEngineService', () => {
               status: liveStatus,
               durationMs: 777,
               finishedAt: LIVE_FINISHED_AT,
+              error: liveError,
             },
       );
       return emitSpy;
@@ -508,6 +512,53 @@ describe('ExecutionEngineService', () => {
       // 같은 PR 이 자매(`retry-turn`)에서 정확히 이 형태를 스스로 찾아 고쳐 놓고
       // 형제 함수엔 적용하지 않았다 (`15_00_41` W2).
       expect(exec.finishedAt).toEqual(LIVE_FINISHED_AT);
+    });
+
+    // 취소를 먼저 쓴 쪽이 남긴 `error.code` 가 사유다(CLE-T-NP5VPK). 원인마다 wire 의
+    // `cancelledBy` · `error` 가 달라야 한다. `'user'` 고정이면 첫 두 줄이 RED 다.
+    it.each([
+      [
+        'RESUME_FAILED',
+        { code: 'RESUME_FAILED', message: 'resume failed' },
+        { cancelledBy: 'system' },
+      ],
+      [
+        'WEBCHAT_IDLE_TIMEOUT',
+        { code: 'WEBCHAT_IDLE_TIMEOUT', message: 'idle' },
+        { cancelledBy: 'timeout' },
+      ],
+      ['error 없음(사용자 취소)', null, { cancelledBy: 'user' }],
+    ])(
+      '(a) 먼저 쓴 취소의 error.code=%s 로 사유를 정한다',
+      async (_label, liveError, expected) => {
+        const emitSpy = arrange(ExecutionStatus.CANCELLED, liveError);
+        await run(saved());
+        const payload = emitSpy.mock.calls[0][2] as Record<string, unknown>;
+        expect(payload.result).toEqual(expected);
+        if (liveError === null) {
+          expect('error' in payload).toBe(false);
+        } else {
+          expect(payload.error).toEqual(liveError);
+        }
+      },
+    );
+
+    it('이 함수가 CANCELLED 를 쓰면 사용자 취소다 — error 키가 없다', async () => {
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      // guarded UPDATE 1행 — 이 함수가 처음 마감했다.
+      mockExecutionRepo.query.mockResolvedValueOnce([
+        { id: 'ex-cancel-preempted' },
+      ]);
+      await run({ ...saved(), error: null });
+      const payload = emitSpy.mock.calls[0][2] as Record<string, unknown>;
+      expect(payload.result).toEqual({ cancelledBy: 'user' });
+      expect('error' in payload).toBe(false);
+      expect(mockExecutionRepo.findOneBy).not.toHaveBeenCalled();
     });
 
     it('(b) DB 가 failed — 다른 종결자가 이겼으므로 cancelled 를 쏘지 않는다', async () => {

@@ -142,6 +142,7 @@ import {
   NodeEventType,
 } from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
+import { cancellationReasonFromError } from './events/cancellation-reason';
 import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { ConfigService } from '@nestjs/config';
@@ -5164,6 +5165,9 @@ export class ExecutionEngineService
       savedExecution,
       ExecutionStatus.CANCELLED,
     );
+    // 취소 사유는 DB 행의 `error.code` 로 정한다(CLE-T-NP5VPK). 이 함수가 CANCELLED 를
+    // 썼으면 방금 쓴 `savedExecution.error` 가, 0행이면 재조회한 `live.error` 가 DB 값이다.
+    let dbError = savedExecution.error;
     if (!persisted) {
       // **0행은 두 가지를 뜻한다.** 자매 `finalizeFailedExecution` 처럼 무조건 skip 하면
       // 안 된다 — 그쪽은 "FAILED 로 덮어쓰지 말라" 가 목적이라 극성이 반대다.
@@ -5210,9 +5214,12 @@ export class ExecutionEngineService
       // (a) — DB 가 cancelled 다. 값은 DB 정본으로 맞춰 wire 와 일치시킨다.
       savedExecution.durationMs = live.durationMs ?? savedExecution.durationMs;
       savedExecution.finishedAt = live.finishedAt ?? savedExecution.finishedAt;
+      // 다른 취소 경로(재개 실패 `RESUME_*` · 큐 대기 · 웹채팅 유휴 회수)가 먼저 썼으면
+      // 그 `error.code` 가 사유다. `'user'` 로 고정하면 사유와 `error` 부재가 함께 틀린다.
+      dbError = live.error;
     }
     await this.emitCancellationEvent(savedExecution.id, {
-      cancelledBy: 'user',
+      ...cancellationReasonFromError(dbError),
       durationMs: resolveTerminalDurationMs(savedExecution),
       logContext,
     });

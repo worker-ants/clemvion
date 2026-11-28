@@ -24,6 +24,7 @@ import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeEventType } from '../websocket/websocket-events.types';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 import { canTransition } from './state/state-machine';
+import { cancellationReasonFromError } from './events/cancellation-reason';
 import {
   ExecutionCancelledError,
   InvalidExecutionStateError,
@@ -886,7 +887,9 @@ export class RetryTurnService {
           // 빠지고 `raw` 가 빈 배열이 된다(실 Postgres e2e
           // `test/retry-turn-guard-sql.e2e-spec.ts` 가 잡았다). 돌아오는 행의 키는
           // DB 컬럼 이름이라 아래 되쓰기는 `row.duration_ms` 로 읽는다.
-          .returning(['durationMs', 'finishedAt'])
+          // `error` 도 되받는다. SET 에 넣지 않으므로 먼저 취소를 쓴 쪽이 남긴 값이고,
+          // 호출부가 그 `error.code` 로 취소 사유를 정한다(CLE-T-NP5VPK).
+          .returning(['durationMs', 'finishedAt', 'error'])
           .execute();
         if ((result.affected ?? 0) > 0) {
           // 영속값을 in-memory 에 되쓴다. 이후 emit 이 `resolveTerminalDurationMs`
@@ -904,6 +907,14 @@ export class RetryTurnService {
           if (persistedFinishedAt !== null) {
             execution.finishedAt = persistedFinishedAt;
           }
+          // jsonb 는 객체로 온다. 객체가 아니면(없음 · 손상) 사유가 없는 것으로 본다.
+          const persistedError = row?.error;
+          execution.error =
+            typeof persistedError === 'object' &&
+            persistedError !== null &&
+            !Array.isArray(persistedError)
+              ? (persistedError as Record<string, unknown>)
+              : null;
         }
         return (result.affected ?? 0) > 0;
       }
@@ -1276,13 +1287,11 @@ export class RetryTurnService {
         // **이 값이 종전엔 아예 없었다** — `retry-turn-terminal-guard` #2 가 소유하던
         // 결함을 파사드의 필수 필드가 컴파일 타임에 드러냈다.
         //
-        // `'user'` 인 근거: `ExecutionCancelledError` 는 "DB 가 이미 CANCELLED" 를
-        // 관측했을 때 던져지므로 **누가 취소했는지는 알 수 없다**. 그러나 §6.5 가
-        // "시스템 취소는 `error` 동행 / user cancel 은 `error` 키 부재" 를 규정하고,
-        // 이 분기는 의도적으로 `error` 를 싣지 않는다(W16) — 그래서 `'user'` 가
-        // payload 자체와 자기정합적이고, 동일 트리거를 처리하는 자매
-        // `finalizeCancelledExecution` 도 같은 값을 쓴다.
-        cancelledBy: 'user',
+        // `ExecutionCancelledError` 는 "DB 가 이미 CANCELLED" 를 봤을 때 던져지므로 누가
+        // 취소했는지 모른다. 사유는 `finalizeGuarded` 가 되받은 DB 의 `error.code` 로
+        // 정한다(CLE-T-NP5VPK). 사용자 취소면 코드가 없어 `'user'` 이고 `error` 키가 없다.
+        // 자매 `finalizeCancelledExecution` 도 같은 헬퍼를 쓴다.
+        ...cancellationReasonFromError(execution.error),
       });
     } else {
       await this.eventEmitter.emitTerminalExecution(executionId, {
