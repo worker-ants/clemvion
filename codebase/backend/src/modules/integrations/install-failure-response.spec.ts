@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  classifyHttpFailure,
   INSTALL_UNEXPECTED_ERROR_MESSAGE,
   installErrorBody,
   newInstallRequestId,
@@ -120,5 +121,51 @@ describe('installErrorBody · newInstallRequestId', () => {
     expect(installErrorBody('C', 'm', requestId)).toEqual({
       error: { code: 'C', message: 'm', requestId },
     });
+  });
+});
+
+describe('classifyHttpFailure', () => {
+  it.each([
+    ['Error', new Error('db down')],
+    ['string', 'boom'],
+    ['null', null],
+  ])('masks a non-HttpException (%s) as 500', (_label, err) => {
+    expect(classifyHttpFailure(err)).toEqual({
+      masked: true,
+      status: 500,
+      fields: {},
+      message: '',
+    });
+  });
+
+  it('does not mask 499 but masks exactly 500', () => {
+    expect(classifyHttpFailure(new HttpException('x', 499)).masked).toBe(false);
+    expect(classifyHttpFailure(new HttpException('x', 500)).masked).toBe(true);
+  });
+
+  it('returns empty fields and the string body as message for a string response', () => {
+    const shape = classifyHttpFailure(new HttpException('plain', 400));
+    expect(shape.fields).toEqual({});
+    expect(shape.message).toBe('plain');
+    expect(shape.status).toBe(400);
+  });
+
+  it('returns the response object as fields and its message', () => {
+    const shape = classifyHttpFailure(
+      new BadRequestException({ code: 'C', message: 'custom' }),
+    );
+    expect(shape).toEqual({
+      masked: false,
+      status: 400,
+      fields: { code: 'C', message: 'custom' },
+      message: 'custom',
+    });
+  });
+
+  it('falls back to err.message when the response message is an array', () => {
+    const err = new BadRequestException({ message: ['a', 'b'] });
+    const shape = classifyHttpFailure(err);
+    expect(shape.message).toBe(err.message);
+    expect(Array.isArray(shape.fields.message)).toBe(true);
   });
 });
