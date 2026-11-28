@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-ERROR"
 title: "워크플로우 AI 어시스턴트 — 에러 처리와 모델 설정"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "42609f35258789d013246373075987c1dab0bcf5532e92792176485142b672d0"
+content_hash: "13b7b8829bd01c5fbdfea053e4941e0d4e201a5d4cf9814fba2dafc08ec6aa9a"
 read_as: "approved_fallback"
-task: "CLE-T-CNGC0P"
+task: "CLE-T-3WDHJT"
 source_paths: []
-mirror_sha256: "060888d26e5b9841705a32840b66a5c09f422a1e6900760136356d8716f59660"
-etag: "sha256-69c0e4ecc8ae6d8fdd85c38161b0548e1a1f16930ed26a7ee48495bed1d916c3"
+mirror_sha256: "c495e7a8ff1ea621c2455e2da3916ddba47aee0d248f9eaf945632394cc1dcda"
+etag: "sha256-223d61fcb56bf036e02cffdcecb105775fca342553ccd62edc2b537b94ec3c38"
 ---
 ## 개요
 
@@ -42,11 +42,11 @@ etag: "sha256-69c0e4ecc8ae6d8fdd85c38161b0548e1a1f16930ed26a7ee48495bed1d916c3"
 
 서버는 SSE `error` 이벤트의 `message` 에 코드별 고정 영문만 싣는다. 어시스턴트 모듈(스트림 서비스와 컨트롤러)이 SSE `error` 이벤트로 보내는 모든 `message` 는 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 세션 REST API 오류 응답의 `message` 는 HTTP 에러 응답이라 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. 문구는 이 파일의 표에서 고르고 한도 숫자가 문구에 들어가는 `ASSISTANT_TOO_MANY_TOOL_CALLS` 만 이 파일의 함수가 만든다. `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 두 갈래(라운드 상한, 도구 호출 한도)도 이 파일의 문구를 쓴다. 스트림 서비스 밖에서 컨트롤러가 잡은 예외는 `ASSISTANT_STREAM_FAILED` 의 고정 문구로 보낸다. 이 파일의 표에 없는 LLM 클라이언트 코드는 공통 폴백 문구(`The LLM stream failed. Please try again.`)를 쓴다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트 스트림 `error` 의 `message`(진단 문구)는 서버 로그에만 남는다. [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 와 같은 동기다(CWE-209). 서버 문구를 영문으로 두는 근거는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 이다.
 
-백엔드 문구 표 · 함수(`workflow-assistant-stream-errors.ts`)와 프론트엔드 `ERROR_MESSAGE_KEYS` 는 같은 일곱 코드를 다룬다. 새 코드를 더하면 양쪽을 함께 고친다. 두 표를 맞추는 테스트와 CI 경로, 공유 상수 패키지를 두지 않은 이유는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24) 가 정본이다.
+백엔드 문구 표 · 함수(`workflow-assistant-stream-errors.ts`)와 프론트엔드 `ERROR_MESSAGE_KEYS` 는 같은 일곱 코드를 다룬다. 새 코드를 더하면 양쪽을 함께 고친다. 두 표를 맞추는 테스트와 CI 경로, 공유 상수 패키지를 두지 않은 이유는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유) 가 정본이다.
 
 같은 LLM 실패는 모델 프로바이더와 상관없이 같은 코드로 온다. LLM 클라이언트가 스트림을 열 때의 실패도 스트림 `error` 이벤트로 내기 때문이다(NERV Task `CLE-T-0R5SYN`). `ASSISTANT_STREAM_FAILED` 한 코드에 남은 원인이 합쳐진 점은 [에러 코드 규약과 카탈로그 「미결 사항」](../CLE-API/CLE-API-ERRCODES.md#미결-사항) 에 있다. SSE `error` 이벤트의 코드 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조) 에도 있다.
 
-스트리밍을 지원하지 않는 프로바이더가 선택되면 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 SSE `error` 이벤트로 그대로 보낸다. 이 코드는 LLM 클라이언트의 스트림 `error` 이벤트로는 오지 않는다. 클라이언트에 `stream()` 이 없으면 `LlmService.chatStream` 이 스트림을 열기 전에 `BadRequestException` 을 던지고 응답 본문의 `code` 에 이 코드를 싣는다. 스트림 서비스는 잡은 예외를 `workflow-assistant-stream-errors.ts` 의 `fromStreamException` 에 넘긴다. 이 함수는 `llm-client.interface.ts` 의 `isLlmStreamingUnsupported` 로 `HttpException` 응답 본문의 `code` 가 `LLM_STREAMING_UNSUPPORTED` 인지 본다. 맞으면 그 코드와 고정 영문을 고른다. 그 밖의 예외면 `ASSISTANT_STREAM_FAILED` 를 고른다. 예외의 `message`(프로바이더 이름 포함)는 서버 로그에만 남는다. 컨트롤러가 잡은 예외는 지금처럼 `ASSISTANT_STREAM_FAILED` 다. 코드 값은 `llm-client.interface.ts` 의 상수 `LLM_STREAMING_UNSUPPORTED` 와 타입 `LlmStreamingUnsupportedCode` 가 정한다. 어시스턴트 SSE 에러 코드 타입은 이 타입을 따로 더해 받는다. 스트림 에러 코드 유니온(`LlmStreamErrorCode`)은 바꾸지 않았다([스트리밍 미지원 코드를 스트림 에러 유니온 밖에 둔다](#스트리밍-미지원-코드를-스트림-에러-유니온-밖에-둔다-2026-11-14)). 화면 문구는 `ERROR_MESSAGE_KEYS` 가 `assistant.errorStreamingUnsupported` 로 고른다. 지금의 다섯 프로바이더는 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다. e2e 의 LLM 스텁(`LLM_STUB_MODE=true`)에는 `stream()` 이 없어 어시스턴트 e2e 에서는 이 코드가 나온다. 지정한 모델 설정을 찾지 못한 경우에도 따로 코드를 두지 않는다. 기본 설정으로 대신하고 그것도 없을 때만 `ASSISTANT_NO_LLM_CONFIG` 다([모델 설정](#모델-설정)).
+스트리밍을 지원하지 않는 프로바이더가 선택되면 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 SSE `error` 이벤트로 그대로 보낸다. 이 코드는 LLM 클라이언트의 스트림 `error` 이벤트로는 오지 않는다. 클라이언트에 `stream()` 이 없으면 `LlmService.chatStream` 이 스트림을 열기 전에 `BadRequestException` 을 던지고 응답 본문의 `code` 에 이 코드를 싣는다. 스트림 서비스는 잡은 예외를 `workflow-assistant-stream-errors.ts` 의 `fromStreamException` 에 넘긴다. 이 함수는 `llm-client.interface.ts` 의 `isLlmStreamingUnsupported` 로 `HttpException` 응답 본문의 `code` 가 `LLM_STREAMING_UNSUPPORTED` 인지 본다. 맞으면 그 코드와 고정 영문을 고른다. 그 밖의 예외면 `ASSISTANT_STREAM_FAILED` 를 고른다. 예외의 `message`(프로바이더 이름 포함)는 서버 로그에만 남는다. 컨트롤러가 잡은 예외는 지금처럼 `ASSISTANT_STREAM_FAILED` 다. 코드 값은 `llm-client.interface.ts` 의 상수 `LLM_STREAMING_UNSUPPORTED` 와 타입 `LlmStreamingUnsupportedCode` 가 정한다. 어시스턴트 SSE 에러 코드 타입은 이 타입을 따로 더해 받는다. 스트림 에러 코드 유니온(`LlmStreamErrorCode`)은 바꾸지 않았다([스트리밍 미지원 코드를 스트림 에러 유니온 밖에 둔다](#스트리밍-미지원-코드를-스트림-에러-유니온-밖에-둔다)). 화면 문구는 `ERROR_MESSAGE_KEYS` 가 `assistant.errorStreamingUnsupported` 로 고른다. 지금의 다섯 프로바이더는 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다. e2e 의 LLM 스텁(`LLM_STUB_MODE=true`)에는 `stream()` 이 없어 어시스턴트 e2e 에서는 이 코드가 나온다. 지정한 모델 설정을 찾지 못한 경우에도 따로 코드를 두지 않는다. 기본 설정으로 대신하고 그것도 없을 때만 `ASSISTANT_NO_LLM_CONFIG` 다([모델 설정](#모델-설정)).
 
 턴이 실패해도 이미 적용된 편집은 에디터 스토어에 남아 있어 `Ctrl+Z` 로 되돌릴 수 있다.
 
@@ -86,16 +86,18 @@ NERV Task `CLE-T-MX8PSE` 가 위 결정을 구현하면서 에러 버블 문구�
 - **범위를 여섯 코드로 넓혔다.** 2026-10-23 결정은 세 코드(`ASSISTANT_STREAM_FAILED` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR`)의 안내 문구를 다뤘다. 이번 구현에서 `ERROR_MESSAGE_KEYS` 의 여섯 코드로 넓혔다. LLM 클라이언트가 쓴 `message` 는 코드와 관계없이 서버 로그에만 남긴다.
 - **새 에러 코드는 만들지 않았다.** 코드별 문구는 기존 에러 코드에 붙였다. SSE `error` 이벤트가 내는 코드 집합은 그대로다.
 - **규칙 5 의 `ERROR_KO` 를 쓰지 않은 이유.** 구현 당시 승인본의 규칙 5 원천 표는 HTTP 에러 응답 봉투 코드와 노드 `output.error.code` 층만 다뤘고 SSE `error` 이벤트의 코드는 없었다. 이 문구는 어시스턴트 패널에서만 쓰고 모델 설정 링크 문구가 함께 붙는다. 그래서 패널의 다른 문구와 같은 `assistant.*` 사전에 둔다. 이 경로를 원천 표의 한 행으로 두는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 어시스턴트 행이 정한다.
-- **기각한 대안: `ERROR_KO` 에 코드를 더한다.** 문구는 표시 면마다 하나이고 코드 문자열이 같아도 면이 다르면 표도 다르다. 근거의 정본은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24) 의 Rationale 이다.
+- **기각한 대안: `ERROR_KO` 에 코드를 더한다.** 문구는 표시 면마다 하나이고 코드 문자열이 같아도 면이 다르면 표도 다르다. 근거의 정본은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유) 의 Rationale 이다.
 - **기각한 대안: LLM 클라이언트가 쓴 안내문을 코드별 허용 목록으로 통과시킨다.** 처음 구현은 `LLM_OUTPUT_MALFORMED` 하나를 허용 목록에 두고 LLM 클라이언트가 쓴 한국어 안내문을 그대로 보냈다. `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 서버 문구에도 "이어서 진행해줘" 같은 한국어 예시가 들어 있었다. 이 허용 목록은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3(백엔드 응답에 한국어를 넣지 않는다)과 어긋났고 en 로케일에서도 한국어가 보여 없앴다. 지금은 두 코드 모두 고정 영문을 보내고 화면 문구는 `assistant.errorOutputMalformed` · `assistant.errorTooManyToolCalls` 가 고른다.
 - **기각한 대안: 원문을 마스킹해서 보인다.** [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 의 R-CC-26 처럼 자격 증명 모양만 가리고 나머지 원문은 보이는 방식이다. URL 이나 응답 본문 조각은 자격 증명 모양이 아니어도 내부 정보다. R-CC-26 의 근거 가운데 (c) 는 여기서 성립하지 않는다. 채팅 채널의 원문은 클라이언트마다 고정된 API 호스트만 부른 결과다. LLM 클라이언트의 Local · Azure 모델 프로바이더는 사용자가 설정한 `baseUrl` 을 부르므로 내부 호스트가 원문에 실릴 수 있다. (d) 의 진단 가치는 서버 로그가 대신한다. 사용자가 할 일은 코드별 안내로 충분히 알 수 있다.
 - **한 코드의 두 갈래는 한 문구로 합쳤다.** 의도한 단순화다. 한도 초과 사전 문구(`assistant.errorTooManyToolCalls`)에는 서버 문구에 든 라운드 상한 · 도구 호출 한도 숫자를 넣지 않는다. 숫자는 서버 영문 `message` 에 남는다.
 - **서버가 `message` 를 빼지 않은 이유.** [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) 의 `error` 이벤트 데이터는 `{code, message}` 다. 이 필드를 유지하고 원문 대신 코드별 고정 영문을 싣는다. 이 영문은 사전 문구가 없는 코드의 폴백이 된다.
 - **[에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 개요의 에러 층 표에 SSE 행을 더하지 않은 이유.** SSE 이벤트 계약의 정본은 [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) 다. `message` 의 뜻도 그 문서가 정한다. 세션 REST API 의 오류 응답은 HTTP 에러 응답이라 그 표의 층을 그대로 따른다. 다만 `LLM_RATE_LIMIT` 은 노드 `output.error.code` 층과 SSE 층에 같은 문자열로 나간다. 문자열이 같아도 표시 면이 달라 문구는 면마다 따로 고른다. `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` 는 LLM 클라이언트 층 코드다([에러 코드 규약과 카탈로그 §6.17](../CLE-API/CLE-API-ERRCODES.md#617-llm-클라이언트-도메인-문서-참조)). 노드에서는 이 둘이 `LLM_CALL_FAILED` 로 바뀌어 나온다.
-- **LLM 클라이언트 쪽 정정은 따로 했다.** LLM 클라이언트의 `LLM_OUTPUT_MALFORMED` 한국어 안내문은 NERV Task `CLE-T-V73FFA` 가 2026-11-13 에 고정 영문 진단 문장으로 바꿨다([LLM 클라이언트 「스트림 오류 `message` 는 진단용으로 둔다」](../CLE-AI/CLE-AI-LLM.md#스트림-오류-message-는-진단용으로-둔다-2026-11-13)). 어시스턴트 SSE 는 그 문장도 서버 로그에만 남긴다.
-- **구현하지 않은 안내는 `(미구현)` 으로 남겼다.** `ASSISTANT_SESSION_NOT_FOUND` 의 세션 만료 안내와 새 세션 자동 생성은 NERV Task `CLE-T-ZWQ4K2` 가 맡는다. 모델 설정 대체와 토스트는 [아래 결정](#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13)으로 구현했다.
+- **LLM 클라이언트 쪽 정정은 따로 했다.** LLM 클라이언트의 `LLM_OUTPUT_MALFORMED` 한국어 안내문은 NERV Task `CLE-T-V73FFA` 가 2026-11-13 에 고정 영문 진단 문장으로 바꿨다([LLM 클라이언트 「스트림 오류 `message` 는 진단용으로 둔다」](../CLE-AI/CLE-AI-LLM.md#스트림-오류-message-는-진단용으로-둔다)). 어시스턴트 SSE 는 그 문장도 서버 로그에만 남긴다.
+- **구현하지 않은 안내는 `(미구현)` 으로 남겼다.** `ASSISTANT_SESSION_NOT_FOUND` 의 세션 만료 안내와 새 세션 자동 생성은 NERV Task `CLE-T-ZWQ4K2` 가 맡는다. 모델 설정 대체와 토스트는 [아래 결정](#모델-설정을-찾지-못하면-기본-설정으로-대신한다)으로 구현했다.
 
-### 모델 설정을 찾지 못하면 기본 설정으로 대신한다 (2026-11-13)
+### 모델 설정을 찾지 못하면 기본 설정으로 대신한다
+
+결정일: 2026-11-13
 
 요구사항은 지운 모델 설정을 워크스페이스 기본 설정으로 대신하고 알리라고 정했지만 처음 구현은 대신하지 않았다. 이미 열린 패널이 지운 설정 id 를 보내면 기본 설정이 있어도 턴이 `ASSISTANT_NO_LLM_CONFIG` 로 끝났다. NERV Task `CLE-T-1K2BM4` 가 이 동작을 넣으면서 세 가지를 정했다.
 
@@ -103,7 +105,9 @@ NERV Task `CLE-T-MX8PSE` 가 위 결정을 구현하면서 에러 버블 문구�
 - **알림은 SSE `config_fallback` 이벤트로 보낸다.** 기각한 대안 하나는 별도 에러 코드(`ASSISTANT_LLM_CONFIG_INVALID`)로 턴을 끝내는 것이다. 기본 설정으로 답할 수 있는데 턴을 실패로 끝낼 이유가 없다. 다른 대안은 알리지 않고 대신하는 것이다. 사용자가 고른 모델이 아닌 모델이 답하므로 알려야 한다. 그래서 턴은 이어 가고 첫 이벤트로 알린다. 프론트엔드는 선택 값을 비워 다음 턴부터 없는 설정 id 를 보내지 않는다.
 - **설정 조회 실패는 `ASSISTANT_STREAM_FAILED` 로 보낸다.** 전에는 DB 장애 같은 조회 실패도 `ASSISTANT_NO_LLM_CONFIG` 로 보냈다. 그러면 설정이 있는데도 모델 설정을 먼저 등록하라는 안내와 링크가 나간다. 그래서 그 갈래를 재시도 안내 코드로 옮겼다.
 
-### 스트리밍 미지원 코드를 스트림 에러 유니온 밖에 둔다 (2026-11-14)
+### 스트리밍 미지원 코드를 스트림 에러 유니온 밖에 둔다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-EK4DMX` 가 `LLM_STREAMING_UNSUPPORTED` 전달을 구현했다. 이 문서의 이전 판은 전달을 구현할 때 이 코드를 `LlmStreamErrorCode` 와 `ERROR_MESSAGE_KEYS` 두 곳에 더하라고 적었다. 구현은 `LlmStreamErrorCode` 에 넣지 않았다. 대신 `llm-client.interface.ts` 에 상수 `LLM_STREAMING_UNSUPPORTED` 와 타입 `LlmStreamingUnsupportedCode` 를 두고 어시스턴트 SSE 에러 코드 타입에 더했다.
 

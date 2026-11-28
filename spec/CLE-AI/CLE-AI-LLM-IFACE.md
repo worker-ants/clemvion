@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM-IFACE"
 title: "LLM 클라이언트 — 인터페이스와 프로바이더 매핑"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "648a435d767c6c00bc8d24fd5d67ab8118245d25b64b76bae2c64180be38a0da"
+content_hash: "71abc71410df6ec7681f783dbe3a0a67a31d68c72a9037b415a34c2792ec3f5a"
 read_as: "approved_fallback"
-task: "CLE-T-0VS826"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "e341fc45befcd24ebd0384ad225fdf3d93b7d3d07816a2eea714ddf1ebd8154c"
-etag: "sha256-c4a46e135e43c7ffb84c088b4aff3d9a8245c8e73b54061b9b3b6685e9719860"
+mirror_sha256: "dcae676efc696f72cfc42e78e6fd73c8af7a6d60a5fd5b7a15d3344a63b0d00e"
+etag: "sha256-f55d8f09ee47ede8e269238358ad7c58b8ae1181b2a4e91ad49f68deb89b491f"
 ---
 ## 개요
 
@@ -249,7 +249,7 @@ class RerankClientFactory {
 | `messages[].role` | `system` 은 별도 `system` 파라미터로 뺀다 |
 | `tools` | Anthropic tool_use 형식으로 바꾼다 |
 | `maxTokens` | `max_tokens` (필수 파라미터) |
-| `temperature`·`topP` | 보내지 않는다. 값을 받아도 버리고 API 기본값(temperature 1.0)으로 샘플링한다. `top_k` 도 보내지 않는다([Rationale](#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)) |
+| `temperature`·`topP` | 보내지 않는다. 값을 받아도 버리고 API 기본값(temperature 1.0)으로 샘플링한다. `top_k` 도 보내지 않는다([Rationale](#anthropic-에-샘플링-파라미터를-보내지-않는다)) |
 
 ### Google AI
 
@@ -261,7 +261,7 @@ class RerankClientFactory {
 | `stream()` | `ai.models.generateContentStream()` (새 SDK 는 평탄한 AsyncGenerator 를 돌려준다) |
 | `tools` | `functionDeclarations` 로 옮기고, 스키마는 OpenAPI 3.0 서브셋으로 정리한다 |
 
-Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 고정한다. `GoogleGenAI` 를 만들 때 `apiVersion` 인자로 넘긴다([Rationale](#gemini-api-버전을-v1beta-로-고정한다-2026-11-12)).
+Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 고정한다. `GoogleGenAI` 를 만들 때 `apiVersion` 인자로 넘긴다([Rationale](#gemini-api-버전을-v1beta-로-고정한다)).
 
 ### Local (Ollama/vLLM)
 
@@ -305,7 +305,9 @@ Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 �
 
 2026-06-05 사용자 결정이다. 1차 구현인 `tei`(자가호스팅)와 `cohere`(외부 API)가 자가호스팅과 외부 API 두 사용 경로를 이미 덮는다. 추가 프로바이더(`jina`·`voyage`·`local`·`builtin`)는 수요가 확인되지 않은 채 인증·에러 매핑·SSRF 예외 규칙 같은 유지보수 표면만 늘린다. 수요가 생기면 같은 `/rerank` HTTP 호출 패턴(builtin 은 Transformers.js 인프로세스 추론)이라 다시 시작하는 비용은 낮다. 이 결정은 구조 변경이 아니라 범위를 닫은 것이다.
 
-### Anthropic 에 샘플링 파라미터를 보내지 않는다 (2026-11-12)
+### Anthropic 에 샘플링 파라미터를 보내지 않는다
+
+결정일: 2026-11-12
 
 Anthropic 클라이언트의 `chat()`·`stream()` 은 `ChatParams` 의 `temperature`·`topP` 를 받아도 요청에 넣지 않는다. `top_k` 는 원래 보내지 않았다. 요청은 API 기본값(temperature 1.0)으로 샘플링한다. 다른 프로바이더(OpenAI · Google AI · Azure OpenAI · Local)의 요청은 바뀌지 않는다. NERV Task `CLE-T-GKZPKY` 에서 정했다.
 
@@ -316,7 +318,9 @@ Anthropic 클라이언트의 `chat()`·`stream()` 은 `ChatParams` 의 `temperat
 
 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 설정 화면의 Temperature 필드 힌트(`ai-agent.schema.ts`)와 유저 가이드의 AI 노드 문서에 Anthropic 모델에는 이 값이 적용되지 않는다고 적었다.
 
-### Gemini API 버전을 v1beta 로 고정한다 (2026-11-12)
+### Gemini API 버전을 v1beta 로 고정한다
+
+결정일: 2026-11-12
 
 `@google/genai` 3.0.0 에서 Gemini Developer API 의 기본 버전이 `v1beta` 에서 `v1` 로 바뀌었다. SDK 상수 `GOOGLE_AI_API_DEFAULT_VERSION` 은 2.32.0 에서 `'v1beta'` 이고 3.0.0 에서 `'v1'` 이다. 그래서 클라이언트 코드를 그대로 두고 SDK 만 3.0 으로 올려도 Google 클라이언트가 부르는 엔드포인트가 `v1` 로 바뀐다.
 

@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-CATALOG"
 title: "감사 로그 — 감사 액션 카탈로그"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "6b247494dd1b305250fc43eed07ddf7b0cfd61199a152af8c068bab4e16f1c14"
+content_hash: "e6905b57b93a9c0e0f06569af2bdc1b8714bb5f5a185d7a2cc13329c86c7c568"
 read_as: "approved_fallback"
-task: "CLE-T-28MDF3"
+task: "CLE-T-95K2Q9"
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "4e5db2a858e5fba81e22e7251b661788b387d498b84090fbee1a20e60a7dc0b9"
-etag: "sha256-67716c75d80575f14c2ba55723d2d85366083213c1a3333ae39809926034e5df"
+mirror_sha256: "d1d40f40c731de0103e99de0368a6dc37bdf8bf428e4290b97f4d3590bc47ae0"
+etag: "sha256-83e9bacc609cdab4ef51ef30fb08074e3959353ea80bdf87a47df22d48f6d6e9"
 ---
 > 구현 상태: 부분 구현(`alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ etag: "sha256-67716c75d80575f14c2ba55723d2d85366083213c1a3333ae39809926034e5df"
 - 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다. `workflow.version_restored` 는 NERV Task `CLE-T-28MDF3` 에서 구현했다.
 - **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
 - **워크플로우 실행과 캔버스 저장은 남기지 않는다.** 실행은 `execution` 행이 실행자와 시작 시각을 남긴다. 캔버스 저장은 저장마다 생기는 `workflow_version` 스냅샷이 저장한 사람과 시각을 남긴다. 워크플로우 쪽에서 새로 남기는 것은 버전 복원(`workflow.version_restored`) 하나다([실행](#워크플로우-실행은-감사-로그에-남기지-않는다), [캔버스 저장](#캔버스-저장은-감사-로그에-남기지-않고-버전-복원만-남긴다)).
-- **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다. 멤버가 나가거나 제거될 때 남는 `member.removed` 한 행과 `integration.deleted` 여러 행은 이 규칙의 대상이 아니다. 지운 개인 통합은 멤버십과 서로의 행을 맞추는 짝 리소스가 아니고 그 요청으로 실제로 지워진 리소스라서 통합마다 남긴다([Rationale](#나가기와-제거가-지운-개인-통합은-통합마다-한-행씩-남긴다-2026-10-29)).
+- **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다. 멤버가 나가거나 제거될 때 남는 `member.removed` 한 행과 `integration.deleted` 여러 행은 이 규칙의 대상이 아니다. 지운 개인 통합은 멤버십과 서로의 행을 맞추는 짝 리소스가 아니고 그 요청으로 실제로 지워진 리소스라서 통합마다 남긴다([Rationale](#나가기와-제거가-지운-개인-통합은-통합마다-한-행씩-남긴다)).
 - **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다. 트리거 생성 · 수정 요청이 첫 알림 서명 시크릿이나 트리거 단위 토큰을 발급하는 일에는 전용 감사 액션을 두지 않는다. 그 요청의 `trigger.created` · `trigger.updated` 행이 `details.issuedSecrets` 로 발급을 표시한다([Rationale](#첫-발급-표시는-생성과-수정-기록에-싣는다)).
 - **Telegram 인바운드 서명의 서버 재발급에는 전용 감사 액션이 없다.** Telegram 어댑터는 `setupChannel()` 이 불릴 때마다 `secret_token` 을 새로 만들어 등록한다. 서버는 그 값을 다시 저장한다([채팅 채널 「인바운드 서명 자료 변경」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-서명-자료-변경)). 이 재발급은 사용자가 고른 자격 증명 교체가 아니라 프로바이더 등록의 일부라서 위 세 교체 감사 액션의 대상이 아니다. 재발급을 일으킨 요청의 감사 액션(`trigger.created`, `trigger.updated`, `trigger.chat_channel_bot_token_rotated`)이 그 기록을 겸한다. 감사 로그 조회에서 서명 재발급만 따로 거를 수는 없다(알려진 한계, [Rationale](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다)).
 - **모델 설정 레거시 행**: 모델 설정 통합(2026-08-01) 전에 `llm_config.*`·`rerank_config.*` 로 남은 행은 append-only 로 보존하고 다시 쓰지 않는다. 모델 설정 감사를 조회할 때는 두 집합(`model_config.*` 또는 `llm_config.*`·`rerank_config.*`)을 OR 로 묶는다.
@@ -150,9 +150,11 @@ NERV Task `CLE-T-W11BQ9` 에서 정했다.
 
 시크릿 교체(`rotate-secret`)와 트리거 단위 토큰 재발급(`revoke-token`)은 지금처럼 각자의 감사 액션을 쓴다. 두 동작은 기존 자격 증명을 무효로 한다.
 
-### 나가기와 제거가 지운 개인 통합은 통합마다 한 행씩 남긴다 (2026-10-29)
+### 나가기와 제거가 지운 개인 통합은 통합마다 한 행씩 남긴다
 
-멤버가 나가거나 제거되면 그 사람의 개인 통합도 함께 지운다. 2026-10-29 에 사용자가 정했다(NERV Task `CLE-T-TGZGM9`, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)). 감사 로그는 `member.removed` 한 행 다음에 지운 통합마다 `integration.deleted` 한 행을 남긴다. 기록 형식은 [통합 관리 「감사 로그」](../CLE-INT/CLE-INT-MANAGE.md#감사-로그) 가 정한다. 이 절은 짝 리소스 규칙과 이 문서의 선례에 견준 근거를 적는다.
+결정일: 2026-10-29
+
+멤버가 나가거나 제거되면 그 사람의 개인 통합도 함께 지운다. 2026-10-29 에 사용자가 정했다(NERV Task `CLE-T-TGZGM9`, [통합 관리 — 권한과 멤버 퇴장](../CLE-INT/CLE-INT-MANAGE-PERM.md#나간-멤버의-개인-통합은-나갈-때-지운다)). 감사 로그는 `member.removed` 한 행 다음에 지운 통합마다 `integration.deleted` 한 행을 남긴다. 기록 형식은 [통합 관리 「감사 로그」](../CLE-INT/CLE-INT-MANAGE.md#감사-로그) 가 정한다. 이 절은 짝 리소스 규칙과 이 문서의 선례에 견준 근거를 적는다.
 
 - **짝 리소스 규칙의 대상이 아니다.** 트리거와 스케줄은 서로의 행을 맞추는 짝이라 상대 행의 변화는 호출된 감사 액션의 부수 효과다. 지운 개인 통합은 멤버십과 짝이 아니고 그 요청으로 실제로 사라진 리소스다.
 - **«같은 사건을 두 번 적지 않는다» 선례와도 다르다.** [Telegram 서버 발급 서명](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다) 과 [첫 발급 표시](#첫-발급-표시는-생성과-수정-기록에-싣는다) 에서 기각한 전용 감사 액션은 같은 트리거에 대한 한 요청을 두 줄로 적는 안이었다. 여기서는 리소스가 다르다. 멤버십이 끝난 것과 통합이 지워진 것은 각자의 리소스 이력에 남아야 한다. 통합의 이력(`resource_type='integration'`, `resource_id`)을 조회하는 사람은 그 통합이 언제 누구의 요청으로 지워졌는지 봐야 한다.

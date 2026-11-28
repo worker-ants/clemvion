@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDITNAME"
 title: "감사 action 명명"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "8a287c5a0b13e77c395979b6c4a29bb0572dd984fc9de6f2eeffc9288a26be3b"
-read_as: "approved"
-task: null
+content_hash: "7ad96432de16d04da73cc05a5d39a40c30c2080550bf340b474093468ee83cf3"
+read_as: "approved_fallback"
+task: "CLE-T-95K2Q9"
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md"]
-mirror_sha256: "0ed46c886fd9eaf051abb6a07cf6db44253c8dae837e0468e080ab78cc7152b2"
-etag: "sha256-a9b2337ea872921ca528d6f8067379ac157e5ca1d22c7b47311e4618d09ea956"
+mirror_sha256: "a03e3a862874f46aa55fe5379d4436a9a692d7f35acb3ce4d42a61e5a4b3799a"
+etag: "sha256-97bfcec2baf65e401fd4d21f6d151ce4b9b93129ce9038258180b44441968526"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/audit-actions.md`, `spec/5-system/1-auth.md` (Rationale 4.1.A) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -110,7 +110,9 @@ etag: "sha256-a9b2337ea872921ca528d6f8067379ac157e5ca1d22c7b47311e4618d09ea956"
 
 이미 구현된 `workspace.transfer_ownership` 은 과거분사 기본형에도 CRUD 현재형 예외에도 깔끔히 맞지 않는다. 소유자 이양은 생애주기 CRUD 가 아니라 단일 트랜잭션 행위다. 과거분사로 바꾸면(`ownership_transferred`) 이미 적재된 행과 `AUDIT_ACTIONS` 표기가 깨지는데 얻는 것이 없다(append-only 원칙). 그래서 `execution.re_run` 과 같은 도메인 고유 동사로 분류했다(refactor 04 후속 A-2). 이 분류가 세 갈래 체계를 만든 계기다.
 
-### 트리거 시크릿·토큰 교체를 세 감사 액션으로 나눈다 (2026-08-11)
+### 트리거 시크릿·토큰 교체를 세 감사 액션으로 나눈다
+
+결정일: 2026-08-11
 
 선례는 양쪽에 다 있다. 한 감사 액션에 `details` 하위 필드로 담은 쪽(`integration.rotated`, `integration.reauthorized` + `details.mode`)과 대상별로 나눈 쪽(`user.password_changed`·`email_changed`·`2fa_enabled`·`2fa_disabled`)이다. 규약은 어느 쪽도 강제하지 않으므로 선택 근거를 남긴다.
 

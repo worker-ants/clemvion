@@ -2,19 +2,19 @@
 id: "CLE-KB-DATA-SCHEMA"
 title: "지식 저장소 데이터와 흐름 — 엔티티 스키마"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-KB-DATA"
 ancestors: ["CLE-VISION", "CLE-KB", "CLE-KB-DATA"]
 area: "CLE-KB"
-content_hash: "fb066af241a5bb7f8275d5b6a1e3524670354282c317641e45e8ccdca897b419"
+content_hash: "3036e9e7707d7ef7e358cfca9d89aaf614f996ff28420f419fd9b370c139b87a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-95K2Q9"
 source_paths: []
-mirror_sha256: "fd78db47f9e0f8662be2dd982f1232057c6e93b54189f61db2744ac193b155d8"
-etag: "sha256-82b514d7272e603425b815c9065af98ae6401d94fc9225c5e1a3feeb93d3dada"
+mirror_sha256: "14d4eb49d9292be46a8703d5c2512c675b7d4b597eee5b5a6cbe0242e8a78e50"
+etag: "sha256-da18585bf7fdf8a974ef186b6641a66d5da8f60c1ae5ccccc2790248a374bf98"
 ---
 ## 개요
 
@@ -213,7 +213,9 @@ Graph 지식 저장소에서만 쓴다. 동작은 [Graph RAG](CLE-KB-GRAPH.md) �
 
 검색이 이 값으로 캐스트하고 필터를 거는 이유는 저장된 청크와 새 질의를 같은 차원·공간에서 비교하기 위해서다. 그러려면 이 값은 모델이 내는 차원이 아니라 지금 저장된 벡터의 길이여야 한다. 그래서 적재 경로만 경쟁 없이 채운다. 임베딩 테스트로 잰 값은 미리 저장하지 않는다. 모델을 바꾼 뒤 새 모델 차원을 미리 넣으면 저장된 청크는 여전히 옛 차원·공간이라 두 가지 문제가 생긴다. 차원이 다르면 `vector_dims` 필터에서 모두 빠져 여전히 0건이다. 차원이 우연히 같으면 옛 벡터와 새 질의를 비교해 틀린 결과가 나온다. [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「임베딩 차원이 파생 캐시인지 실측값인지」 항목(D46)은 이 구분에 따라 모델 출력 차원과 저장 청크 차원을 다른 용어로 정했다.
 
-### 그래프 RAG 삭제 연쇄에 FK 인덱스 넷을 둔 이유 (2026-09-18)
+### 그래프 RAG 삭제 연쇄에 FK 인덱스 넷을 둔 이유
+
+결정일: 2026-09-18
 
 `entity`, `relation` 의 기존 인덱스는 모두 `knowledge_base_id` 가 앞이다. FK 트리거의 조회는 지식 저장소를 모르므로 `last_seen_chunk_id`, `evidence_chunk_id` 로 찾을 때 테이블 전체를 훑는다. 비용은 "자식 테이블 크기 × 연쇄로 지워지는 부모 행 수" 다. 측정해 보니 가장 무거운 경로는 지식 저장소 삭제였다.
 

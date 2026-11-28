@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG-EDIT"
 title: "외부 호출 인증 설정 — 입력 항목 · 편집 · 재생성"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-AUTHCFG"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-AUTHCFG"]
 area: "CLE-TRIG"
-content_hash: "bbd34663f6caab6d8be66a605e1cc512bf96a5944f857957ade3d6fcf094a5a4"
+content_hash: "adae1b157aebfc9f32da56479d52453f377add465153a64e947e91adaaf917d4"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-3WDHJT"
 source_paths: []
-mirror_sha256: "6f10a4d04124266672d6fd0b50b26d94586abb8072b7df8526bbb421d902a824"
-etag: "sha256-20c43d73700d7f826f26f6f3b77bd62b3d6355bbac323fe2457893160af13920"
+mirror_sha256: "f06c4522a6bf83d682210b80c0eb6809d85a3daa85dfbee30087d9998f32009b"
+etag: "sha256-af3006e9d874f0cf21f2ae62b715039b537419352bdded6a5e4793f5f2215d7c"
 ---
 ## 개요
 
@@ -112,7 +112,7 @@ Basic Auth 설정에 `config.username` 을 빈 문자열이나 문자열이 아�
 
 ### 편집 폼에서 비밀을 다시 입력받지 않는 이유
 
-편집(`PATCH`)은 이름·IP·비밀이 아닌 config 만 바꾸고 비밀 값을 다시 입력받지 않는다. 제품이 발급하는 비밀의 변경은 재생성 하나로 모은다. 사용자가 입력한 Basic Auth 비밀번호는 재생성이 없어 지우고 다시 만든다([Basic Auth 재생성을 거부한다](#basic-auth-재생성을-거부한다-2026-11-05)). 백엔드 `update` 는 `config` 를 통째로 바꾸지 않고 shallow-merge 하며 마스킹된 비밀 값(`***<last4>`)이 되돌아와도 무시해 실제 비밀이 망가지지 않게 한다. 유형 변경도 편집 폼에서 막는다. 유형을 바꾸면 비밀을 다시 발급해야 하므로 지우고 다시 만든다.
+편집(`PATCH`)은 이름·IP·비밀이 아닌 config 만 바꾸고 비밀 값을 다시 입력받지 않는다. 제품이 발급하는 비밀의 변경은 재생성 하나로 모은다. 사용자가 입력한 Basic Auth 비밀번호는 재생성이 없어 지우고 다시 만든다([Basic Auth 재생성을 거부한다](#basic-auth-재생성을-거부한다)). 백엔드 `update` 는 `config` 를 통째로 바꾸지 않고 shallow-merge 하며 마스킹된 비밀 값(`***<last4>`)이 되돌아와도 무시해 실제 비밀이 망가지지 않게 한다. 유형 변경도 편집 폼에서 막는다. 유형을 바꾸면 비밀을 다시 발급해야 하므로 지우고 다시 만든다.
 
 ### Basic Auth 의 빈 값은 인증 때 거부한다
 
@@ -158,9 +158,11 @@ transformer 는 바꾸지 않는다. 재생성이 표식 객체를 고치지 않
 
 접은 선택지는 재생성을 거부하고 «설정을 새로 만들라» 는 오류를 내는 것이다. 그러면 그 설정을 쓰는 트리거를 모두 새 설정에 다시 연결해야 한다. 키 교체 사고는 워크스페이스의 모든 설정을 한꺼번에 읽지 못하게 만들므로 다시 연결할 트리거도 많다. 통합도 읽지 못한 자격 증명을 다시 연결해 같은 행에서 복구한다([통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화)). 거부하면 재생성 요구에 «복호화 불가 설정은 빼고» 라는 예외도 붙는다.
 
-Basic Auth 는 표식 여부와 상관없이 재생성을 거부한다([아래 절](#basic-auth-재생성을-거부한다-2026-11-05)). 표식으로 읽히는 Basic Auth 설정은 지우고 다시 만든다.
+Basic Auth 는 표식 여부와 상관없이 재생성을 거부한다([아래 절](#basic-auth-재생성을-거부한다)). 표식으로 읽히는 Basic Auth 설정은 지우고 다시 만든다.
 
-### Basic Auth 재생성을 거부한다 (2026-11-05)
+### Basic Auth 재생성을 거부한다
+
+결정일: 2026-11-05
 
 Basic Auth 설정에 재생성을 요청하면 저장과 감사 기록 전에 400 `AUTH_CONFIG_REGENERATE_UNSUPPORTED` 로 거부한다. 화면은 Basic Auth 행에 Regenerate 를 보이지 않는다.
 

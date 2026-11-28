@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-LLM"
 title: "에러 코드 카탈로그 — LLM 클라이언트 · AI 어시스턴트"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "b984f693cfbbd62fd2af21255aa1b6097954439972cf37a5389c0db3c71d12e4"
+content_hash: "319d6045b571d772a9ded955a18b58a099ebe810d69cc937e6fc81f280d95338"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-3WDHJT"
 source_paths: []
-mirror_sha256: "fa52bb5b3da17db98a841540cd30b45207decad829ee8b78bd8d700898aba37f"
-etag: "sha256-52d1737a82d0cafc44b73f31c9dc6caa1f11af9535f2bf017fc4cb36216328b5"
+mirror_sha256: "6587305fac8a4ee6ba164d09176908e466c910f8fb5dffb824b4eecff3ed6174"
+etag: "sha256-27e7284223a08d2b7b47cbb9d07980132230d1e334e5fa163d4922de4e83ebfc"
 ---
 ## 개요
 
@@ -97,17 +97,17 @@ NERV Task `CLE-T-YFDSY7` 이다. 어시스턴트 메시지 스트림의 SSE `err
 NERV Task `CLE-T-EK4DMX` 가 2026-11-13 결정대로 `LLM_STREAMING_UNSUPPORTED` 를 어시스턴트 SSE `error` 이벤트에 그대로 싣게 구현했다. 이전 판 §6.25 는 이 전달을 아직 구현하지 않았다고 적었다. 구현에 맞춰 §6.25 를 현재 동작으로 고쳤다.
 
 - **§6.25 표에 행을 더하지 않았다.** 정의는 §6.17 행이고 §6.25 는 넘긴다는 사실만 적는다는 2026-11-13 원칙을 그대로 따랐다.
-- **예외로 오는 경로를 따로 적었다.** 같은 문단의 다른 LLM 코드는 클라이언트의 스트림 `error` 이벤트로 오고 이 코드만 스트림을 열기 전 예외로 온다. 둘을 한 문장으로 묶으면 이 코드도 스트림 이벤트로 오는 것처럼 읽혀 나눠 적었다. 이 코드를 스트림 에러 코드 유니온(`LlmStreamErrorCode`)에 넣지 않은 이유는 [에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#스트리밍-미지원-코드를-스트림-에러-유니온-밖에-둔다-2026-11-14) 이 정본이다.
+- **예외로 오는 경로를 따로 적었다.** 같은 문단의 다른 LLM 코드는 클라이언트의 스트림 `error` 이벤트로 오고 이 코드만 스트림을 열기 전 예외로 온다. 둘을 한 문장으로 묶으면 이 코드도 스트림 이벤트로 오는 것처럼 읽혀 나눠 적었다. 이 코드를 스트림 에러 코드 유니온(`LlmStreamErrorCode`)에 넣지 않은 이유는 [에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#스트리밍-미지원-코드를-스트림-에러-유니온-밖에-둔다) 이 정본이다.
 - **§6.17 행의 설명을 던지는 곳에 맞췄다.** 이전 판은 「스트리밍을 지원하지 않는 프로바이더에 `stream()` 호출」이라 적어 클라이언트의 `stream()` 이 던지는 것처럼 읽혔다. 실제로는 `LlmService.chatStream` 이 클라이언트에 `stream()` 이 없는 것을 보고 스트림을 열기 전에 던진다. HTTP 칸은 「없음」으로 두었다. 예외 종류는 `BadRequestException` 이지만 `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 HTTP 응답으로 나가지 않는다.
 
 ### 어시스턴트 스트림 코드의 프로바이더 분기를 없앴다
 
 결정일: 2026-11-14
 
-NERV Task `CLE-T-0R5SYN` 이다. OpenAI 계열 클라이언트는 스트림을 열 때의 실패를 예외로 던졌고 어시스턴트는 그 예외를 `ASSISTANT_STREAM_FAILED` 로 보냈다. 그래서 같은 429 가 Anthropic · Google 이면 `LLM_RATE_LIMIT` 로, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 나갔다. 2026-11-14 에 사람이 세 클라이언트 모두 열 때의 실패를 스트림 `error` 이벤트로 내기로 정했다([LLM 클라이언트 「스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다」](../CLE-AI/CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14)).
+NERV Task `CLE-T-0R5SYN` 이다. OpenAI 계열 클라이언트는 스트림을 열 때의 실패를 예외로 던졌고 어시스턴트는 그 예외를 `ASSISTANT_STREAM_FAILED` 로 보냈다. 그래서 같은 429 가 Anthropic · Google 이면 `LLM_RATE_LIMIT` 로, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 나갔다. 2026-11-14 에 사람이 세 클라이언트 모두 열 때의 실패를 스트림 `error` 이벤트로 내기로 정했다([LLM 클라이언트 「스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다」](../CLE-AI/CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다)).
 
 - **규칙 4 와 어긋나던 점은 없어졌다.** 같은 429 와 SDK 요청 타임아웃이 프로바이더와 상관없이 같은 §6.17 코드로 나간다.
-- **규칙 6 과 어긋나던 점은 줄었다.** 429 와 SDK 요청 타임아웃이 `ASSISTANT_STREAM_FAILED` 에서 빠졌다. 남은 원인은 `chatStream` 이 이벤트가 아닌 예외로 끝난 경우(클라이언트 생성 실패 등), 모델 설정 조회 실패, 서비스 내부 실패다. 모델 설정 조회 실패를 이 코드로 보내는 것은 2026-11-13 결정을 따른다([에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13)). 나머지 원인을 코드로 나눌지는 [에러 코드 규약 「미결 사항」](CLE-API-ERRCODES.md#미결-사항) 에 남겼다.
+- **규칙 6 과 어긋나던 점은 줄었다.** 429 와 SDK 요청 타임아웃이 `ASSISTANT_STREAM_FAILED` 에서 빠졌다. 남은 원인은 `chatStream` 이 이벤트가 아닌 예외로 끝난 경우(클라이언트 생성 실패 등), 모델 설정 조회 실패, 서비스 내부 실패다. 모델 설정 조회 실패를 이 코드로 보내는 것은 2026-11-13 결정을 따른다([에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다)). 나머지 원인을 코드로 나눌지는 [에러 코드 규약 「미결 사항」](CLE-API-ERRCODES.md#미결-사항) 에 남겼다.
 - **새 코드는 만들지 않았다.** 429 와 SDK 요청 타임아웃은 이미 있는 §6.17 코드로 옮겨 갔다.
 
 ### 스트리밍 에러 매핑 링크와 HTTP 칸 표기를 고쳤다
@@ -124,7 +124,7 @@ NERV Task `CLE-T-790NKJ` 이다.
 
 결정일: 2026-11-15
 
-NERV Task `CLE-T-ZN111F` 이다. [워크플로우 AI 어시스턴트 「요구사항」](../CLE-WF/CLE-WF-ASSIST.md#요구사항) 의 실행 중 편집 거부를 구현하면서 편집 도구가 결과 `{ ok: false, error: 'ASSISTANT_WORKFLOW_RUNNING', message }` 를 돌려주게 됐다. 발행하는 코드는 등재한다는 규칙 8 에 따라 §6.25 에 올렸다. 거부를 SSE `error` 이벤트가 아닌 도구 결과로 돌려주는 이유는 [워크플로우 AI 어시스턴트 「실행 중 편집 거부를 편집 도구 결과로 돌려준다」](../CLE-WF/CLE-WF-ASSIST.md#실행-중-편집-거부를-편집-도구-결과로-돌려준다-2026-11-15) 에 있다.
+NERV Task `CLE-T-ZN111F` 이다. [워크플로우 AI 어시스턴트 「요구사항」](../CLE-WF/CLE-WF-ASSIST.md#요구사항) 의 실행 중 편집 거부를 구현하면서 편집 도구가 결과 `{ ok: false, error: 'ASSISTANT_WORKFLOW_RUNNING', message }` 를 돌려주게 됐다. 발행하는 코드는 등재한다는 규칙 8 에 따라 §6.25 에 올렸다. 거부를 SSE `error` 이벤트가 아닌 도구 결과로 돌려주는 이유는 [워크플로우 AI 어시스턴트 「실행 중 편집 거부를 편집 도구 결과로 돌려준다」](../CLE-WF/CLE-WF-ASSIST.md#실행-중-편집-거부를-편집-도구-결과로-돌려준다) 에 있다.
 
 - **편집 도구 결과 가운데 이 코드만 올렸다.** `NODE_NOT_FOUND` 같은 다른 결과 문자열은 모델에게 인자를 고쳐 다시 부르라는 신호이고 [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md) 가 정한다. `ASSISTANT_WORKFLOW_RUNNING` 은 세 가지가 다르다. 요구사항이 사용자 안내를 약속했다. 화면이 이 코드를 보고 도구 배지 문구를 고른다. 이름도 `ASSISTANT_` 도메인의 코드다.
 - **SSE `error` 표와 따로 표를 두었다.** 기존 표의 코드는 SSE `error` 이벤트로 와서 턴이 끝난다. 이 코드는 `tool_call` 결과로 오고 턴이 이어진다. 한 표에 섞으면 이 코드도 턴을 끝내는 것처럼 읽힌다.

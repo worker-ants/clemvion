@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 16
+version: 17
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061", "REQ-ASSIST-062"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "61c0f74f8d3566e4e093429173f29be10f0b9a6959f150d141841345d7ededf6"
+content_hash: "5acec16c8beec2445814260d98771cb1db04d56c25673d64329a5a7c0cdda53c"
 read_as: "approved_fallback"
-task: "CLE-T-CNGC0P"
+task: "CLE-T-3WDHJT"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "e545132cf792dddd97ffc0b051a826eaf32b471faab546f220c40a8bc2e0a65c"
-etag: "sha256-88a028eaafc8c0767784e2c119dd58ae5e102ee6801520d7a6b5532edaa45d8c"
+mirror_sha256: "18d806196f5d4ece51992dc965d2ad3112bb5189d25f52c08104a03123a0bbb6"
+etag: "sha256-6661b74ab20bd1c46860c21b661322c37bdce70dcaa2d52d4f09650d554df635"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -209,7 +209,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 
 ## 미결 사항
 
-- **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. REQ-ASSIST-041 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. 429 는 스트림을 열 때와 연 뒤 모두 모델 프로바이더와 상관없이 `LLM_RATE_LIMIT` 로 온다([LLM 클라이언트 「스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다」](../CLE-AI/CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14), NERV Task `CLE-T-0R5SYN`). 그래서 버튼을 `LLM_RATE_LIMIT` 에 붙이면 모든 프로바이더에서 보인다. 버튼을 둘지 결정 필요.
+- **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. REQ-ASSIST-041 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. 429 는 스트림을 열 때와 연 뒤 모두 모델 프로바이더와 상관없이 `LLM_RATE_LIMIT` 로 온다([LLM 클라이언트 「스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다」](../CLE-AI/CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다), NERV Task `CLE-T-0R5SYN`). 그래서 버튼을 `LLM_RATE_LIMIT` 에 붙이면 모든 프로바이더에서 보인다. 버튼을 둘지 결정 필요.
 
 ## 구현 위치
 
@@ -245,17 +245,21 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 
 → [에러 처리와 모델 설정](CLE-WF-ASSIST-ERROR.md#에러-버블-문구는-assistant-사전-키로-고른다)
 
-### 모델 설정을 찾지 못하면 기본 설정으로 대신한다 (2026-11-13)
+### 모델 설정을 찾지 못하면 기본 설정으로 대신한다
 
-→ [에러 처리와 모델 설정](CLE-WF-ASSIST-ERROR.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13)
+결정일: 2026-11-13
+
+→ [에러 처리와 모델 설정](CLE-WF-ASSIST-ERROR.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다)
 
 ### 실행 중 편집 거부 요구에서 발행 전 코드 이름을 뺐다
 
 결정일: 2026-11-14
 
-NERV Task `CLE-T-B7YTQX` 다. REQ-ASSIST-028 은 발행된 적 없는 `ASSISTANT_WORKFLOW_RUNNING` 으로 거부한다고 약속해 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 9 와 어긋났다. 요구사항의 뜻(실행 중 편집 거부와 안내)은 그대로 두고 코드 이름은 「실행과 디버깅」 의 계획 문장으로 옮겼다. 같은 날 NERV Task `CLE-T-66PJNN` 이 패널의 남은 영문 폴백을 사전 키로 옮겨 REQ-ASSIST-005 의 부분 구현 표시와 미결 항목을 걷었다. 근거는 [패널 화면](CLE-WF-ASSIST-UI.md#rationale) 에 있다. 2026-11-15 에 구현과 함께 `ASSISTANT_WORKFLOW_RUNNING` 을 카탈로그에 등재했고 근거는 [「실행 중 편집 거부를 편집 도구 결과로 돌려준다」](CLE-WF-ASSIST.md#실행-중-편집-거부를-편집-도구-결과로-돌려준다-2026-11-15) 에 있다.
+NERV Task `CLE-T-B7YTQX` 다. REQ-ASSIST-028 은 발행된 적 없는 `ASSISTANT_WORKFLOW_RUNNING` 으로 거부한다고 약속해 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 9 와 어긋났다. 요구사항의 뜻(실행 중 편집 거부와 안내)은 그대로 두고 코드 이름은 「실행과 디버깅」 의 계획 문장으로 옮겼다. 같은 날 NERV Task `CLE-T-66PJNN` 이 패널의 남은 영문 폴백을 사전 키로 옮겨 REQ-ASSIST-005 의 부분 구현 표시와 미결 항목을 걷었다. 근거는 [패널 화면](CLE-WF-ASSIST-UI.md#rationale) 에 있다. 2026-11-15 에 구현과 함께 `ASSISTANT_WORKFLOW_RUNNING` 을 카탈로그에 등재했고 근거는 [「실행 중 편집 거부를 편집 도구 결과로 돌려준다」](CLE-WF-ASSIST.md#실행-중-편집-거부를-편집-도구-결과로-돌려준다) 에 있다.
 
-### 실행 중 편집 거부를 편집 도구 결과로 돌려준다 (2026-11-15)
+### 실행 중 편집 거부를 편집 도구 결과로 돌려준다
+
+결정일: 2026-11-15
 
 NERV Task `CLE-T-ZN111F` 다. 실행 중 편집을 거부하는 요구(REQ-ASSIST-028)를 구현하면서 거부를 돌려주는 방식과 「실행 중」 판정 기준을 정했다. 동작은 「실행과 디버깅」 에 있다.
 
