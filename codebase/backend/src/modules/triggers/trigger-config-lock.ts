@@ -81,7 +81,8 @@ export async function setLocalLockTimeout(
  * 프리미티브로 뽑아 모든 자리가 같은 코드를 지나가게 한다.
  *
  * 대기 상한은 걸지 않는다. 삭제 경로의 상한은 트랜잭션을 여는 {@link runDeleteAfterExternalRelease} 가
- * 콜백보다 먼저 건다.
+ * 콜백보다 먼저 건다. 그래서 **삭제 경로에서는 그 헬퍼의 콜백 안에서만 부른다.** 직접 연 트랜잭션에서
+ * 부르면 상한 없이 무한정 기다린다. 상한이 걸린 매니저는 {@link DeleteLockBoundedManager} 타입이다.
  */
 export async function acquireTriggerConfigLock(
   manager: Pick<EntityManager, 'query'>,
@@ -114,6 +115,19 @@ export async function acquireTriggerConfigLock(
  */
 export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
 
+declare const deleteLockBounded: unique symbol;
+
+/**
+ * 삭제 잠금 상한({@link TRIGGER_DELETE_LOCK_TIMEOUT_MS})이 걸린 트랜잭션의 매니저.
+ *
+ * {@link runDeleteAfterExternalRelease} 의 콜백만 이 타입을 받는다. 상한이 있어야 하는 잠금 함수가 인자를
+ * 이 타입으로 받으면, 헬퍼 밖에서 직접 연 트랜잭션의 매니저는 컴파일 단계에서 걸린다(`/ai-review`
+ * `.review/code/2026/11/28/14_01_00` architecture WARNING). 런타임 값은 평범한 `EntityManager` 그대로다.
+ */
+export type DeleteLockBoundedManager = EntityManager & {
+  readonly [deleteLockBounded]: true;
+};
+
 /**
  * 되돌릴 수 없는 외부 해제를 **이미 끝낸** 삭제가 행을 지우는 트랜잭션을 연다.
  *
@@ -134,13 +148,15 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * 비밀 삭제는 여기 들지 않는다. 호출부가 이 함수가 돌아온 뒤(커밋 뒤)에 지운다.
  *
- * @param work 잠금 · 존재 확인 · 행 삭제. 받은 매니저는 상한이 걸린 그 트랜잭션의 매니저다.
+ * @param work 잠금 · 존재 확인 · 행 삭제. 받은 매니저는 상한이 걸린 그 트랜잭션의 매니저다
+ *   ({@link DeleteLockBoundedManager}). `work` 가 던진 `NotFoundException` 은 모두 «이미 삭제됨» 으로 보고
+ *   로그 없이 올린다. 다른 이유의 404 를 `work` 안에서 던지지 않는다.
  * @param halfDeleted 4단계의 로그. `describe` 는 실패 사유 문자열을 받아 «무엇이 이미 해제됐는가» 를 적는다.
  * @returns `work` 가 돌려준 값.
  */
 export async function runDeleteAfterExternalRelease<T>(
   manager: Pick<EntityManager, 'transaction'>,
-  work: (manager: EntityManager) => Promise<T>,
+  work: (manager: DeleteLockBoundedManager) => Promise<T>,
   halfDeleted: {
     logger: Pick<Logger, 'error'>;
     describe: (reason: string) => string;
@@ -149,7 +165,7 @@ export async function runDeleteAfterExternalRelease<T>(
   try {
     return await manager.transaction(async (m) => {
       await setLocalLockTimeout(m, TRIGGER_DELETE_LOCK_TIMEOUT_MS);
-      return work(m);
+      return work(m as DeleteLockBoundedManager);
     });
   } catch (err: unknown) {
     if (err instanceof NotFoundException) throw err;

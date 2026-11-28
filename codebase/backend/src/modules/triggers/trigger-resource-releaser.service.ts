@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
@@ -13,6 +13,7 @@ import { Workspace } from '../workspaces/entities/workspace.entity';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { resolveAndCloseTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { Trigger } from './entities/trigger.entity';
+import type { DeleteLockBoundedManager } from './trigger-config-lock';
 import {
   cleanUpDeletedTriggersAfterCommit,
   LockedParentTriggers,
@@ -79,7 +80,7 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
   }
 
   async lockParentAndListTriggerIds(
-    manager: EntityManager,
+    manager: DeleteLockBoundedManager,
     parent: TriggerParent,
   ): Promise<LockedParentTriggers> {
     // 잠그며 읽은 행을 **돌려준다** — 종전엔 버렸다. 동시 삭제 두 요청이 잠금 없는 선조회를 모두

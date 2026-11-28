@@ -5,6 +5,7 @@ import type { EntityManager } from 'typeorm';
 import { Trigger } from './entities/trigger.entity';
 import {
   acquireTriggerConfigLock,
+  type DeleteLockBoundedManager,
   rewriteTriggerConfigLocked,
   runDeleteAfterExternalRelease,
   setLocalLockTimeout,
@@ -426,5 +427,37 @@ describe('runDeleteAfterExternalRelease', () => {
     ).rejects.toThrow('connection reset');
     expect(work).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledWith('half:connection reset');
+  });
+});
+
+describe('DeleteLockBoundedManager', () => {
+  // 타입 계약을 보는 테스트다. ts-jest 가 이 파일을 타입 검사하므로 아래 `@ts-expect-error` 가 쓸모없어지면
+  // (브랜드가 빠져 평범한 매니저가 통과하면) 이 suite 가 컴파일 오류로 실패한다.
+  it('평범한 EntityManager 는 상한이 걸린 매니저 자리에 들어가지 못한다', () => {
+    const takesBounded = (_m: DeleteLockBoundedManager): void => undefined;
+    const plain = {} as EntityManager;
+    // @ts-expect-error 상한이 걸린 매니저는 `runDeleteAfterExternalRelease` 의 콜백만 받는다.
+    takesBounded(plain);
+    expect(typeof takesBounded).toBe('function');
+  });
+
+  it('runDeleteAfterExternalRelease 의 콜백은 상한이 걸린 매니저를 받는다', async () => {
+    const inner = { query: jest.fn(async () => []) };
+    const manager = {
+      transaction: jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
+        cb(inner),
+      ),
+    } as unknown as EntityManager;
+    const takesBounded = jest.fn((_m: DeleteLockBoundedManager) => 'ok');
+
+    const out = await runDeleteAfterExternalRelease(
+      manager,
+      async (m) => takesBounded(m),
+      { logger: { error: jest.fn() }, describe: (r) => r },
+    );
+
+    expect(out).toBe('ok');
+    // 런타임 값은 트랜잭션이 준 매니저 그대로다. 브랜드는 타입에만 있다.
+    expect(takesBounded.mock.calls[0][0]).toBe(inner);
   });
 });
