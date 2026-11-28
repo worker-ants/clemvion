@@ -519,10 +519,9 @@ describe('TriggerResourceReleaserService', () => {
         parentPresence: 'present',
         triggerIds: ['a', 'b'],
       });
-      // 잠금 대기 상한이 **잠그기 전에** 걸린다 — 외부 해제를 되돌릴 수 없게 끝낸 뒤라 무한 대기는
-      // 반쯤 삭제된 상태를 hang 으로 굳힌다(`/ai-review` `review/code/2026/09/17/19_14_29` WARNING#2).
+      // 잠금 대기 상한은 이 메서드가 걸지 않는다. 트랜잭션을 연 `runDeleteAfterExternalRelease` 가
+      // 콜백보다 먼저 건다(그 순서는 `trigger-config-lock.spec.ts` 와 호출자 spec 이 지킨다).
       expect(events).toEqual([
-        "query:SET LOCAL lock_timeout = '5000ms'",
         'lock:Workflow:pessimistic_write',
         'find:Trigger',
       ]);
@@ -543,7 +542,6 @@ describe('TriggerResourceReleaserService', () => {
       });
 
       expect(events).toEqual([
-        "query:SET LOCAL lock_timeout = '5000ms'",
         'lock:Workspace:pessimistic_write',
         'find:Trigger',
       ]);

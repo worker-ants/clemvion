@@ -1,12 +1,16 @@
 import { describe, it, expect, jest } from '@jest/globals';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 
 import { Trigger } from './entities/trigger.entity';
 import {
   acquireTriggerConfigLock,
   rewriteTriggerConfigLocked,
+  runDeleteAfterExternalRelease,
+  setLocalLockTimeout,
   triggerConfigLockKey,
   TRIGGER_CONFIG_LOCK_PREFIX,
+  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from './trigger-config-lock';
 
 /**
@@ -15,9 +19,12 @@ import {
  * 서비스 경유 테스트(`triggers.service.spec.ts`)는 «호출부가 올바르게 쓰는가» 를 보고,
  * 여기서는 **헬퍼의 계약**을 본다 — 특히 서비스 경유로는 만들 수 없는 분기:
  *
- * - 재읽기 시점에 **행이 사라진 경우**(`!fresh`) — 쓰기 skip + `false`.
+ * - 재읽기 시점에 **행이 사라진 경우**(`!fresh`) — 머지를 부르지 않고 쓰기 skip + `false`.
  *   `/ai-review` `review/code/2026/09/14/18_17_44` testing WARNING#2 가 *"unit·e2e 어디에도
  *   커버되지 않는다 — 전용 테스트 파일 자체가 없다"* 로 지적한 자리다.
+ * - 재읽은 뒤 **UPDATE 가 0행**인 경우(`affected === 0`) — 머지는 이미 불렀고 `false`. 워크플로우 ·
+ *   워크스페이스 삭제의 FK CASCADE 가 재읽기와 UPDATE 사이에 커밋되면 생긴다. 드라이버가 `affected` 를
+ *   보고하지 않으면(`null`·`undefined`) `true` 다.
  * - **락을 읽기보다 먼저** 잡는가 — 순서가 뒤집히면 «락 안에서 다시 읽는다» 가 거짓이 된다.
  * - `columns` 와 `config` 의 **스프레드 순서** — `config` 가 뒤에 와야 호출부의 컬럼이
  *   실수로 덮지 못한다.
@@ -247,14 +254,13 @@ describe('rewriteTriggerConfigLocked', () => {
 });
 
 /**
- * `acquireTriggerConfigLock` 의 `timeoutMs` 는 **파라미터 바인딩이 안 되는 자리**에 보간된다.
+ * `setLocalLockTimeout` 의 값은 **파라미터 바인딩이 안 되는 자리**에 보간된다.
  *
- * 현재 호출부는 모듈 상수만 넘기므로 익스플로잇은 불가능하지만(실측: 두 자리 모두
- * `TRIGGER_DELETE_LOCK_TIMEOUT_MS`), 보간이 남아 있는 한 값의 형태는 이 함수가 스스로
- * 보장해야 한다 — 다음 호출부가 계산식을 넘겨도 SQL 이 깨지지 않게
+ * 지금 호출부는 모듈 상수만 넘기므로 익스플로잇은 불가능하다. 그래도 보간이 남아 있는 한 값의 형태는
+ * 이 함수가 스스로 보장해야 한다. 다음 호출부가 계산식을 넘겨도 SQL 이 깨지지 않게 하려는 것이다
  * (`/ai-review` `review/code/2026/09/15/01_42_04` security·database INFO#2).
  */
-describe('acquireTriggerConfigLock — timeoutMs 는 SQL 에 보간되기 전에 좁혀진다', () => {
+describe('setLocalLockTimeout — 값은 SQL 에 보간되기 전에 좁혀진다', () => {
   function makeQueryingManager() {
     const statements: string[] = [];
     const query = jest.fn(async (...args: unknown[]) => {
@@ -264,40 +270,161 @@ describe('acquireTriggerConfigLock — timeoutMs 는 SQL 에 보간되기 전에
     return { manager: { query } as unknown as EntityManager, statements };
   }
 
-  it('유한하지 않으면 던진다 — clamp 하지 않는다', async () => {
-    // `Math.trunc(NaN)` 은 `NaN` 이라 종전엔 `'NaNms'` 가 그대로 SQL 에 실렸다.
-    // **조용히 1ms 로 clamp 하면** 삭제 경로가 «왜인지 늘 타임아웃» 하는 상태가 되는데,
-    // 그건 이 상수가 막으려던 «조용한 실패» 그 자체다.
-    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
+  // `Math.trunc(NaN)` 은 `NaN`, `Math.trunc(±Infinity)` 는 `±Infinity` 라 종전엔 `'NaNms'` 가 그대로
+  // SQL 에 실렸다. **조용히 clamp 하면** 삭제 경로가 «왜인지 늘 타임아웃» 하거나 상한이 사라진다.
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    '유한하지 않은 %p 는 던진다 — clamp 하지 않고 SQL 도 보내지 않는다',
+    async (bad) => {
       const { manager, statements } = makeQueryingManager();
-      await expect(
-        acquireTriggerConfigLock(manager, 'trig-bad', { timeoutMs: bad }),
-      ).rejects.toThrow('유한한 수');
-      // **아무 SQL 도 나가지 않았다** — 깨진 구문이 실제로 전송되지 않는 것이 요점이다.
+      await expect(setLocalLockTimeout(manager, bad)).rejects.toThrow(
+        '유한한 수',
+      );
       expect(statements).toEqual([]);
-    }
+    },
+  );
+
+  // 입력마다 **서로 다른 출력**을 내야 관측된다. 경계값(1 · 60000)은 clamp 가 `<` 와 `<=` 를
+  // 헷갈려도 같은 값을 내므로, 경계 바로 밖(0 · 60001)과 함께 둔다.
+  it.each<[number, string]>([
+    [-5, "SET LOCAL lock_timeout = '1ms'"],
+    [0, "SET LOCAL lock_timeout = '1ms'"],
+    [1, "SET LOCAL lock_timeout = '1ms'"],
+    [2, "SET LOCAL lock_timeout = '2ms'"],
+    [1_500.9, "SET LOCAL lock_timeout = '1500ms'"],
+    [5_000, "SET LOCAL lock_timeout = '5000ms'"],
+    [59_999, "SET LOCAL lock_timeout = '59999ms'"],
+    [60_000, "SET LOCAL lock_timeout = '60000ms'"],
+    [60_001, "SET LOCAL lock_timeout = '60000ms'"],
+    [999_999, "SET LOCAL lock_timeout = '60000ms'"],
+  ])('%p 는 %p 가 된다', async (input, expected) => {
+    const { manager, statements } = makeQueryingManager();
+    await setLocalLockTimeout(manager, input);
+    expect(statements).toEqual([expected]);
   });
 
-  it('범위를 벗어난 유한 값은 clamp 한다 — 그리고 정상 값은 그대로 통과한다', async () => {
-    // 세 입력이 **서로 다른 출력**을 내야 관측된다: 하한·상한·통과.
-    const cases: Array<[number, string]> = [
-      [-5, "SET LOCAL lock_timeout = '1ms'"],
-      [999_999, "SET LOCAL lock_timeout = '60000ms'"],
-      [5_000, "SET LOCAL lock_timeout = '5000ms'"],
-      [1_500.9, "SET LOCAL lock_timeout = '1500ms'"],
-    ];
-    for (const [input, expected] of cases) {
-      const { manager, statements } = makeQueryingManager();
-      await acquireTriggerConfigLock(manager, 'trig-c', { timeoutMs: input });
-      expect(statements[0]).toBe(expected);
-    }
-  });
-
-  it('timeoutMs 를 안 주면 상한 구문 자체가 나가지 않는다', async () => {
-    // 대칭 단언 — 상한을 «모든 경로» 로 넓히는 편집을 잡는다.
+  it('acquireTriggerConfigLock 은 상한을 걸지 않는다 — advisory lock 하나만 보낸다', async () => {
+    // 대칭 단언이다. 상한은 삭제 트랜잭션을 여는 `runDeleteAfterExternalRelease` 만 건다. 설정 잠금
+    // 자체에 상한을 되살리면 PATCH · 교체처럼 기다려야 맞는 경로까지 타임아웃으로 실패한다.
     const { manager, statements } = makeQueryingManager();
     await acquireTriggerConfigLock(manager, 'trig-n');
-    expect(statements.filter((s) => s.includes('lock_timeout'))).toEqual([]);
-    expect(statements).toHaveLength(1);
+    expect(statements).toEqual(['SELECT pg_advisory_xact_lock(hashtext($1))']);
+  });
+});
+
+/**
+ * 외부 해제를 끝낸 삭제 네 경로(트리거 · 스케줄 · 워크플로우 · 워크스페이스)가 함께 지나는 트랜잭션.
+ *
+ * 서비스 spec 은 «호출부가 이 헬퍼 안에서 무엇을 하는가» 를 보고, 여기서는 헬퍼의 네 단계를 본다.
+ */
+describe('runDeleteAfterExternalRelease', () => {
+  function makeTxManager() {
+    const events: string[] = [];
+    const inner = {
+      query: jest.fn(async (sql: unknown) => {
+        events.push(`query:${String(sql)}`);
+        return [];
+      }),
+    };
+    const manager = {
+      transaction: jest.fn(async (cb: (m: unknown) => Promise<unknown>) => {
+        events.push('tx:begin');
+        const out = await cb(inner);
+        events.push('tx:commit');
+        return out;
+      }),
+    } as unknown as EntityManager;
+    const logger = { error: jest.fn((_msg: unknown) => undefined) };
+    return { manager, inner, events, logger };
+  }
+
+  it('콜백보다 먼저 이 트랜잭션에 삭제 잠금 상한을 걸고 콜백의 값을 돌려준다', async () => {
+    const { manager, inner, events, logger } = makeTxManager();
+
+    const out = await runDeleteAfterExternalRelease(
+      manager,
+      async (m) => {
+        // 콜백은 **같은 트랜잭션 매니저**를 받는다. 상한은 그 매니저에 걸린 `SET LOCAL` 이다.
+        expect(m).toBe(inner);
+        events.push('work');
+        return ['trig-a'];
+      },
+      { logger, describe: (reason) => `half:${reason}` },
+    );
+
+    expect(out).toEqual(['trig-a']);
+    expect(events).toEqual([
+      'tx:begin',
+      `query:SET LOCAL lock_timeout = '${TRIGGER_DELETE_LOCK_TIMEOUT_MS}ms'`,
+      'work',
+      'tx:commit',
+    ]);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('NotFoundException 은 로그 없이 그대로 올린다 — 동시 삭제의 두 번째 요청이다', async () => {
+    // 먼저 커밋한 요청이 행도 외부 자원도 정리했다. «수동 정리가 필요하다» 로그를 남기면 거짓 경보다.
+    const { manager, logger } = makeTxManager();
+    const notFound = new NotFoundException({ code: 'RESOURCE_NOT_FOUND' });
+
+    await expect(
+      runDeleteAfterExternalRelease(
+        manager,
+        async () => {
+          throw notFound;
+        },
+        { logger, describe: (reason) => `half:${reason}` },
+      ),
+    ).rejects.toBe(notFound);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'Error',
+      new Error('canceling statement due to lock timeout'),
+      'canceling statement due to lock timeout',
+    ],
+    // 워크스페이스 삭제의 잠금 뒤 재검사 거부(선검사와 재검사 사이의 역할 변경)도 이 갈래다.
+    [
+      'ForbiddenException',
+      new ForbiddenException('Owner required'),
+      'Owner required',
+    ],
+    ['Error 가 아닌 값', 'boom', 'boom'],
+  ])(
+    '그 밖의 실패(%s)는 반쯤 삭제된 상태라 error 로그를 남기고 같은 값을 다시 던진다',
+    async (_label, thrown, reason) => {
+      const { manager, logger } = makeTxManager();
+
+      await expect(
+        runDeleteAfterExternalRelease(
+          manager,
+          async () => {
+            // Error 가 아닌 값이 던져지는 경우도 로그 문구가 깨지지 않는지 본다.
+            // eslint-disable-next-line @typescript-eslint/only-throw-error
+            throw thrown;
+          },
+          { logger, describe: (r) => `half:${r}` },
+        ),
+      ).rejects.toBe(thrown);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(`half:${reason}`);
+    },
+  );
+
+  it('상한 구문이 실패해도(트랜잭션 시작 직후) 반쯤 삭제된 상태로 로그를 남긴다', async () => {
+    // 외부 해제는 이미 끝났다. 트랜잭션 안 어디서 실패하든 행은 남아 있으므로 같은 경보를 낸다.
+    const { manager, inner, logger } = makeTxManager();
+    inner.query.mockRejectedValueOnce(new Error('connection reset'));
+    const work = jest.fn(async () => 'never');
+
+    await expect(
+      runDeleteAfterExternalRelease(manager, work, {
+        logger,
+        describe: (r) => `half:${r}`,
+      }),
+    ).rejects.toThrow('connection reset');
+    expect(work).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith('half:connection reset');
   });
 });

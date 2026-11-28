@@ -53,6 +53,7 @@ import { toolBudgetStrictSave } from '../../nodes/ai/ai-agent/tool-payload-budge
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
+import { runDeleteAfterExternalRelease } from '../triggers/trigger-config-lock';
 import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
 import { toTriggerParameterErrorDetails } from '../execution-engine/types/trigger-parameter.types';
 import {
@@ -325,8 +326,11 @@ export class WorkflowsService {
     // (spec 트리거 목록 §4.3). 외부 해제는 트랜잭션 **밖에서 먼저**, 비밀은 **커밋 뒤**.
     const releaser = resolveTriggerResourceReleaser(this.moduleRef);
     await releaser.releaseExternalForParent({ workflowId: id });
-    const triggerIds = await this.workflowRepository.manager
-      .transaction(async (manager) => {
+    // 상한 · 404 통과 · 반쯤 삭제 로그는 `runDeleteAfterExternalRelease` 가 네 삭제 경로에 같게 건다.
+    // 외부 해제는 되돌릴 수 없다 — 조용히 던지면 «발화하지 않는 트리거» 가 아무도 모르게 남는다.
+    const triggerIds = await runDeleteAfterExternalRelease(
+      this.workflowRepository.manager,
+      async (manager) => {
         // 워크플로 행을 먼저 잠그고 연다 — 잠금 뒤엔 이 워크플로를 참조하는 트리거 INSERT 가
         // FK 검사에서 막혀, 비밀을 지울 대상에서 빠지는 트리거가 없다.
         const locked = await releaser.lockParentAndListTriggerIds(manager, {
@@ -344,20 +348,15 @@ export class WorkflowsService {
         }
         await manager.remove(workflow);
         return locked.triggerIds;
-      })
-      .catch((err: unknown) => {
-        // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
-        // 행도 지우고 같은 자원도 해제했다. 아래 error 로그는 «수동 정리가 필요하다» 고 말하므로
-        // 이 경우까지 싣으면 거짓 경보가 된다. 404 는 그대로 호출자에게 올린다.
-        if (err instanceof NotFoundException) throw err;
-        // 외부 해제는 되돌릴 수 없다 — 조용히 던지면 «발화하지 않는 트리거» 가 아무도 모르게 남는다.
-        this.logger.error(
+      },
+      {
+        logger: this.logger,
+        describe: (reason) =>
           `WorkflowsService.remove: workflow=${id} 의 행 삭제가 실패했다 — 그 트리거들의 schedule job·` +
-            `provider teardown·listener 해제는 **이미 끝났으므로** 반쯤 삭제된 상태다(비밀은 아직 ` +
-            `남아 있다). 수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        throw err;
-      });
+          `provider teardown·listener 해제는 **이미 끝났으므로** 반쯤 삭제된 상태다(비밀은 아직 ` +
+          `남아 있다). 수동 정리가 필요하다: ${reason}`,
+      },
+    );
     await releaser.releaseSecretsAfterCommit(
       triggerIds,
       'WorkflowsService.remove',

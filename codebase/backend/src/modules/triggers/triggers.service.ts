@@ -23,7 +23,7 @@ import {
   acquireTriggerConfigLock,
   mergeIntoFreshSubKey,
   rewriteTriggerConfigLocked,
-  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+  runDeleteAfterExternalRelease,
 } from './trigger-config-lock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -1371,13 +1371,12 @@ export class TriggersService {
     // JSDoc 의 «외부 호출을 락 안에 두지 않는다» 제약을 여기서도 지킨다.
     //
     // **삭제만 대기 상한을 둔다.** 위 해제는 되돌릴 수 없으므로, 락을 무한정 기다리면
-    // «외부 등록은 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 굳는다. 상한을 넘기면 그 사실을
-    // 소리내어 남기고 던진다 — 조용한 지연보다 드러나는 오류가 낫다.
-    await this.triggerRepository.manager
-      .transaction(async (m) => {
-        await acquireTriggerConfigLock(m, id, {
-          timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
-        });
+    // «외부 등록은 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 굳는다. 상한 · 404 통과 · 반쯤 삭제 로그는
+    // `runDeleteAfterExternalRelease` 가 네 삭제 경로에 같게 건다.
+    await runDeleteAfterExternalRelease(
+      this.triggerRepository.manager,
+      async (m) => {
+        await acquireTriggerConfigLock(m, id);
         // **락을 얻었다고 행이 남아 있는 것은 아니다.** 위 `findById` 는 잠금 없는 선조회라 동시
         // DELETE 두 건이 모두 통과하고, advisory lock 은 둘을 줄 세우기만 한다 — 먼저 커밋한 쪽이
         // 행을 지운 뒤 두 번째가 그대로 진행하면 `m.remove` 는 0행이어도 던지지 않으므로 그 요청도
@@ -1389,19 +1388,15 @@ export class TriggersService {
         });
         if (!fresh) this.throwTriggerNotFound();
         await m.remove(trigger);
-      })
-      .catch((err: unknown) => {
-        // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
-        // 행도 외부 자원도 정리했다. 아래 로그는 «수동 정리가 필요하다» 고 말하므로 이 경우까지
-        // 실으면 거짓 경보가 된다(워크플로·워크스페이스 삭제와 같은 처리).
-        if (err instanceof NotFoundException) throw err;
-        this.logger.error(
+      },
+      {
+        logger: this.logger,
+        describe: (reason) =>
           `TriggersService.remove: trigger=${id} 의 행 삭제가 실패했다 — schedule job·provider ` +
-            `teardown·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다(비밀은 ` +
-            `아직 남아 있다). 수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        throw err;
-      });
+          `teardown·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다(비밀은 ` +
+          `아직 남아 있다). 수동 정리가 필요하다: ${reason}`,
+      },
+    );
     // **커밋된 뒤에** 비밀을 지운다. 실패는 던지지 않고 남긴다 — 행은 이미 없다.
     await this.resourceReleaser.releaseSecretsAfterCommit(
       [id],
