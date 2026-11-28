@@ -1,5 +1,6 @@
 import { makePgError } from '../../shared/testing/pg-error-fixtures';
 import {
+  isPostgresLockNotAvailable,
   isPostgresUniqueViolation,
   pgErrorCode,
   pgErrorConstraint,
@@ -56,9 +57,26 @@ describe('pg-error — 두 wrap 표면', () => {
     expect(pgErrorCode(err)).toBeUndefined();
     expect(pgErrorConstraint(err)).toBeUndefined();
     expect(isPostgresUniqueViolation(err)).toBe(false);
+    expect(isPostgresLockNotAvailable(err)).toBe(false);
   });
 
   it('23505 가 아닌 SQLSTATE 는 unique 위반이 아니다', () => {
     expect(isPostgresUniqueViolation(wrapped({ code: '23502' }))).toBe(false);
+  });
+
+  it.each([
+    ['driverError 표면', wrapped({ code: '55P03' })],
+    ['최상위 표면', flat({ code: '55P03' })],
+  ])('%s 의 55P03 은 잠금 대기 상한 초과다', (_label, err) => {
+    expect(isPostgresLockNotAvailable(err)).toBe(true);
+    expect(isPostgresUniqueViolation(err)).toBe(false);
+  });
+
+  it.each([
+    ['unique 위반', '23505'],
+    ['교착(40P01)', '40P01'],
+    ['문장 시간 초과(57014)', '57014'],
+  ])('%s 는 잠금 대기 상한 초과가 아니다', (_label, code) => {
+    expect(isPostgresLockNotAvailable(wrapped({ code }))).toBe(false);
   });
 });

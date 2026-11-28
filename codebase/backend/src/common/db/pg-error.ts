@@ -30,6 +30,16 @@ export function isPostgresUniqueViolation(err: unknown): boolean {
 }
 
 /**
+ * PostgreSQL `55P03 lock_not_available` 여부. `SET LOCAL lock_timeout` 으로 건 잠금 대기 상한을 넘기면
+ * 이 코드로 트랜잭션이 실패한다. 전역 예외 필터가 503 `SERVICE_UNAVAILABLE` 로 바꾼다
+ * ([계정과 워크스페이스 데이터 흐름 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」](CLE-ACCT-DATA#잠금-대기-초과는-503-service_unavailable-로-낸다),
+ * NERV Task `CLE-T-1C2JE0`).
+ */
+export function isPostgresLockNotAvailable(err: unknown): boolean {
+  return pgErrorCode(err) === '55P03';
+}
+
+/**
  * 위반한 제약/인덱스 이름. `pgErrorCode` 와 **같은 두 표면**을 흡수한다.
  *
  * **왜 이름까지 봐야 하나**: `23505` 만 보면 한 테이블의 **모든** UNIQUE 위반이 같은
