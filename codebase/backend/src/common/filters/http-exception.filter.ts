@@ -83,7 +83,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       return this.resolveHttpException(exception, requestId);
     }
-    const postgres = this.mapPostgresError(exception);
+    const postgres = this.mapPostgresError(exception, requestId);
     if (postgres) return postgres;
     if (exception instanceof Error) {
       return this.resolveUnhandledError(exception, requestId);
@@ -153,9 +153,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   /**
    * 응답 상태를 정할 수 있는 Postgres 오류를 매핑한다. 해당하지 않으면 null 이고 호출부가 다음
-   * 분기로 넘긴다. Postgres 오류 코드 매핑을 더할 때 이 메서드에 분기를 더한다.
+   * 분기로 넘긴다. Postgres 오류 코드 매핑을 더할 때 이 메서드에 분기를 더한다. 운영자가 알아야 하는
+   * 분기(잠금 대기 초과)만 `requestId` 와 함께 warn 로그를 남긴다.
    */
-  private mapPostgresError(exception: unknown): ResolvedError | null {
+  private mapPostgresError(
+    exception: unknown,
+    requestId: string,
+  ): ResolvedError | null {
     if (isPostgresUniqueViolation(exception)) {
       // race window 에서의 unique constraint 위반은 클라이언트에게 409 가 옳다.
       // (애플리케이션 단의 사전 체크 후 동시 두 요청이 모두 통과한 케이스 등)
@@ -171,8 +175,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       // 다시 시도하면 대개 통과하는 일시적 실패라 503 이다. 경로마다 따로 매핑하지 않는다
       // (`CLE-ACCT-DATA` Rationale 「잠금 대기 초과는 503 `SERVICE_UNAVAILABLE` 로 낸다」, NERV Task `CLE-T-1C2JE0`).
       // 드라이버 원문은 응답에 싣지 않고 서버 로그에만 남긴다.
+      const detail =
+        exception instanceof Error
+          ? exception.message
+          : describeThrown(exception);
       this.logger.warn(
-        `lock wait timeout (55P03): ${exception instanceof Error ? exception.message : describeThrown(exception)}`,
+        `lock wait timeout (55P03) requestId=${requestId}: ${detail}`,
       );
       return {
         status: HttpStatus.SERVICE_UNAVAILABLE,

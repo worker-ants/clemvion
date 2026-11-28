@@ -300,6 +300,10 @@ describe('GlobalExceptionFilter', () => {
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('canceling statement due to lock timeout'),
       );
+      // 신고와 서버 로그를 잇는 requestId 가 로그에도 있다.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(`requestId=${body.error.requestId}`),
+      );
       warn.mockRestore();
     },
   );

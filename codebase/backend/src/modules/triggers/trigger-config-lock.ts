@@ -82,7 +82,8 @@ export async function setLocalLockTimeout(
  *
  * 대기 상한은 걸지 않는다. 삭제 경로의 상한은 트랜잭션을 여는 {@link runDeleteAfterExternalRelease} 가
  * 콜백보다 먼저 건다. 그래서 **삭제 경로에서는 그 헬퍼의 콜백 안에서만 부른다.** 직접 연 트랜잭션에서
- * 부르면 상한 없이 무한정 기다린다. 상한이 걸린 매니저는 {@link DeleteLockBoundedManager} 타입이다.
+ * 부르면 상한 없이 무한정 기다린다. 이 함수는 인자로 그 구분을 하지 않으므로 이 규칙은 호출부 규약이다.
+ * 타입으로 막는 것은 부모 잠금 포트(`lockParentAndListTriggerIds`, {@link DeleteLockBoundedManager})뿐이다.
  */
 export async function acquireTriggerConfigLock(
   manager: Pick<EntityManager, 'query'>,
@@ -121,8 +122,8 @@ declare const deleteLockBounded: unique symbol;
  * 삭제 잠금 상한({@link TRIGGER_DELETE_LOCK_TIMEOUT_MS})이 걸린 트랜잭션의 매니저.
  *
  * {@link runDeleteAfterExternalRelease} 의 콜백만 이 타입을 받는다. 상한이 있어야 하는 잠금 함수가 인자를
- * 이 타입으로 받으면, 헬퍼 밖에서 직접 연 트랜잭션의 매니저는 컴파일 단계에서 걸린다(`/ai-review`
- * `.review/code/2026/11/28/14_01_00` architecture WARNING). 런타임 값은 평범한 `EntityManager` 그대로다.
+ * 이 타입으로 받으면, 헬퍼 밖에서 직접 연 트랜잭션의 매니저는 컴파일 단계에서 걸린다(NERV Task `CLE-T-1KJZNM`
+ * 코드 리뷰 architecture WARNING). 런타임 값은 평범한 `EntityManager` 그대로다.
  */
 export type DeleteLockBoundedManager = EntityManager & {
   readonly [deleteLockBounded]: true;
