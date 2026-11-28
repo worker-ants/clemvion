@@ -84,7 +84,7 @@ test.describe("Login form (mock-based)", () => {
     await expect(
       page
         .getByText(
-          /이메일 또는 비밀번호가 올바르지 않습니다|Invalid email or password/i,
+          /이메일 또는 비밀번호가 올바르지 않아요|Invalid email or password/i,
         )
         .first(),
     ).toBeVisible();

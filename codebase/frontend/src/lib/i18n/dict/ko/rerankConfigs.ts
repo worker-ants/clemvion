@@ -30,7 +30,7 @@ export const rerankConfigs = {
   baseUrlPlaceholderPlain: "http://tei-reranker:8080",
   modelPlaceholder: "dragonkue/bge-reranker-v2-m3-ko",
   deleteTitle: "리랭커 삭제",
-  deleteMessage: "이 리랭커 제공자 설정을 영구 삭제합니다.",
+  deleteMessage: "이 리랭커 제공자 설정을 영구 삭제해요.",
   noConfigs: "설정된 리랭커 제공자가 없어요.",
   columnName: "이름",
   columnProvider: "제공자",

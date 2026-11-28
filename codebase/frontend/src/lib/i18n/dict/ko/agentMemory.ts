@@ -7,7 +7,7 @@ export const agentMemory = {
     searchPlaceholder: "scope 검색...",
     count: "{{count}}건",
     loadFailed: "scope 목록을 불러올 수 없어요",
-    empty: "아직 메모리가 없습니다",
+    empty: "아직 메모리가 없어요",
     emptyHint:
       "AI Agent 노드의 memoryStrategy 를 persistent 로 설정하면 실행을 가로질러 메모리가 누적돼요.",
     emptyHintLink: "에이전트 메모리 설정 가이드 보기",

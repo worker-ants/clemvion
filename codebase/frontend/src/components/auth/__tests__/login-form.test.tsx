@@ -294,7 +294,7 @@ describe("LoginForm — 로그인 거부 코드별 안내", () => {
    * `error.message` 로, 그것도 없으면 기본 문구로 안내한다.
    */
   it.each([
-    ["LOGIN_FAILED", 401, "Invalid email or password", "이메일 또는 비밀번호가 올바르지 않습니다"],
+    ["LOGIN_FAILED", 401, "Invalid email or password", "이메일 또는 비밀번호가 올바르지 않아요"],
     [
       "ACCOUNT_LOCKED",
       401,

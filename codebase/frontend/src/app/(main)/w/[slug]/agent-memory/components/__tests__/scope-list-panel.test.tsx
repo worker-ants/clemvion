@@ -59,7 +59,7 @@ describe("ScopeListPanel", () => {
 
   it("scopes 가 비고 로딩/에러 아니면 빈 상태", () => {
     render(<ScopeListPanel {...baseProps({ scopes: [] })} />);
-    expect(screen.getByText("아직 메모리가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("아직 메모리가 없어요")).toBeInTheDocument();
   });
 
   it("scope 클릭 시 onSelectScope 호출", () => {
