@@ -28,10 +28,6 @@
   "CLE-API-ERROR": {
    "CLE-INT-MANAGE#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12": 1
   },
-  "CLE-CHAT-CORE-PATCH": {
-   "CLE-API-ERROR#25-field-를-실으면-code-도-싣는다-2026-09-11": 1,
-   "CLE-API-ERROR#26-top-level-이-이미-특화-코드일-때-2026-09-11": 1
-  },
   "CLE-CHAT-DATA-FLOW": {
    "CLE-INT-SECRET-REFS#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04": 2
   },
