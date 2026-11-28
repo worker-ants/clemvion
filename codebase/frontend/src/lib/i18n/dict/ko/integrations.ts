@@ -322,8 +322,6 @@ export const integrations = {
     "OAuth 상태 값이 만료됐어요. 설치 흐름을 다시 시작해 주세요.",
   makeshopErrorOauthInvalidScope:
     "요청한 scope 가 앱 권한과 일치하지 않아요. 파트너센터 앱 설정에서 scope 를 확인해 주세요.",
-  makeshopErrorHmacVerificationFailed:
-    "App URL HMAC 검증에 실패했어요. App URL 이 정확히 등록돼 있는지 확인해 주세요.",
   makeshopErrorGenericCallback:
     "설치 중 문제가 발생했어요. 파트너센터 설정을 확인하고 다시 시도해 주세요.",
   makeshopDetailAppUrlTitle: "MakeShop App URL",

@@ -30,3 +30,23 @@ export function tryTranslateLabel(
   }
   return null;
 }
+
+/** 카탈로그 dict 가 있는 provider 의 키 접두. */
+const CATALOG_KEY_PREFIXES = ["cafe24.", "makeshop."] as const;
+
+/**
+ * 활동 탭 API 칸에 굵게 보일 라벨 글자.
+ *  - 카탈로그 키(`cafe24.*` · `makeshop.*`)는 {@link tryTranslateLabel} 로 바꾼다. dict 에 없으면 null 이라
+ *    endpoint 한 줄로 넘긴다.
+ *  - 카탈로그가 없는 통합의 라벨은 그대로 쓴다. 외부 MCP 서버의 도구 호출이 `apiLabel` 에 도구 이름을 싣는다
+ *    (CLE-INT-DATA-ENTITY 「호출 API 식별 채우기 규칙」).
+ */
+export function resolveActivityApiLabel(
+  labelKey: string,
+  locale: Locale,
+): string | null {
+  if (CATALOG_KEY_PREFIXES.some((prefix) => labelKey.startsWith(prefix))) {
+    return tryTranslateLabel(labelKey, locale);
+  }
+  return labelKey;
+}

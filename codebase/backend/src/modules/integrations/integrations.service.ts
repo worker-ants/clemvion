@@ -1794,7 +1794,8 @@ export class IntegrationsService {
    * `cafe24` · `makeshop` 은 backend 메타데이터에서 `operations[]` 를 채워
    * 반환한다 (spec §9.3 초기 응답 정책). 그 외 미지원 서비스 타입
    * (http, database, email, mcp, google, github 등) 은 빈 배열 — 활동
-   * 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다. 완전
+   * 로그의 `apiLabel` 이 NULL 이라 lookup 할 것이 없거나(http · database ·
+   * email) 카탈로그 키가 아니라 프런트가 그대로 그린다(mcp 도구 이름). 완전
    * 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching 흐름이
    * 분기 없이 일관 동작.
    */
