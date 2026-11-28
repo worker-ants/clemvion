@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-DETAIL"
 title: "통합 관리 — 상세 화면"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "76bdb3750f5e2d0675f9a1b0930349896df519267d65876b0271f2510cdc9f4a"
+content_hash: "464fc267ce249479a220f44e640af5a8be2e4a41299c9c5e8065ce07be771eff"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-S25D5H"
 source_paths: []
-mirror_sha256: "28472301ac220f11d192eb84f69854d89cd606b56e37fd4243031919a73036c1"
-etag: "sha256-044360bd79aabd1b0b6aaea2a8e58da3592ad93c97f7fb44fe4d3f9a3454a265"
+mirror_sha256: "df05f7d66bffdb45c31882c2e8c79596c26f8e44dd3cd4edbfc0b9dd42e5152f"
+etag: "sha256-69438f73de2530c3fdfebdc092743f56860c0a2af61094415fa0666951233403"
 ---
 ## 개요
 
@@ -68,7 +68,7 @@ etag: "sha256-044360bd79aabd1b0b6aaea2a8e58da3592ad93c97f7fb44fe4d3f9a3454a265"
 | 이유 값 | 조건 | 막는 이유 | 안내 문구 |
 | --- | --- | --- | --- |
 | `pending_install` | 설치 대기(서비스 무관) | 설치가 끝나지 않았다. 외부 «테스트 실행»·앱 설치가 정식 경로다 | "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요." |
-| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 상점 식별자를 비우므로 이 행을 지우지 않아도 같은 상점을 새로 등록한다. 이름은 그대로 남아 같은 이름으로 등록하면 409 `INTEGRATION_NAME_TAKEN` 이라 다른 이름으로 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)) | "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요." |
+| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 상점 식별자를 비우므로 이 행을 지우지 않아도 같은 상점을 새로 등록한다. 이름은 그대로 남아 같은 이름으로 등록하면 409 `INTEGRATION_NAME_TAKEN` 이라 다른 이름으로 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)) | "설치 기한이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요." |
 | `makeshop` | MakeShop 통합 | 서버가 통합 재인증을 시작할 수 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 삭제 후 재등록한다 | "MakeShop 통합은 재인증할 수 없어요. 문제가 생기면 통합을 삭제한 뒤 다시 등록해 주세요. 상점에서 앱을 다시 설치해도 기존 통합은 복구되지 않아요." |
 | `no_app_url` | App URL(`appUrl`)이 없는 Cafe24 Private 통합 | 설치 토큰이 없어 «테스트 실행» 이 이 행으로 돌아올 수 없다. 삭제 후 재등록한다 | "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요." |
 
@@ -111,7 +111,7 @@ OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는
 - 데이터는 `GET /api/integrations/:id/activity?limit=20&days=7` 에서 온다([사용처와 활동 API](CLE-INT-MANAGE-API.md#사용처와-활동-api)).
 - 실행 취소로 끝난 호출은 활동 로그가 없어 요약 · 스파크라인 · 표 어디에도 잡히지 않는다([REQ-INTMGMT-021](CLE-INT-MANAGE.md#요구사항)).
 - 실패 행을 누르면 에러 요약 팝오버와 `Execution detail →` 링크를 보인다.
-- 카탈로그 라벨: Cafe24 의 `apiLabel`(`cafe24.<resource>.<operation>`)은 `GET /api/integrations/services/cafe24/catalog` 응답의 `labelKey` 와 프런트엔드 i18n 사전으로 한국어·영어 라벨이 된다. MakeShop 도 같다(`makeshop.<resource>.<operation>`, `services/makeshop/catalog`). 그 밖의 통합은 `apiLabel` 이 NULL 이라 endpoint 만 보이고 세 값이 모두 NULL 이면 `—` 가 보인다. 통합마다 세 값을 무엇으로 채우는지는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 이 정한다.
+- 카탈로그 라벨: Cafe24 의 `apiLabel`(`cafe24.<resource>.<operation>`)은 `GET /api/integrations/services/cafe24/catalog` 응답의 `labelKey` 와 프런트엔드 i18n 사전으로 한국어·영어 라벨이 된다. MakeShop 도 같다(`makeshop.<resource>.<operation>`, `services/makeshop/catalog`). 외부 MCP 서버는 `apiLabel` 에 든 도구 이름이 그대로 보인다. 그 밖의 통합은 `apiLabel` 이 NULL 이라 endpoint 만 보이고 세 값이 모두 NULL 이면 `—` 가 보인다. 통합마다 세 값을 무엇으로 채우는지는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 이 정한다.
 - **연결 안 됨 안내**: 통합 상태가 연결됨이 아니면(오류, 만료됨, 설치 대기) 활동 목록과 빈 상태 위에 [인라인 안내](../CLE-UI/CLE-UI-LAYOUT.md) 를 보인다. 이 상태에서는 새 호출이 기록되지 않는다. AI 에이전트는 내부 MCP 브리지가 연결되지 않은 통합의 도구를 노출하지 않아 호출이 없고 직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 바로 실패한다. 그래서 단순한 «활동 없음» 과 구분해 원인을 알린다. 톤은 오류가 red, 만료됨·설치 대기가 amber 로 헤더 상태 배지와 맞춘다. 안내에는 개요 탭으로 가는 «상태 확인» 버튼이 있다. 연결됨(만료 임박 포함)은 여전히 기록되므로 안내를 보이지 않는다. 설치 대기를 넣는 것은 주의 필요(설치 대기 제외)와 다른 축이다. «조치가 필요한가» 가 아니라 «활동 데이터가 왜 없는가» 를 설명한다.
 
 ### 위험 영역 탭
@@ -123,7 +123,7 @@ OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는
 
 > ⚠ Change scope from Personal to Organization?
 >
-> 자격 증명이 워크스페이스 멤버 전체와 공유됩니다. 계속할까요?
+> 자격 증명을 워크스페이스 멤버 모두와 공유해요. 계속할까요?
 >
 > [취소] [Change to Organization]
 
@@ -133,7 +133,7 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 
 ## 구현 위치
 
-- `codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/**` (`reinstall-requested-notice.tsx`: 재설치 대기 안내, `scope-tab.tsx`: 권한 탭, `danger-tab.tsx`: 개인 전환 경고와 전환 거절 토스트, `security-tab.tsx`: 재인증 · 자격 증명 교체와 교체 실패 토스트)
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/**` (`reinstall-requested-notice.tsx`: 재설치 대기 안내, `scope-tab.tsx`: 권한 탭, `danger-tab.tsx`: 개인 전환 경고와 전환 거절 토스트, `security-tab.tsx`: 통합 재인증 · 자격 증명 교체와 교체 실패 토스트)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/integration-permissions.ts` (화면의 변경 동작 판정 `integrationPermissions`·`hasDangerZoneAction`)
 - `codebase/frontend/src/components/auth/role-gate.tsx` (역할 게이트 `RoleGate`·`useHasRole`)
 - `codebase/frontend/src/lib/integrations/reauthorize.ts` (`reauthorizeDisabledReason`·`requestScopesDisabledReason`·`isRequestScopesDisabled`)
@@ -163,7 +163,7 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 
 - **Cafe24 Private 은 App URL 이 남아 있으면 버튼을 연다.** 서버가 재설치 대기 표시를 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다. 응답에 `authUrl` 이 없어 열 팝업이 없으므로 화면은 토스트와 재설치 대기 안내로 다음 할 일을 알린다.
 - **MakeShop 은 버튼을 막는다.** ShopStore 재설치가 설치를 마친 통합을 되살리지 않아 복구 경로가 삭제 후 재등록뿐이다. 이유와 기각한 선택지는 [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 에 있다.
-- **비활성 안내는 이유마다 따로 보인다.** 이유마다 사용자가 할 일이 다르다. 설치 대기는 설치를 마치면 된다. 설치 기한이 지난 행은 지우지 않고 같은 상점을 새로 등록하면 되고(2026-10-30 부터. 그 전에는 삭제 후 재등록으로 안내했다) App URL 이 없는 행은 삭제한 뒤 다시 등록해야 한다. App URL 이 없는 행이 모두 설치 기한이 지난 행은 아니어서 «설치 시간이 지나 만료» 라는 문구를 함께 쓸 수 없다. MakeShop 은 상점에서 앱을 다시 설치해도 복구되지 않는다는 점까지 알아야 한다.
+- **비활성 안내는 이유마다 따로 보인다.** 이유마다 사용자가 할 일이 다르다. 설치 대기는 설치를 마치면 된다. 설치 기한이 지난 행은 지우지 않고 같은 상점을 새로 등록하면 되고(2026-10-30 부터. 그 전에는 삭제 후 재등록으로 안내했다) App URL 이 없는 행은 삭제한 뒤 다시 등록해야 한다. App URL 이 없는 행이 모두 설치 기한이 지난 행은 아니어서 «설치 기한이 지나 만료» 라는 문구를 함께 쓸 수 없다. MakeShop 은 상점에서 앱을 다시 설치해도 복구되지 않는다는 점까지 알아야 한다.
 - **재설치 대기 안내는 상태 배지와 따로 info 톤으로 둔다.** 표시는 상태가 아니라서 상태 배지로 보일 수 없다. 안내는 다음에 할 일을 알리는 것이고 오류·만료됨 같은 상태 문제는 상태 배지가 이미 경고 톤으로 보인다. 그래서 안내에 경고 톤을 겹치지 않는다. «표시가 있어도 지금 토큰으로 실행이 계속된다» 는 문장은 넣지 않는다. 오류·만료됨 행은 콜백이 성공할 때까지 노드 실행이 막힌다. 권한 탭의 인라인 안내는 요청 직후 그 탭에만 보이고 다음 요청 때 초기화된다. 표시는 콜백이 성공하거나 24시간이 지날 때까지 남으므로 탭 위에 따로 둔다.
 
 ### 상세 화면에 App URL 카드를 둔다
@@ -174,6 +174,6 @@ Cafe24 «앱으로 가기»·«테스트 실행» 의 HMAC 실패 에러 페이�
 
 Cafe24·MakeShop 라벨을 사람이 읽는 문구로 바꾸는 책임을 백엔드가 아니라 프런트엔드에 둔다. 백엔드가 i18n 결과(예: `"상품 목록 조회"`)를 바로 `api_label` 에 넣으면 화면 언어를 바꿔도 DB 의 옛 한국어 라벨이 영어 화면에 그대로 나오고 카탈로그가 바뀌면 DB 의 옛 라벨이 낡는다. 그래서 DB 에는 언어 정보 없는 카탈로그 키만 두고 카탈로그 엔드포인트는 `{ key, method, path, labelKey, descriptionKey }` 만 내며 프런트엔드 i18n 사전(`cafe24Catalog`·`makeshopCatalog`)이 사용자 언어에 따라 바꾼다.
 
-Cafe24·MakeShop 만 `operations` 를 채우는 이유는 다른 통합은 `apiLabel` 이 NULL 이라 카탈로그 조회가 일어나지 않아서다(endpoint 한 줄로 충분하다). 빈 배열을 돌려줘 엔드포인트는 계속 부를 수 있게 두면 다른 서비스가 카탈로그를 가질 때 분기만 채우면 된다.
+Cafe24·MakeShop 만 `operations` 를 채우는 이유는 다른 통합은 `apiLabel` 이 NULL 이거나(HTTP Request · Database · Email) 카탈로그 키가 아니라서 카탈로그 조회가 일어나지 않아서다. 외부 MCP 서버의 `apiLabel` 은 도구 이름이라 그대로 보인다. 빈 배열을 돌려줘 엔드포인트는 계속 부를 수 있게 두면 다른 서비스가 카탈로그를 가질 때 분기만 채우면 된다.
 
 활동 탭 표에서 `Workflow`·`Node` 컬럼은 뺐다. 그 정보는 `Execution detail →` 링크로 늘 닿을 수 있고 활동 탭의 본질은 «어느 API 가 언제 실패했나» 라는 진단이라 워크플로우·노드 식별은 한 단계 돌아간 자리가 맞다. 대신 두 번째 컬럼을 API 식별에 줘 진단 신호의 밀도를 높였다. 세 컬럼 설계의 이유는 [통합 데이터와 흐름](CLE-INT-DATA.md) 의 Rationale 에 있다.

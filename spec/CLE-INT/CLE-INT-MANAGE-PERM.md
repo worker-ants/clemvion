@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-PERM"
 title: "통합 관리 — 권한과 멤버 퇴장"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "aae0b35871aedeb66b3457159505204d168d8f7463151fbe061fa25fabd5c509"
+content_hash: "1a0511f76b6b0c060f66e0aea028efada8411bcb3685d5fca03cf52d95b68a1f"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-FH3246"
 source_paths: []
-mirror_sha256: "d849a58cbc727cdff9164f3b7b5e759b50de663a0346e49c5a7587fc81850b9e"
-etag: "sha256-9380d44a2f2a9f9c1cd0f90ffdb7f4c7b7921eec881b57135a4236caca537ee8"
+mirror_sha256: "8eb33b5a6445ef13bb1a4750b59bfdc99e7278afa42e66132b3379498a2fd8be"
+etag: "sha256-4df2f43b77016e4ef93b0edd07ab40a9c2c0a7d27b53c78dcb0f3adf8a974d59"
 ---
 ## 개요
 
@@ -67,7 +67,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 
 ### 통합 쓰기의 잠금 순서
 
-통합 쓰기의 잠금 순서는 이 절이 정한다. 다른 문서는 이 절이나 아래 Rationale 을 링크한다. 순서는 워크스페이스, 멤버십, 통합이다. 워크스페이스 삭제와 소유자 이양이 워크스페이스, 멤버십 순으로 잠그므로([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#워크스페이스-삭제와-나가기)) 그 뒤에 통합을 붙였다.
+통합 쓰기의 잠금 순서는 이 절이 정한다. 다른 문서는 이 절이나 아래 Rationale 을 링크한다. 순서는 워크스페이스, 멤버십, 통합이다. 워크스페이스 삭제와 소유자 이양이 워크스페이스, 멤버십 순으로 잠그므로([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA-WS.md#워크스페이스-삭제와-나가기)) 그 뒤에 통합을 붙였다.
 
 - 통합 행을 INSERT 할 수 있는 쓰기는 공개 범위와 상관없이 트랜잭션에서 맨 먼저 워크스페이스 행을 `FOR KEY SHARE` 로 잡는다. 통합 생성과 Cafe24 Private·MakeShop `oauth/begin`(조직 · 개인 공개 범위 모두)이 해당한다. begin 은 다시 쓸 후보 행을 잠근 뒤 그 행을 고치거나 새 행을 INSERT 한다. 통합 INSERT 의 외래 키 확인도 워크스페이스 행에 `FOR KEY SHARE` 를 잡는다. 이 잠금이 멤버십이나 통합 행의 잠금 뒤에 오면 워크스페이스 삭제·소유자 이양과 순서가 엇갈리고 교착(`40P01`)이 날 수 있다. 그래서 워크스페이스를 먼저 명시적으로 잠근다. 이 적용 범위는 2026-10-30 에 사용자가 정했다.
 - 워크스페이스가 그 사이 지워져 잠글 행이 없으면 통합 생성과 begin 은 공개 범위와 관계없이 403 `NOT_A_MEMBER` 로 끝낸다. 통합을 만드는 경로는 트랜잭션 안의 재확인에도 라우트 가드와 같은 거부 코드를 쓴다. 가드는 없는 워크스페이스와 비멤버를 구분하지 않고 `NOT_A_MEMBER` 로 답한다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워지므로 그 뒤에 가드를 다시 거쳐도 같은 코드가 나온다. 같은 경쟁에서 다른 응답을 내는 경로가 둘 있다. 워크스페이스 관리 경로는 대상 워크스페이스 자체를 다루는 요청이라 404 `WORKSPACE_NOT_FOUND` 를 낸다([워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때)). 조직에서 개인으로 바꾸는 전환은 이미 있는 통합을 바꾸는 요청이다. 워크스페이스와 함께 그 통합도 지워졌으므로 없는 통합과 같은 404 `RESOURCE_NOT_FOUND` 로 끝낸다.
@@ -90,7 +90,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 - `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (나가기 · 제거 때의 개인 통합 삭제)
 - `codebase/backend/migrations/V153__purge_departed_member_personal_integrations.sql` (배포 때 나간 멤버의 개인 통합을 한 번 지운다)
 - 가드: `codebase/backend/src/repo-guards/__tests__/integration-visibility-bypass-guard.ts`(가시성 판정을 거치지 않는 통합 읽기) · `codebase/backend/src/repo-guards/__tests__/integration-owner-write.spec.ts`(통합 쓰기 경로가 `lockForIntegrationWrite` 를 건너뛰지 않는지 보는 AST 가드)
-- e2e: `codebase/backend/test/member-leave-personal-integrations.e2e-spec.ts`, `codebase/backend/test/member-departure-integration-write-concurrency.e2e-spec.ts`, `codebase/backend/test/member-remove-concurrency.e2e-spec.ts`, `codebase/backend/test/member-departure-migrations.e2e-spec.ts`
+- e2e: `codebase/backend/test/integration-role-floor.e2e-spec.ts`(역할 하한과 거부 코드), `codebase/backend/test/member-leave-personal-integrations.e2e-spec.ts`, `codebase/backend/test/member-departure-integration-write-concurrency.e2e-spec.ts`, `codebase/backend/test/member-remove-concurrency.e2e-spec.ts`, `codebase/backend/test/member-departure-migrations.e2e-spec.ts`
 
 ## Rationale
 
@@ -167,7 +167,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 결정(2026-09-25 사용자 결정, 선택지 셋을 제시했다):
 
 1. **쓰기와 읽기를 함께 닫고 노드 실행 시점 검사는 후속으로 둔다.** 실행 시점에는 «통합 소유자» 를 누구로 볼지(스케줄 실행에는 요청자가 없다)부터 정해야 하고 기존 워크플로우가 동료의 개인 통합을 쓰고 있으면 실행이 깨지므로 영향 조사가 필요하다.
-2. **남의 개인 통합은 404 다.** 없는 통합과 같은 `RESOURCE_NOT_FOUND` 다. 목록에서 빠진 것과 일관되고 이 도메인이 워크스페이스 밖이나 없는 ID 에 이미 쓰는 응답이라 새 에러 코드가 필요 없다. «권한 없음과 부재를 같은 응답으로 묶는다» 는 원칙은 경로 파라미터 워크스페이스 가드와 같다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). 다만 그쪽 응답은 `403 NOT_A_MEMBER` 다. 원칙은 같고 상태 코드는 도메인마다 다르다.
+2. **남의 개인 통합은 404 다.** 없는 통합과 같은 `RESOURCE_NOT_FOUND` 다. 목록에서 빠진 것과 일관되고 이 도메인이 워크스페이스 밖이나 없는 ID 에 이미 쓰는 응답이라 새 에러 코드가 필요 없다. «권한 없음과 부재를 같은 응답으로 묶는다» 는 원칙은 경로 파라미터 워크스페이스 가드와 같다([워크스페이스와 멤버 — API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터로-받는-워크스페이스)). 다만 그쪽 응답은 `403 NOT_A_MEMBER` 다. 원칙은 같고 상태 코드는 도메인마다 다르다.
 3. **조직 통합의 별칭 수정·삭제는 관리자 이상이다.** 권한 표, 역할 매트릭스, 사용자 가이드(위험 영역 «Admin»)가 모두 그렇게 적는데 코드만 편집자였다. 표를 코드에 맞추지 않고 코드를 표에 맞췄다.
 
 거부 코드는 `ADMIN_REQUIRED` 로 올렸다. 라우트 가드가 역할 거부에 전용 코드를 싣고 서비스 계층의 두 번째 선(`WorkspacesService.assertAdmin`)도 같은 코드를 쓴다. 이 모듈의 기존 관리자 판정 네 곳(생성, 교체, 추가 권한 요청, 공개 범위 전환)만 `FORBIDDEN` 이었고 클라이언트는 그 코드로 분기하지 않았다(프런트엔드 `FORBIDDEN` 참조 0곳, 2026-09-25 실측). 같은 변경이 그 자리를 모두 손보므로 함께 올렸다.
