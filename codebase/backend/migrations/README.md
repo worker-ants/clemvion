@@ -55,7 +55,7 @@ docker run --rm clemvion/migrate info -url=... -user=... -password=...
 > - 신규 enum 값을 CHECK 에 추가하는 케이스처럼 기존 row 위배가 0건임이 schema 적으로 보장
 > - 락 영향 평가 + DBA review 완료
 >
-> 위 조건이 깨지거나 의심스러우면 NOT VALID 2-step 으로 분리. Rationale 은 마이그레이션 헤더 + 관련 spec 의 Rationale 절에 함께 기록 (예: V058 → NERV `CLE-ACCT-DATA` 「로그인 이력 CHECK 변경을 한 문장 마이그레이션으로 했다」).
+> 위 조건이 깨지거나 의심스러우면 NOT VALID 2-step 으로 분리. Rationale 은 마이그레이션 헤더 + 관련 spec 의 Rationale 절에 함께 기록 (예: V058 → NERV `CLE-ACCT-DATA-MODEL` 「로그인 이력 CHECK 변경을 한 문장 마이그레이션으로 했다」).
 
 ```sql
 -- 1) NOT VALID 로 추가 — 신규 row 만 검증, 기존 row 는 미검증 (락 짧음)
