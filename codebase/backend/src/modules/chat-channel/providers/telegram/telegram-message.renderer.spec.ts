@@ -157,7 +157,6 @@ describe('renderTelegramMessages', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.completed',
-      result: {},
     };
     const messages = renderTelegramMessages(event, {
       ...BASE_CONFIG,
@@ -174,7 +173,6 @@ describe('renderTelegramMessages', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.completed',
-      result: {},
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
     expect(m[0].body.kind).toBe('text');
@@ -1288,7 +1286,7 @@ describe('languageHints 빈 문자열 덮어쓰기 → 기본 문구', () => {
 
   it('executionCompleted 가 빈 문자열이면 완료 기본 문구를 보낸다', () => {
     const m = renderTelegramMessages(
-      { ...BASE_EVENT_FIELDS, type: 'execution.completed', result: {} },
+      { ...BASE_EVENT_FIELDS, type: 'execution.completed' },
       { ...BASE_CONFIG, languageHints: { executionCompleted: '' } },
     );
     expect(textOf(m)).toBe('워크플로우가 완료되었습니다\\.');

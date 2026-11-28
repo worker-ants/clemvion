@@ -403,7 +403,9 @@ export interface EiaCompletedEvent extends EiaEventBase {
   // `finalNodeId`/`finalPort` 는 **설계된 적이 없는 필드**라 제거했다 — 미구현이 아니라
   // 엔진에 개념 자체가 없고(emit 0건) 소비처도 없었다. EIA §6 "삭제된 약속" 이 되살리지
   // 않기로 명시한다. 타입에만 남아 있으면 다음 사람이 "구현하면 되는 것" 으로 읽는다.
-  result: { outputs?: unknown };
+  // `result` 도 같은 이유로 지웠다. 실행 출력(`result.outputs`) 약속을 거둬서 이 이벤트에
+  // 실을 `result` 가 없다(NERV Task CLE-T-34CP7Q,
+  // [채팅 채널 어댑터 타입 「EiaEvent」](CLE-CHAT-ADAPTER-TYPES#eiaevent)).
   // EIA §6 — producer 는 **항상** 이 키를 싣고, 값을 모르면 `null` 이다.
   // **그런데 `?` 는 유지한다** — 이 타입은 producer 가 아니라 **consumer 계약**이고,
   // 배포 경계에서 재생되는 레거시 이벤트에는 키가 없다. 필수로 만들면 타입이 현실보다
